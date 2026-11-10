@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+.dev.vars*
+.env*
+config.json
+state.json
+*_L.md
+*.log

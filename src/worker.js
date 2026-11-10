@@ -1,0 +1,106 @@
+import { DurableObject } from "cloudflare:workers";
+import { login, logout, authorized } from "./auth.js";
+import { github, transport } from "./github.js";
+import { synchronize, InputError } from "./sync.js";
+
+export default {
+  async fetch(request, env) {
+    const stub = env.DASHBOARD.getByName("owner");
+    const response = await stub.fetch(request);
+    const secured = new Response(response.body, response);
+    for (const [name, value] of Object.entries({
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy":
+        "default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    }))
+      secured.headers.set(name, value);
+    return secured;
+  },
+};
+const actions = new Set(["state", "refresh", "edit", "retry", "discard"]);
+export class Dashboard extends DurableObject {
+  // 読み取りを含む操作全体を同一インスタンスで直列化する。
+  tail = Promise.resolve();
+  async alarm() {
+    await this.ctx.storage.transaction(async (tx) => {
+      const session = await tx.get("session");
+      if (session && session.expires <= Date.now()) await tx.delete("session");
+    });
+  }
+  fetch(request) {
+    const current = this.tail
+      .then(() => this.handle(request))
+      .catch(() =>
+        Response.json(
+          { error: "処理失敗。再取得してください" },
+          { status: 503 },
+        ),
+      );
+    this.tail = current.then(() => {});
+    return current;
+  }
+  async handle(request) {
+    const { pathname, origin } = new URL(request.url);
+    const storage = this.ctx.storage;
+    if (
+      request.method === "GET" &&
+      ["/auth/login", "/auth/callback"].includes(pathname)
+    )
+      return login(request, this.env, storage);
+    const session = await authorized(request, storage);
+    if (!session) {
+      if (pathname === "/" && request.method === "GET")
+        return new Response(
+          '<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>個人ダッシュボード</title><main><h1>個人ダッシュボード</h1><a href="/auth/login">GitHubでログイン</a></main></html>',
+          { headers: { "Content-Type": "text/html; charset=utf-8" } },
+        );
+      return Response.json(
+        { error: "本人のログインが必要です" },
+        { status: 401 },
+      );
+    }
+    if (request.method === "POST" && request.headers.get("Origin") !== origin)
+      return Response.json({ error: "送信元が異なります" }, { status: 403 });
+    if (request.method === "POST" && pathname === "/auth/logout")
+      return logout(storage);
+    if (
+      request.method === "GET" &&
+      ["/", "/ui.js", "/style.css"].includes(pathname)
+    )
+      return this.env.ASSETS.fetch(request);
+    const action = pathname.slice("/api/".length);
+    if (!pathname.startsWith("/api/") || !actions.has(action))
+      return new Response(null, { status: 404 });
+    if (request.method !== (action === "state" ? "GET" : "POST"))
+      return new Response(null, { status: 405 });
+    let input = {};
+    if (request.method === "POST") {
+      if (request.headers.get("Content-Type") !== "application/json")
+        return new Response(null, { status: 415 });
+      try {
+        input = await request.json();
+      } catch {
+        return new Response(null, { status: 400 });
+      }
+      if (!input || typeof input !== "object" || Array.isArray(input))
+        return new Response(null, { status: 400 });
+    }
+    const config = JSON.parse(this.env.PROJECT_CONFIG);
+    try {
+      const result = await synchronize(
+        action,
+        input,
+        config,
+        github(config, transport(session.token)),
+        storage,
+      );
+      return Response.json(result);
+    } catch (e) {
+      if (e instanceof InputError)
+        return Response.json({ error: e.message }, { status: 409 });
+      throw e;
+    }
+  }
+}

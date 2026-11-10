@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>個人ダッシュボード</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/ui.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <b>個人ダッシュボード</b>
+        <form action="/auth/logout" method="post">
+          <button>ログアウト</button>
+        </form>
+      </header>
+      <h1>GitHub Projects</h1>
+      <p>ダッシュボード試作 ／ 試験用データ</p>
+      <section>
+        <h2>同期状況</h2>
+        <strong id="phase">読み込み中</strong>
+        <p role="alert" id="error"></p>
+        <p id="times"></p>
+        <p id="age"></p>
+        <button id="refresh">GitHubから取得</button>
+        <a id="source" rel="noreferrer">Projectを開く ↗</a>
+      </section>
+      <section>
+        <h2>取得対象の全件</h2>
+        <p id="count"></p>
+        <h3 id="title">未取得</h3>
+        <label
+          >状態
+          <select id="status"></select></label
+        ><button id="saveStatus">状態を反映</button>
+        <label>期限 <input id="due" type="date" /></label
+        ><button id="saveDue">期限を反映</button>
+        <p>期限を空にして反映すると解除できます。</p>
+      </section>
+      <section id="changes" hidden>
+        <h2>未同期の操作</h2>
+        <p id="change"></p>
+        <button id="retry">照合して再試行</button>
+        <button id="discard">変更を破棄</button>
+      </section>
+    </main>
+  </body>
+</html>
