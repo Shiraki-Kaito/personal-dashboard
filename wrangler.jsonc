@@ -5,6 +5,7 @@
   "workers_dev": true,
   "preview_urls": false,
   "observability": { "enabled": false },
+  "triggers": { "crons": ["0 * * * *"] },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",

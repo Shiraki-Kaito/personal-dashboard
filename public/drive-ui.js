@@ -1,102 +1,249 @@
 const el = (id) => document.getElementById(id);
-const pollMs = 5 * 60 * 1000,
-  staleMs = 10 * 60 * 1000;
+const statePollMs = 60000,
+  progressPollMs = 2500,
+  staleMs = 90 * 60 * 1000;
 let busy = false,
-  state = null;
-let continuationTimer = null;
+  state = null,
+  timer = null,
+  tab = "all",
+  fileSignature = "";
 const time = (value) =>
   value ? new Date(value).toLocaleString("ja-JP") : "なし";
+function shortTime(value) {
+  const date = new Date(value),
+    today = new Date();
+  if (!Number.isFinite(+date)) return "—";
+  return (
+    (date.toDateString() === today.toDateString()
+      ? "今日"
+      : date.toLocaleDateString("ja-JP", {
+          month: "numeric",
+          day: "numeric",
+        })) +
+    " " +
+    date.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })
+  );
+}
+function fileKind(mime) {
+  if (/spreadsheet|excel|csv/.test(mime))
+    return { type: "sheet", short: "XLS", name: "スプレッドシート" };
+  if (/presentation|powerpoint/.test(mime))
+    return { type: "slide", short: "PPT", name: "プレゼンテーション" };
+  if (/image/.test(mime)) return { type: "image", short: "IMG", name: "画像" };
+  if (/pdf/.test(mime)) return { type: "pdf", short: "PDF", name: "PDF" };
+  if (/document|text/.test(mime))
+    return { type: "doc", short: "DOC", name: "ドキュメント" };
+  if (/shortcut/.test(mime))
+    return { type: "link", short: "LINK", name: "ショートカット" };
+  return { type: "file", short: "FILE", name: "ファイル" };
+}
+function openFile(file) {
+  const kind = fileKind(file.mimeType);
+  el("fileDialogType").textContent = kind.name;
+  el("fileDialogName").textContent = file.name;
+  el("fileDialogFolder").textContent = file.folder;
+  el("fileDialogModified").textContent = time(file.modifiedTime);
+  el("fileDialogCreated").textContent = time(file.createdTime);
+  el("fileDialogChanges").textContent =
+    file.events?.join("・") ||
+    (state.changesKnown ? "今回の変更なし" : "最初の全件照合を待っています");
+  el("fileDialogLink").href =
+    "https://drive.google.com/open?id=" + encodeURIComponent(file.id);
+  el("fileDialog").showModal();
+}
+function renderFiles(force = false) {
+  if (!state) return;
+  const query = el("driveSearch").value.trim().toLocaleLowerCase();
+  const changes = new Map(state.changes.map((file) => [file.id, file]));
+  const source = tab === "changes" ? state.changes : state.files;
+  const files = source.filter((file) =>
+    (file.name + " " + file.folder).toLocaleLowerCase().includes(query),
+  );
+  const signature = [
+    state.lastSuccess,
+    tab,
+    query,
+    files.length,
+    state.configured,
+    state.connected,
+  ].join("|");
+  if (!force && signature === fileSignature) return;
+  fileSignature = signature;
+  const rows = files.map((file) => {
+    const row = document.createElement("button"),
+      icon = document.createElement("span"),
+      main = document.createElement("span"),
+      name = document.createElement("span"),
+      folder = document.createElement("span"),
+      meta = document.createElement("span"),
+      date = document.createElement("span");
+    const kind = fileKind(file.mimeType),
+      change = changes.get(file.id),
+      events = change?.events || file.events;
+    row.className = "file-row";
+    row.type = "button";
+    row.onclick = () => openFile({ ...file, events });
+    icon.className = "file-icon";
+    icon.dataset.kind = kind.type;
+    icon.textContent = kind.short;
+    icon.setAttribute("aria-hidden", "true");
+    main.className = "file-main";
+    name.className = "file-name";
+    name.textContent = file.name;
+    name.title = file.name;
+    folder.className = "file-folder";
+    folder.textContent = file.folder;
+    folder.title = file.folder;
+    meta.className = "file-meta";
+    date.textContent = shortTime(file.modifiedTime);
+    date.title = time(file.modifiedTime);
+    meta.append(date);
+    if (events?.length) {
+      const badge = document.createElement("span");
+      badge.className = "change-badge";
+      badge.textContent = events[0];
+      badge.dataset.removed = String(events.includes("対象範囲外"));
+      meta.append(document.createElement("br"), badge);
+    }
+    main.append(name, folder);
+    row.append(icon, main, meta);
+    return row;
+  });
+  el("driveFiles").replaceChildren(...rows);
+  if (!rows.length) {
+    const empty = document.createElement("div"),
+      symbol = document.createElement("span"),
+      title = document.createElement("p"),
+      hint = document.createElement("small");
+    empty.className = "empty-state";
+    symbol.className = "empty-symbol";
+    symbol.textContent = query ? "⌕" : "▧";
+    symbol.setAttribute("aria-hidden", "true");
+    title.textContent = query
+      ? "一致するファイルがありません"
+      : !state.connected
+        ? "Google Driveを接続してください"
+        : state.scanning
+          ? "ファイルを取得しています"
+          : tab === "changes"
+            ? state.changesKnown
+              ? "前回からの変更はありません"
+              : "最初の全件照合を待っています"
+            : state.lastSuccess
+              ? "ファイルはまだありません"
+              : "一覧の取得を待っています";
+    hint.textContent = query
+      ? "ファイル名・保存場所で検索できます"
+      : !state.connected
+        ? "「接続と設定」から本人認可を行えます"
+        : state.scanning
+          ? "完了すると全件を表示します"
+          : tab === "changes"
+            ? "更新順タブで全ファイルを確認できます"
+            : "";
+    empty.append(symbol, title, hint);
+    el("driveFiles").append(empty);
+  }
+  document.dispatchEvent(
+    new CustomEvent("dashboard:rows", { detail: { nodes: rows } }),
+  );
+}
 function render() {
   if (!state) return;
+  state.changes ??= [];
+  const automaticError =
+    state.automatic?.error &&
+    Date.parse(state.automatic.lastTriggeredAt) >
+      (Date.parse(state.lastSuccess) || 0)
+      ? state.automatic.error
+      : null;
+  const failure = state.error || automaticError;
   const stale =
     state.lastSuccess &&
-    (state.error || Date.now() - Date.parse(state.lastSuccess) > staleMs);
-  el("driveStatus").textContent = !state.configured
-    ? state.configurationError || "Google OAuthの設定待ちです"
+    (failure || Date.now() - Date.parse(state.lastSuccess) > staleMs);
+  let status = !state.configured
+    ? state.configurationError || "OAuth設定待ち"
     : !state.connected
-      ? "Google Driveは未接続です。本人のGoogle認可が必要です"
+      ? "Googleへの再接続が必要です"
       : state.scanning
-        ? "取得中 ／ フォルダ " +
+        ? "取得中 " +
           state.progress.foldersDone +
-          " / " +
+          "/" +
           state.progress.foldersFound +
-          "・ファイル " +
-          state.progress.filesFound +
-          " 件確認"
-        : state.error
-          ? "取得失敗 ／ " + state.error
+          "フォルダ"
+        : failure
+          ? "取得失敗"
           : !state.lastSuccess
-            ? "Driveは接続済み・取得前"
+            ? "初回取得前"
             : stale
-              ? "古い一覧を表示しています"
-              : "取得成功";
+              ? "保存済みの一覧"
+              : "取得 " + shortTime(state.lastSuccess);
+  el("driveStatus").textContent = status;
+  el("driveStatus").dataset.state =
+    failure || !state.connected ? "error" : state.scanning ? "busy" : "";
   el("driveTimes").textContent =
     "最終試行 " +
     time(state.lastAttempt) +
     " ／ 最終成功 " +
     time(state.lastSuccess);
-  el("driveScope").textContent = state.folderId
-    ? (state.folderName || "設定したフォルダ") +
-      " ／ " +
-      (state.includeSubfolders ? "すべての通常サブフォルダを含む" : "直下のみ")
-    : "対象フォルダは未設定です";
-  el("driveNotice").textContent =
-    (stale ? "保存済みの一覧です。最新の状態を確認してください。 " : "") +
-    (state.initialHistoryIncomplete
-      ? "接続前のフォルダ追加履歴は未確認です。 "
-      : "") +
-    "「追加を検知」は前回の一覧との差分を見つけた時刻です。ショートカット先のフォルダはたどりません。";
-  el("driveConnect").hidden = !state.configured;
+  el("driveSchedule").textContent =
+    "次の自動取得 " +
+    time(state.nextScheduledAt) +
+    " ／ 前回のCron起動 " +
+    time(state.automatic?.lastTriggeredAt);
+  el("driveScope").textContent =
+    (state.folderName || "対象未設定") +
+    (state.includeSubfolders ? " · サブフォルダを含む" : "");
+  const notice =
+    failure ||
+    (!state.configured
+      ? state.configurationError || "Google OAuthの設定が必要です"
+      : "");
+  el("driveNotice").hidden = !notice;
+  el("driveNotice").textContent = notice;
   el("driveRefresh").disabled =
-    busy || !state.configured || !state.connected || state.retryAt > Date.now();
-  if (state.retryAt > Date.now())
-    el("driveTimes").textContent += " ／ 次回取得可能 " + time(state.retryAt);
+    busy ||
+    !state.configured ||
+    !state.connected ||
+    state.retryAt > Date.now() ||
+    state.scanning;
+  el("driveConnect").hidden = !state.configured;
   el("driveFolder").hidden = !state.folderId;
   if (state.folderId)
     el("driveFolder").href =
       "https://drive.google.com/drive/folders/" +
       encodeURIComponent(state.folderId);
-  const cutoff = Date.now() - 12 * 60 * 60 * 1000;
-  const files = state.files.filter((file) => file.eventTime >= cutoff);
   el("driveCount").textContent = state.lastSuccess
-    ? "過去12時間 " +
-      files.length +
-      " 件 ／ 確認したファイル " +
-      state.inventoryCount +
-      " 件・フォルダ " +
-      state.folderCount +
-      " 件"
+    ? state.inventoryCount + "ファイル"
     : "";
-  el("driveFiles").replaceChildren(
-    ...files.map((file) => {
-      const row = document.createElement("article"),
-        link = document.createElement("a"),
-        detail = document.createElement("p");
-      link.textContent = file.name;
-      link.href =
-        "https://drive.google.com/open?id=" + encodeURIComponent(file.id);
-      link.target = "_blank";
-      link.rel = "noreferrer";
-      detail.textContent =
-        file.events.join("・") +
-        " ／ " +
-        time(file.eventTime) +
-        " ／ " +
-        file.folder;
-      row.append(link, detail);
-      return row;
-    }),
+  el("metricFiles").textContent = state.inventoryCount ?? "—";
+  el("navDriveCount").textContent = state.inventoryCount ?? "—";
+  el("metricFolders").textContent =
+    state.folderCount !== null ? state.folderCount + "フォルダ" : "初回取得前";
+  el("metricChanges").textContent = state.changesKnown
+    ? state.changes.length
+    : "—";
+  el("metricChangesNote").textContent = state.changesKnown
+    ? "前回取得と照合済み"
+    : "次の取得で照合";
+  el("changeTabCount").textContent = state.changesKnown
+    ? state.changes.length
+    : "—";
+  el("driveDot").dataset.state =
+    !state.connected || failure ? "error" : state.lastSuccess ? "ok" : "";
+  el("driveConnection").textContent = !state.connected
+    ? "Drive 未接続"
+    : failure
+      ? "Drive 取得失敗"
+      : "Drive 接続済み";
+  renderFiles();
+  document.dispatchEvent(
+    new CustomEvent("dashboard:busy", { detail: { service: "drive", busy } }),
   );
-  if (state.lastSuccess && !files.length) {
-    const empty = document.createElement("p");
-    empty.textContent =
-      "取得した範囲では、過去12時間の作成・更新・追加検知はありません。";
-    el("driveFiles").append(empty);
-  }
 }
 async function load(refresh = false) {
   if (busy) return;
-  clearTimeout(continuationTimer);
+  clearTimeout(timer);
   busy = true;
   render();
   try {
@@ -106,7 +253,7 @@ async function load(refresh = false) {
         ? {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refresh: true }),
+            body: JSON.stringify({ refresh: true, manual: true }),
           }
         : {},
     );
@@ -114,26 +261,40 @@ async function load(refresh = false) {
       location.replace("/");
       return;
     }
-    if (!response.ok) throw Error("Driveの取得に失敗しました");
+    if (!response.ok) throw Error("Driveの状態を取得できません");
     state = await response.json();
-  } catch {
-    if (state) state.error = "アプリとの通信に失敗しました";
-    else
-      el("driveStatus").textContent =
-        "接続状態を取得できません。ページを再読み込みしてください";
+  } catch (error) {
+    if (state) state.error = error.message;
+    else el("driveStatus").textContent = error.message;
   } finally {
     busy = false;
     render();
-    if (state?.connected && !document.hidden) {
-      const delay = state.scanning
-        ? 2500
-        : Math.max(pollMs, (state.retryAt || 0) - Date.now());
-      continuationTimer = setTimeout(() => {
-        if (!document.hidden) load(true);
-      }, delay);
-    }
+    if (!document.hidden)
+      timer = setTimeout(
+        () => {
+          if (!document.hidden) load();
+        },
+        state?.scanning ? progressPollMs : statePollMs,
+      );
   }
 }
+for (const [id, value] of [
+  ["driveAllTab", "all"],
+  ["driveChangesTab", "changes"],
+]) {
+  el(id).onclick = () => {
+    tab = value;
+    for (const [button, mode] of [
+      ["driveAllTab", "all"],
+      ["driveChangesTab", "changes"],
+    ]) {
+      el(button).classList.toggle("selected", mode === tab);
+      el(button).setAttribute("aria-pressed", String(mode === tab));
+    }
+    renderFiles(true);
+  };
+}
+el("driveSearch").oninput = () => renderFiles(true);
 el("driveRefresh").onclick = () => load(true);
 el("driveConnect").onsubmit = async (event) => {
   event.preventDefault();
@@ -153,19 +314,19 @@ el("driveConnect").onsubmit = async (event) => {
       throw Error(
         "Google接続を開始できません。設定とログイン状態を確認してください",
       );
-    const result = await response.json();
-    const target = new URL(result.authorizationUrl);
+    const target = new URL((await response.json()).authorizationUrl);
     if (target.origin !== "https://accounts.google.com")
       throw Error("認可先が不正です");
     location.assign(target.toString());
   } catch (error) {
-    el("driveStatus").textContent = error.message;
+    el("driveNotice").hidden = false;
+    el("driveNotice").textContent = error.message;
     button.disabled = false;
   }
 };
-await load();
-if (state?.connected) await load(true);
+document.addEventListener("dashboard:refresh", () => load(true));
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && state?.connected) load(true);
+  if (!document.hidden) load();
 });
+await load();
 setInterval(render, 5000);

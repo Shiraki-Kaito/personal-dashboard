@@ -5,8 +5,12 @@ import { synchronize, InputError } from "./sync.js";
 import { projectsFrom, catalog, selectTask, taskStorage } from "./catalog.js";
 import { googleConnect } from "./drive-auth.js";
 import { driveView, refreshDrive } from "./drive.js";
+import { scheduleAlarm, runHourlyDrive } from "./scheduler.js";
 
 export default {
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(env.DASHBOARD.getByName("owner").runScheduled());
+  },
   async fetch(request, env) {
     const stub = env.DASHBOARD.getByName("owner");
     const response = await stub.fetch(request);
@@ -34,25 +38,48 @@ const actions = new Set([
 export class Dashboard extends DurableObject {
   // 読み取りを含む操作全体を同一インスタンスで直列化する。
   tail = Promise.resolve();
-  async alarm() {
-    await this.ctx.storage.transaction(async (tx) => {
-      const session = await tx.get("session");
-      if (session && session.expires <= Date.now()) await tx.delete("session");
-      const flow = await tx.get("drive:flow");
-      if (flow && flow.expires <= Date.now()) await tx.delete("drive:flow");
+  serialize(action) {
+    const current = this.tail.then(action);
+    this.tail = current.catch(() => {});
+    return current;
+  }
+  runScheduled() {
+    return this.serialize(async () => {
+      try {
+        await runHourlyDrive(this.env, this.ctx.storage);
+      } finally {
+        await scheduleAlarm(this.ctx.storage);
+      }
+    });
+  }
+  alarm() {
+    return this.serialize(async () => {
+      await this.ctx.storage.transaction(async (tx) => {
+        const session = await tx.get("session");
+        if (session && session.expires <= Date.now())
+          await tx.delete("session");
+        const flow = await tx.get("drive:flow");
+        if (flow && flow.expires <= Date.now()) await tx.delete("drive:flow");
+      });
+      try {
+        const job = await this.ctx.storage.get("drive:job");
+        if (job && job.nextBatchAt <= Date.now())
+          await refreshDrive(this.env, this.ctx.storage);
+      } finally {
+        await scheduleAlarm(this.ctx.storage);
+      }
     });
   }
   fetch(request) {
-    const current = this.tail
-      .then(() => this.handle(request))
-      .catch(() =>
-        Response.json(
-          { error: "処理失敗。再取得してください" },
-          { status: 503 },
-        ),
-      );
-    this.tail = current.then(() => {});
-    return current;
+    return this.serialize(async () => {
+      try {
+        return await this.handle(request);
+      } finally {
+        await scheduleAlarm(this.ctx.storage);
+      }
+    }).catch(() =>
+      Response.json({ error: "処理失敗。再取得してください" }, { status: 503 }),
+    );
   }
   async handle(request) {
     const { pathname, origin, searchParams } = new URL(request.url);
@@ -85,7 +112,16 @@ export class Dashboard extends DurableObject {
       return googleConnect(request, this.env, storage, session);
     if (
       request.method === "GET" &&
-      ["/", "/ui.js", "/style.css", "/drive-ui.js"].includes(pathname)
+      [
+        "/",
+        "/ui.js",
+        "/style.css",
+        "/drive-ui.js",
+        "/motion-ui.js",
+        "/fonts/dm-sans-latin.woff2",
+        "/fonts/OFL.txt",
+        "/third-party-licenses.txt",
+      ].includes(pathname)
     )
       return this.env.ASSETS.fetch(request);
     const action = pathname.slice("/api/".length);
@@ -112,7 +148,9 @@ export class Dashboard extends DurableObject {
     try {
       if (action === "drive")
         return Response.json(
-          request.method === "POST" && input.refresh === true
+          request.method === "POST" &&
+            input.refresh === true &&
+            input.manual === true
             ? await refreshDrive(this.env, storage)
             : await driveView(this.env, storage),
         );

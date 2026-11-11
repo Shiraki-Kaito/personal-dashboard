@@ -6,3 +6,6 @@ config.json
 state.json
 *_L.md
 *.log
+public/motion-ui.js
+public/fonts/
+public/third-party-licenses.txt

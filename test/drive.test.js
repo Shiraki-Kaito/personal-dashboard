@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   scanDrive,
-  recentFiles,
-  recentWindowMs,
+  driveChanges,
+  orderedDriveFiles,
   refreshDrive,
   driveView,
 } from "../src/drive.js";
@@ -108,30 +108,33 @@ function memory() {
   };
   return store;
 }
-test("12時間の境界、未来の日時、作成・更新・追加検知を区別する", () => {
-  const values = [
-    {
-      ...file("boundary"),
-      modifiedTime: new Date(now - recentWindowMs).toISOString(),
-    },
-    {
-      ...file("old"),
-      modifiedTime: new Date(now - recentWindowMs - 1).toISOString(),
-    },
-    { ...file("added"), observedAddedAt: now - 1000 },
-    { ...file("future"), modifiedTime: new Date(now + 1).toISOString() },
+test("日時の窓で除外せず、更新順で全ファイルを表示して前回との差を区別する", () => {
+  const previous = [file("unchanged"), file("updated"), file("gone")];
+  const current = [
+    file("unchanged"),
+    file("updated", "2026-11-11T03:00:00Z"),
+    file("new", "2026-10-01T00:00:00Z"),
   ];
-  const result = recentFiles(values, now);
+  const changes = driveChanges(previous, current, now);
   assert.deepEqual(
-    result.map((f) => f.id),
-    ["added", "boundary"],
+    changes.map((f) => [f.id, f.events]),
+    [
+      ["updated", ["更新"]],
+      ["new", ["追加を検知"]],
+      ["gone", ["対象範囲外"]],
+    ],
   );
-  assert.deepEqual(result[0].events, ["追加を検知"]);
-  assert.equal(
-    recentFiles(values, now + recentWindowMs + 1).some((f) => f.id === "added"),
-    false,
+  assert.deepEqual(
+    orderedDriveFiles(current).map((f) => f.id),
+    ["updated", "new", "unchanged"],
   );
+  const renamed = { ...current[0], name: "Changed", folder: "Other" };
+  assert.deepEqual(driveChanges([current[0]], [renamed], now)[0].events, [
+    "名前変更",
+    "保存場所変更",
+  ]);
 });
+
 test("空ページも末尾まで取得し、古いサブフォルダを再帰、ショートカット先はたどらない", async () => {
   const calls = [];
   const read = async (path, params) => {
@@ -221,12 +224,13 @@ test("初回の古いファイルは追加扱いせず、次回の追加を検�
     return Response.json({ files: items });
   };
   const initial = await refreshDrive(env, storage, send, now);
-  assert.equal(initial.files.length, 0);
+  assert.equal(initial.files.length, 1);
+  assert.equal(initial.changes.length, 0);
   assert.equal(initial.inventoryCount, 1);
   items = [file("old"), file("new")];
   const next = await refreshDrive(env, storage, send, now + 300000);
-  assert.equal(next.files[0].id, "new");
-  assert.deepEqual(next.files[0].events, ["追加を検知"]);
+  assert.equal(next.changes[0].id, "new");
+  assert.deepEqual(next.changes[0].events, ["追加を検知"]);
   fail = true;
   const failed = await refreshDrive(env, storage, send, now + 600000);
   assert.match(failed.error, /権限/);

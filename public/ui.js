@@ -1,4 +1,17 @@
 const el = (id) => document.getElementById(id);
+const pollMs = 60000,
+  staleMs = 2 * pollMs;
+let state = null,
+  catalogState = null,
+  busy = false,
+  catalogBusy = false,
+  requestError = null,
+  catalogError = null,
+  dirty = false,
+  projectId = null,
+  itemId = null;
+const time = (value) =>
+  value ? new Date(value).toLocaleString("ja-JP") : "なし";
 el("logout").onsubmit = async (event) => {
   event.preventDefault();
   const button = el("logout").querySelector("button");
@@ -13,40 +26,102 @@ el("logout").onsubmit = async (event) => {
     button.disabled = false;
   }
 };
-const pollMs = 60000,
-  staleMs = 2 * pollMs;
-let state = null,
-  busy = false,
-  dirty = false;
-let projectId = null,
-  itemId = null,
-  catalogBusy = false;
 function controls() {
-  el("project").disabled = busy || catalogBusy;
-  el("refreshList").disabled = busy || catalogBusy;
+  const working = busy || catalogBusy;
+  el("project").disabled = working;
+  el("refreshList").disabled = working;
   for (const id of ["saveStatus", "saveDue", "due", "status"])
-    el(id).disabled = busy || catalogBusy || !state?.remote || !!state.pending;
+    el(id).disabled = working || !state?.remote || !!state.pending;
   for (const id of ["retry", "discard"])
-    el(id).disabled = busy || catalogBusy || !state?.pending;
-  el("refresh").disabled = busy || catalogBusy || !itemId;
+    el(id).disabled = working || !state?.pending;
+  el("refresh").disabled = working || !itemId;
+  document.dispatchEvent(
+    new CustomEvent("dashboard:busy", {
+      detail: { service: "github", busy: working },
+    }),
+  );
 }
 function age() {
   el("age").textContent =
     state?.lastSuccess &&
     (state.error || Date.now() - Date.parse(state.lastSuccess) > staleMs)
-      ? "保存済みの情報を表示しています。最新の状態を確認してください。"
+      ? "保存済みの情報"
       : "";
+}
+function connection() {
+  const failed = !!(
+    state?.error ||
+    catalogState?.error ||
+    requestError ||
+    catalogError
+  );
+  el("githubDot").dataset.state = failed ? "error" : catalogState ? "ok" : "";
+  el("githubConnection").textContent = failed
+    ? "GitHub 取得失敗"
+    : catalogState
+      ? "GitHub 接続済み"
+      : "GitHub 確認中";
+}
+function renderRows() {
+  if (!catalogState) return;
+  const query = el("taskSearch").value.trim().toLocaleLowerCase();
+  const items = catalogState.items.filter((item) =>
+    item.title.toLocaleLowerCase().includes(query),
+  );
+  const rows = items.map((item) => {
+    const row = document.createElement("button"),
+      check = document.createElement("span"),
+      body = document.createElement("span"),
+      title = document.createElement("span"),
+      meta = document.createElement("span");
+    row.className = "task-row" + (item.id === itemId ? " selected" : "");
+    row.disabled = !item.editable;
+    row.setAttribute("aria-pressed", String(item.id === itemId));
+    check.className = "task-check";
+    check.setAttribute("aria-hidden", "true");
+    title.className = "task-title";
+    title.textContent = item.title;
+    title.title = item.title;
+    meta.className = "task-meta";
+    meta.textContent = item.archived
+      ? "アーカイブ"
+      : item.id === itemId && state?.remote
+        ? (state.options.find((o) => o.id === state.remote.status)?.name ||
+            "状態未設定") + (state.remote.due ? " · " + state.remote.due : "")
+        : "GitHub Projects";
+    body.append(title, meta);
+    row.append(check, body);
+    if (item.pending) {
+      const tag = document.createElement("span");
+      tag.className = "task-tag pending";
+      tag.textContent = "未同期";
+      row.append(tag);
+    }
+    row.onclick = () => chooseTask(item.id);
+    return row;
+  });
+  el("tasks").replaceChildren(...rows);
+  if (!rows.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    const message = document.createElement("p");
+    message.textContent = query
+      ? "一致するタスクがありません"
+      : "タスクはまだありません";
+    const hint = document.createElement("small");
+    hint.textContent = query
+      ? "検索語を変えてみてください"
+      : "Projectを開いて追加できます";
+    empty.append(message, hint);
+    el("tasks").append(empty);
+  }
 }
 function render(s) {
   state = s;
   dirty = false;
   el("phase").textContent = s.phase;
   el("error").textContent =
-    (s.error || "") +
-    (s.retryAt
-      ? " ／ 再取得可能 " + new Date(s.retryAt).toLocaleString("ja-JP")
-      : "");
-  const time = (v) => (v ? new Date(v).toLocaleString("ja-JP") : "なし");
+    (s.error || "") + (s.retryAt ? " ／ 再取得可能 " + time(s.retryAt) : "");
   el("times").textContent =
     "最終試行 " +
     time(s.lastAttempt) +
@@ -54,9 +129,10 @@ function render(s) {
     time(s.lastSuccess);
   el("source").href = s.projectUrl;
   el("count").textContent = s.remote
-    ? "設定対象 1 件 ／ Project全体 " + s.remote.total + " 件"
-    : "設定対象 1 件・取得前";
-  el("title").textContent = s.remote?.title || "未取得";
+    ? "選択したタスク1件 ／ Project全体 " + s.remote.total + "件"
+    : "詳細は未取得です";
+  el("title").textContent = s.remote?.title || "取得できませんでした";
+  el("title").title = el("title").textContent;
   el("status").replaceChildren(
     new Option("未設定", ""),
     ...s.options.map((o) => new Option(o.name, o.id)),
@@ -79,11 +155,20 @@ function render(s) {
       " ／ GitHub " +
       display(s.remote?.[field]);
   }
+  const item = catalogState?.items.find((item) => item.id === itemId);
+  if (item) item.pending = !!s.pending;
+  if (catalogState)
+    el("metricPending").textContent =
+      "未同期 " +
+      catalogState.items.filter((item) => item.pending).length +
+      "件";
+  renderRows();
   age();
+  connection();
   controls();
 }
 async function call(action, body = {}) {
-  if (busy || catalogBusy) return;
+  if (busy || catalogBusy || !itemId) return;
   busy = true;
   controls();
   try {
@@ -107,17 +192,24 @@ async function call(action, body = {}) {
     }
     const result = await response.json();
     if (!response.ok) throw Error(result.error || "再取得してください");
+    requestError = null;
     render(result);
-  } catch (e) {
-    el("error").textContent = "通信・操作失敗（結果未確認） " + e.message;
+  } catch (error) {
+    requestError = error.message;
+    connection();
+    el("error").textContent = "通信・操作失敗（結果未確認） " + error.message;
     el("phase").textContent = "再取得が必要です";
   } finally {
     busy = false;
     controls();
   }
 }
-el("refresh").onclick = () => {
-  if (!dirty || confirm("入力を破棄して再取得しますか？")) call("refresh");
+el("refresh").onclick = async () => {
+  if (
+    !dirty ||
+    (await confirmDiscard("入力中の変更を破棄し、GitHubから再取得します。"))
+  )
+    call("refresh");
 };
 for (const [id, field] of [
   ["saveStatus", "status"],
@@ -125,28 +217,49 @@ for (const [id, field] of [
 ]) {
   el(field).oninput = () => {
     dirty = true;
+    el("phase").textContent = "入力中・未反映";
   };
   el(id).onclick = () =>
     call("edit", { field, value: el(field).value || null, base: state.remote });
 }
 el("retry").onclick = () => call("retry", { id: state.pending.id });
-el("discard").onclick = () => {
-  if (confirm("未同期の操作を破棄しますか？"))
+el("discard").onclick = async () => {
+  if (
+    await confirmDiscard(
+      "未同期のローカル変更を破棄し、GitHubの値を取得します。",
+    )
+  )
     call("discard", { id: state.pending.id });
 };
+async function confirmDiscard(message) {
+  const dialog = el("confirmDialog");
+  if (dialog.open) return false;
+  el("confirmMessage").textContent = message;
+  // Escapeや背景クリックが以前の「破棄」を再利用しないよう毎回初期化する。
+  dialog.returnValue = "cancel";
+  dialog.showModal();
+  return new Promise((resolve) => {
+    dialog.onclose = () => {
+      dialog.onclose = null;
+      resolve(dialog.returnValue === "confirm");
+    };
+  });
+}
 async function chooseTask(id) {
   if (
     busy ||
     catalogBusy ||
-    (dirty && !confirm("入力を破棄してタスクを切り替えますか？"))
+    (dirty && !(await confirmDiscard("入力を破棄して別のタスクを表示します。")))
   )
     return;
   itemId = id;
   state = null;
   dirty = false;
-  el("taskDetails").hidden = false;
   el("taskEditor").hidden = false;
+  el("taskDetails").hidden = false;
   el("changes").hidden = true;
+  el("title").textContent = "取得中";
+  renderRows();
   controls();
   await call("state");
   await call("refresh");
@@ -155,8 +268,6 @@ async function loadCatalog(refresh) {
   if (catalogBusy || busy) return;
   catalogBusy = true;
   controls();
-  el("project").disabled = true;
-  el("refreshList").disabled = true;
   try {
     const response = await fetch("/api/catalog", {
       method: "POST",
@@ -169,82 +280,93 @@ async function loadCatalog(refresh) {
     }
     const data = await response.json();
     if (!response.ok) throw Error(data.error || "一覧取得失敗");
+    catalogError = null;
+    catalogState = data;
     projectId = data.projectId;
-    el("projectLink").href = data.projects.find((p) => p.id === projectId).url;
+    const project = data.projects.find((p) => p.id === projectId);
+    el("projectLink").href = project.url;
+    el("source").href = project.url;
     el("project").replaceChildren(
       ...data.projects.map((p) => new Option(p.title, p.id)),
     );
     el("project").value = projectId;
     el("mode").textContent =
-      data.projects.find((p) => p.id === projectId).mode === "production"
-        ? "実運用データ"
-        : "試験用データ";
+      project.mode === "production" ? "実運用" : "試験用";
+    el("mode").dataset.test = String(project.mode !== "production");
     el("listStatus").textContent =
-      (data.error || "") +
-      " 最終取得成功 " +
-      (data.lastSuccess
-        ? new Date(data.lastSuccess).toLocaleString("ja-JP")
-        : "未取得");
+      data.error ||
+      "最終取得 " +
+        (data.lastSuccess
+          ? new Date(data.lastSuccess).toLocaleTimeString("ja-JP", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "未取得");
+    el("listStatus").dataset.state = data.error ? "error" : "";
     el("listCount").textContent =
       data.total === null
-        ? "一覧未取得"
-        : "取得 " +
-          data.items.length +
-          " 件 ／ GitHub " +
-          data.total +
-          " 件（アーカイブを含む）";
-    el("tasks").replaceChildren(
-      ...data.items.map((item) => {
-        const row = document.createElement("p"),
-          button = document.createElement("button");
-        button.textContent =
-          item.title +
-          (item.archived ? "（アーカイブ）" : "") +
-          (item.pending ? "（未同期）" : "");
-        button.disabled = !item.editable;
-        button.onclick = () => chooseTask(item.id);
-        row.append(button);
-        return row;
-      }),
-    );
-    if (data.total === 0)
-      el("listStatus").textContent +=
-        " ／ タスクはまだありません。Projectから追加できます。";
-    el("source").href = data.projects.find((p) => p.id === projectId).url;
+        ? "未取得"
+        : data.items.length + " / " + data.total + "件";
+    el("metricTasks").textContent = data.total ?? "—";
+    el("navTaskCount").textContent = data.total ?? "—";
+    el("metricPending").textContent =
+      "未同期 " + data.items.filter((item) => item.pending).length + "件";
+    renderRows();
+    connection();
   } catch (error) {
-    el("listStatus").textContent =
-      "一覧取得失敗・保存済みの情報は古い可能性があります。" + error.message;
+    catalogError = error.message;
+    connection();
+    el("listStatus").textContent = "一覧取得失敗 " + error.message;
+    el("listStatus").dataset.state = "error";
   } finally {
     catalogBusy = false;
     controls();
   }
+  if (!itemId) {
+    const first = catalogState?.items.find((item) => item.editable);
+    if (first) await chooseTask(first.id);
+  }
 }
-el("refreshList").onclick = () => loadCatalog(true);
+async function refreshCurrent() {
+  if (busy || catalogBusy) return;
+  if (
+    dirty &&
+    !(await confirmDiscard("入力中の変更を破棄して最新の一覧を取得します。"))
+  )
+    return;
+  dirty = false;
+  await loadCatalog(true);
+  if (itemId) await call("refresh");
+}
+el("refreshList").onclick = refreshCurrent;
+el("taskSearch").oninput = renderRows;
 el("project").onchange = async () => {
-  if (dirty && !confirm("入力を破棄してProjectを切り替えますか？")) {
+  if (
+    dirty &&
+    !(await confirmDiscard("入力を破棄してProjectを切り替えます。"))
+  ) {
     el("project").value = projectId;
     return;
   }
   projectId = el("project").value;
   itemId = null;
   state = null;
+  catalogState = null;
   dirty = false;
   el("tasks").replaceChildren();
-  el("listStatus").textContent = "取得中";
+  el("listStatus").textContent = "一覧取得中";
   el("listCount").textContent = "";
-  el("mode").textContent = "";
-  el("projectLink").removeAttribute("href");
-  el("taskDetails").hidden = true;
+  el("taskSearch").value = "";
   el("taskEditor").hidden = true;
   el("changes").hidden = true;
   controls();
   await loadCatalog(true);
 };
+document.addEventListener("dashboard:refresh", refreshCurrent);
 controls();
-await loadCatalog(false);
 await loadCatalog(true);
 setInterval(() => {
-  if (!dirty && !document.hidden) {
+  if (!dirty && !document.hidden && !busy && !catalogBusy) {
     if (itemId) call("refresh");
     else loadCatalog(true);
   }

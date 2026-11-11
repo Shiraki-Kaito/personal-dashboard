@@ -69,6 +69,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "drive",
       "drive-auth",
       "drive-http",
+      "scheduler",
     ].map((name) => ({
       type: "ESModule",
       path: "src/" + name + ".js",
@@ -144,6 +145,14 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     );
     assert.equal(drive.configured, false);
     assert.equal(drive.connected, false);
+    // 定期取得の内部RPCはログイン用の公開APIを増やさずに実行できる。
+    const namespace = await app.getDurableObjectNamespace("DASHBOARD");
+    await namespace.getByName("owner").runScheduled();
+    const scheduled = await (await request("/api/drive")).json();
+    assert.ok(scheduled.automatic.lastTriggeredAt);
+    assert.ok(scheduled.automatic.error);
+    assert.equal(scheduled.lastSuccess, null);
+    assert.equal((await request("/api/runScheduled", {})).status, 404);
     assert.equal(
       (await request("/api/drive", { refresh: true }, "https://other.test"))
         .status,

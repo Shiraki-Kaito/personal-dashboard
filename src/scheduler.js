@@ -1,0 +1,49 @@
+import { refreshDrive } from "./drive.js";
+
+// 既存のセッション期限とDriveの分割取得を同じAlarmで調停する。
+export async function nextAlarmAt(storage, now = Date.now()) {
+  const [session, flow, job] = await Promise.all([
+    storage.get("session"),
+    storage.get("drive:flow"),
+    storage.get("drive:job"),
+  ]);
+  const candidates = [session?.expires, flow?.expires, job?.nextBatchAt].filter(
+    Number.isFinite,
+  );
+  return candidates.length
+    ? Math.max(now + 100, Math.min(...candidates))
+    : null;
+}
+export async function scheduleAlarm(storage, now = Date.now()) {
+  const at = await nextAlarmAt(storage, now);
+  if (at === null) {
+    if ((await storage.getAlarm()) !== null) await storage.deleteAlarm();
+  } else await storage.setAlarm(at);
+}
+export async function runHourlyDrive(
+  env,
+  storage,
+  send = fetch,
+  now = Date.now(),
+) {
+  await storage.put("drive:scheduler", {
+    lastTriggeredAt: new Date(now).toISOString(),
+    error: null,
+  });
+  try {
+    const view = await refreshDrive(env, storage, send, now);
+    await storage.put("drive:scheduler", {
+      lastTriggeredAt: new Date(now).toISOString(),
+      error:
+        view.error ||
+        (!view.connected ? "Google Driveの再接続が必要です" : null),
+    });
+    return view;
+  } catch (error) {
+    await storage.put("drive:scheduler", {
+      lastTriggeredAt: new Date(now).toISOString(),
+      error: "自動取得処理に失敗しました",
+    });
+    throw error;
+  }
+}

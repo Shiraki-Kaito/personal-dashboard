@@ -3,86 +3,396 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>個人ダッシュボード</title>
+    <meta name="color-scheme" content="dark" />
+    <title>ワークスペース | Personal Dashboard</title>
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/ui.js"></script>
     <script type="module" src="/drive-ui.js"></script>
+    <script type="module" src="/motion-ui.js"></script>
   </head>
-  <body>
-    <main>
-      <header>
-        <b>個人ダッシュボード</b>
+  <body data-view="drive">
+    <a class="skip-link" href="#workspace">メインへ移動</a>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"
+          ><i></i><i></i><i></i><i></i></span
+        ><span>Personal<br /><strong>Dashboard</strong></span>
+      </div>
+      <nav aria-label="メイン">
+        <button
+          class="nav-button active"
+          data-panel="drive"
+          data-focus="driveSearch"
+        >
+          <span class="nav-symbol" aria-hidden="true">▦</span
+          ><span class="nav-label">Drive</span
+          ><span class="nav-count" id="navDriveCount">—</span>
+        </button>
+        <button class="nav-button" data-panel="tasks" data-focus="taskSearch">
+          <span class="nav-symbol" aria-hidden="true">☑</span
+          ><span class="nav-label">タスク</span
+          ><span class="nav-count" id="navTaskCount">—</span>
+        </button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="service-small">
+          <span class="status-dot" id="driveDot"></span
+          ><span id="driveConnection">Drive 確認中</span>
+        </div>
+        <div class="service-small">
+          <span class="status-dot" id="githubDot"></span
+          ><span id="githubConnection">GitHub 確認中</span>
+        </div>
+        <button
+          class="nav-button"
+          data-open="settingsDialog"
+          aria-label="接続と設定"
+        >
+          <span class="nav-symbol" aria-hidden="true">⚙</span
+          ><span class="nav-label">接続と設定</span>
+        </button>
         <form id="logout" action="/auth/logout" method="post">
-          <button>ログアウト</button>
+          <button class="logout-button">
+            ログアウト <span aria-hidden="true">↗</span>
+          </button>
         </form>
+        <div class="profile">
+          <span class="avatar" aria-hidden="true">K</span>
+          <div>
+            <strong>Shiraki-Kaito</strong><span>本人専用ワークスペース</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+    <main class="workspace" id="workspace">
+      <header class="topbar" data-enter>
+        <div>
+          <p class="eyebrow" id="dateLabel"></p>
+          <h1>ワークスペース<span class="title-dot">.</span></h1>
+        </div>
+        <div class="top-actions">
+          <span class="schedule-pill"
+            ><span class="live-dot"></span>Driveは毎時自動更新</span
+          ><button id="syncAll" class="button button-secondary">
+            <span class="refresh-glyph" aria-hidden="true">↻</span>今すぐ更新
+          </button>
+        </div>
       </header>
-      <h1>ホーム</h1>
-      <section aria-labelledby="driveHeading">
-        <h2 id="driveHeading">Drive ／ 過去12時間の更新</h2>
-        <p id="driveStatus" role="status">接続状態を確認中</p>
-        <p id="driveTimes"></p>
-        <p id="driveScope"></p>
-        <p id="driveNotice"></p>
-        <button id="driveRefresh" disabled>Driveから取得</button>
-        <a id="driveFolder" hidden target="_blank" rel="noreferrer"
-          >対象フォルダを開く ↗</a
+      <div class="metrics" aria-label="概要" data-enter>
+        <div class="metric">
+          <span class="metric-symbol blue" aria-hidden="true">▧</span>
+          <div>
+            <span class="metric-label">Driveファイル</span
+            ><strong id="metricFiles">—</strong>
+          </div>
+          <span id="metricFolders" class="metric-note">対象を確認中</span>
+        </div>
+        <div class="metric">
+          <span class="metric-symbol mint" aria-hidden="true">↗</span>
+          <div>
+            <span class="metric-label">前回からの変更</span
+            ><strong id="metricChanges">—</strong>
+          </div>
+          <span class="metric-note" id="metricChangesNote"
+            >全件取得後に照合</span
+          >
+        </div>
+        <div class="metric">
+          <span class="metric-symbol violet" aria-hidden="true">✓</span>
+          <div>
+            <span class="metric-label">GitHubタスク</span
+            ><strong id="metricTasks">—</strong>
+          </div>
+          <span id="metricPending" class="metric-note">Projectを確認中</span>
+        </div>
+      </div>
+      <div class="dashboard-grid">
+        <section
+          class="panel surface drive-panel"
+          id="drivePanel"
+          aria-labelledby="driveHeading"
+          data-enter
         >
-        <form
-          id="driveConnect"
-          action="/auth/google/start"
-          method="post"
-          hidden
+          <div class="panel-heading">
+            <div class="panel-title-wrap">
+              <span class="app-mark drive-mark" aria-hidden="true">D</span>
+              <div>
+                <h2 id="driveHeading">Drive</h2>
+                <p id="driveScope">対象フォルダを確認中</p>
+              </div>
+            </div>
+            <div class="panel-actions">
+              <a
+                id="driveFolder"
+                class="icon-button"
+                title="対象フォルダを開く"
+                aria-label="対象フォルダを開く"
+                target="_blank"
+                rel="noreferrer"
+                hidden
+                >↗</a
+              ><button
+                id="driveRefresh"
+                class="icon-button"
+                title="Driveを更新"
+                aria-label="Driveを更新"
+                disabled
+              >
+                ↻
+              </button>
+            </div>
+          </div>
+          <div class="panel-toolbar">
+            <div class="segmented" aria-label="ファイル表示">
+              <button id="driveAllTab" class="selected" aria-pressed="true">
+                更新順</button
+              ><button id="driveChangesTab" aria-pressed="false">
+                今回の変更 <span id="changeTabCount">—</span>
+              </button>
+            </div>
+            <label class="search"
+              ><span aria-hidden="true">⌕</span
+              ><input
+                id="driveSearch"
+                type="search"
+                placeholder="ファイルを検索"
+                aria-label="Driveのファイルを検索"
+                autocomplete="off"
+            /></label>
+          </div>
+          <div class="list-columns" aria-hidden="true">
+            <span>ファイル名・保存場所</span><span>更新日時</span>
+          </div>
+          <div
+            id="driveFiles"
+            class="file-list scroll-area"
+            tabindex="0"
+            aria-label="Driveファイル一覧"
+          >
+            <div class="empty-state">
+              <div class="loading-ring"></div>
+              <p>Driveを確認しています</p>
+            </div>
+          </div>
+          <footer class="panel-footer">
+            <span id="driveStatus" role="status">接続確認中</span
+            ><span id="driveCount"></span>
+          </footer>
+          <p class="inline-notice" id="driveNotice" hidden></p>
+        </section>
+        <section
+          class="panel surface task-panel"
+          id="tasksPanel"
+          aria-labelledby="tasksHeading"
+          data-enter
         >
-          <p>
-            Google
-            Drive全体のメタデータ閲覧を認可します。アプリは設定したフォルダの範囲を取得します。
-          </p>
-          <button>Google Driveへ接続・再接続</button>
-        </form>
-        <p id="driveCount"></p>
-        <div id="driveFiles"></div>
-      </section>
-      <h2>GitHub Projects</h2>
-      <label
-        >Project
-        <select id="project"></select
-      ></label>
-      <p id="mode"></p>
-      <section>
-        <h2>タスク一覧</h2>
-        <button id="refreshList">一覧を更新</button>
-        <a id="projectLink" rel="noreferrer">Projectを開く ↗</a>
-        <p id="listStatus" role="status"></p>
-        <p id="listCount"></p>
-        <div id="tasks"></div>
-      </section>
-      <section id="taskDetails" hidden>
-        <h2>同期状況</h2>
-        <strong id="phase">読み込み中</strong>
-        <p role="alert" id="error"></p>
-        <p id="times"></p>
-        <p id="age"></p>
-        <button id="refresh">GitHubから取得</button>
-        <a id="source" rel="noreferrer">Projectを開く ↗</a>
-      </section>
-      <section id="taskEditor" hidden>
-        <h2>選択したタスク</h2>
-        <p id="count"></p>
-        <h3 id="title">未取得</h3>
-        <label
-          >状態
-          <select id="status"></select></label
-        ><button id="saveStatus">状態を反映</button>
-        <label>期限 <input id="due" type="date" /></label
-        ><button id="saveDue">期限を反映</button>
-        <p>期限を空にして反映すると解除できます。</p>
-      </section>
-      <section id="changes" hidden>
-        <h2>未同期の操作</h2>
-        <p id="change"></p>
-        <button id="retry">照合して再試行</button>
-        <button id="discard">変更を破棄</button>
-      </section>
+          <div class="panel-heading">
+            <div class="panel-title-wrap">
+              <span class="app-mark github-mark" aria-hidden="true">G</span>
+              <div>
+                <h2 id="tasksHeading">タスク</h2>
+                <p>GitHub Projects</p>
+              </div>
+            </div>
+            <div class="panel-actions">
+              <a
+                id="projectLink"
+                class="icon-button"
+                title="Projectを開く"
+                aria-label="Projectを開く"
+                target="_blank"
+                rel="noreferrer"
+                >↗</a
+              ><button
+                id="refreshList"
+                class="icon-button"
+                title="一覧を更新"
+                aria-label="タスク一覧を更新"
+              >
+                ↻
+              </button>
+            </div>
+          </div>
+          <div class="project-toolbar">
+            <label class="project-picker"
+              ><span>Project</span
+              ><select id="project" aria-label="Project"></select></label
+            ><span class="mode-label" id="mode"></span>
+          </div>
+          <label class="search task-search"
+            ><span aria-hidden="true">⌕</span
+            ><input
+              id="taskSearch"
+              type="search"
+              placeholder="タスクを検索"
+              aria-label="タスクを検索"
+              autocomplete="off"
+          /></label>
+          <div
+            id="tasks"
+            class="task-list scroll-area"
+            tabindex="0"
+            aria-label="タスク一覧"
+          >
+            <div class="empty-state">
+              <div class="loading-ring"></div>
+              <p>Projectを確認しています</p>
+            </div>
+          </div>
+          <div class="task-detail" id="taskEditor" hidden>
+            <div class="detail-heading">
+              <span class="eyebrow">選択したタスク</span
+              ><button id="refresh" class="text-button" disabled>
+                再取得 ↻
+              </button>
+            </div>
+            <h3 id="title">タスクを選択してください</h3>
+            <div class="editor-fields">
+              <div class="field-group">
+                <label for="status">状態</label>
+                <div class="input-action">
+                  <select id="status" disabled></select
+                  ><button
+                    id="saveStatus"
+                    class="save-button"
+                    disabled
+                    aria-label="状態をGitHubに反映"
+                  >
+                    反映
+                  </button>
+                </div>
+              </div>
+              <div class="field-group">
+                <label for="due"
+                  >期限 <span class="field-hint">空欄で解除</span></label
+                >
+                <div class="input-action">
+                  <input id="due" type="date" disabled /><button
+                    id="saveDue"
+                    class="save-button"
+                    disabled
+                    aria-label="期限をGitHubに反映"
+                  >
+                    反映
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="sync-line" id="taskDetails">
+              <span id="phase" class="state-label"></span><span id="age"></span>
+            </div>
+            <p class="inline-error" id="error" role="alert"></p>
+            <div class="pending-box" id="changes" hidden>
+              <strong>未同期の変更</strong>
+              <p id="change"></p>
+              <div>
+                <button id="retry" class="button button-small">
+                  照合して再試行</button
+                ><button id="discard" class="text-button">変更を破棄</button>
+              </div>
+            </div>
+          </div>
+          <footer class="panel-footer">
+            <span id="listStatus" role="status"></span
+            ><span id="listCount"></span>
+          </footer>
+        </section>
+      </div>
     </main>
+    <dialog id="fileDialog" class="detail-dialog">
+      <div class="dialog-body">
+        <div class="dialog-top">
+          <span class="eyebrow">Driveファイル</span
+          ><button class="icon-button" data-close aria-label="詳細を閉じる">
+            ×
+          </button>
+        </div>
+        <span id="fileDialogType" class="file-kind"></span>
+        <h2 id="fileDialogName"></h2>
+        <dl>
+          <dt>保存場所</dt>
+          <dd id="fileDialogFolder"></dd>
+          <dt>更新日時</dt>
+          <dd id="fileDialogModified"></dd>
+          <dt>作成日時</dt>
+          <dd id="fileDialogCreated"></dd>
+          <dt>前回取得からの変更</dt>
+          <dd id="fileDialogChanges"></dd>
+        </dl>
+        <a
+          id="fileDialogLink"
+          class="button button-primary"
+          target="_blank"
+          rel="noreferrer"
+          >Driveで開く ↗</a
+        >
+      </div>
+    </dialog>
+    <dialog id="settingsDialog" class="settings-dialog">
+      <div class="dialog-body">
+        <div class="dialog-top">
+          <div>
+            <p class="eyebrow">ワークスペース</p>
+            <h2>接続と取得状況</h2>
+          </div>
+          <button class="icon-button" data-close aria-label="設定を閉じる">
+            ×
+          </button>
+        </div>
+        <section class="settings-section">
+          <h3>Google Drive</h3>
+          <p id="driveTimes">取得状況を確認中</p>
+          <p id="driveSchedule"></p>
+          <p>
+            毎時00分にサーバーから取得します。分割取得の進捗を保存し、画面を閉じていても続きを取得します。
+          </p>
+          <p>
+            通常のサブフォルダを含みます。ショートカット先はたどりません。「対象範囲外」は削除・移動・アクセス権変更などで一覧から外れたことを表します。
+          </p>
+          <p>Google OAuthはテストモードのため、7日後に再接続が必要です。</p>
+          <form
+            id="driveConnect"
+            action="/auth/google/start"
+            method="post"
+            hidden
+          >
+            <p>
+              Google
+              Drive全体のメタデータ閲覧を認可します。アプリが取得する対象は設定したフォルダです。
+            </p>
+            <button class="button button-secondary">
+              Google Driveへ接続・再接続
+            </button>
+          </form>
+        </section>
+        <section class="settings-section">
+          <h3>GitHub Projects</h3>
+          <p id="times">タスクを選択すると取得状況が表示されます</p>
+          <p id="count"></p>
+          <a id="source" target="_blank" rel="noreferrer"
+            >選択したProjectを開く ↗</a
+          >
+          <p>
+            画面表示中は1分ごとに取得します。変更はGitHubからの再取得で一致を確認してから反映済みと表示します。同時にGitHub側で行われる変更を完全に防ぐ保証はありません。
+          </p>
+        </section>
+        <div class="unconnected-services">
+          <span>未接続</span>メール・カレンダー・Slack・Obsidian
+        </div>
+      </div>
+    </dialog>
+    <dialog id="confirmDialog" class="detail-dialog">
+      <div class="dialog-body">
+        <div class="dialog-top"><h2>変更の確認</h2></div>
+        <p id="confirmMessage"></p>
+        <form method="dialog" class="confirm-actions">
+          <button class="button button-secondary" value="cancel">
+            キャンセル</button
+          ><button class="button button-primary" value="confirm">
+            破棄して続ける
+          </button>
+        </form>
+      </div>
+    </dialog>
   </body>
 </html>

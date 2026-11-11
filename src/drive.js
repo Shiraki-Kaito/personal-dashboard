@@ -1,8 +1,8 @@
 import { driveClient, DriveError } from "./drive-http.js";
 import { driveToken, googleConfigured } from "./drive-auth.js";
 
-export const recentWindowMs = 12 * 60 * 60 * 1000;
-const minimumRefreshMs = 5 * 60 * 1000;
+export const driveRefreshIntervalMs = 60 * 60 * 1000;
+const minimumRefreshMs = 60 * 1000;
 const folderType = "application/vnd.google-apps.folder";
 const maxInventoryFiles = 10000;
 const maxMetadataBytes = 6 * 1024 * 1024;
@@ -25,7 +25,7 @@ function configKey(config) {
 
 const pagesPerBatch = 16;
 const batchDelayMs = 2000;
-const scanVersion = 2;
+const scanVersion = 3;
 
 async function startScan(config, read, now) {
   const root = await read("files/" + encodeURIComponent(config.folderId), {
@@ -155,26 +155,33 @@ export async function scanDrive(config, read) {
   };
 }
 
-export function recentFiles(files, now) {
-  const cutoff = now - recentWindowMs;
-  return files
-    .map((file) => {
-      const created = Date.parse(file.createdTime),
-        modified = Date.parse(file.modifiedTime);
-      const observed = file.observedAddedAt || 0;
-      const events = [
-        { time: created, label: "作成" },
-        { time: modified, label: "更新" },
-        { time: observed, label: "追加を検知" },
-      ].filter(
-        (event) => event.time >= cutoff && event.time <= now && event.time > 0,
-      );
-      if (!events.length) return null;
-      const eventTime = Math.max(...events.map((event) => event.time));
-      return { ...file, eventTime, events: events.map((event) => event.label) };
-    })
-    .filter(Boolean)
-    .sort((a, b) => b.eventTime - a.eventTime || a.id.localeCompare(b.id));
+export function driveChanges(previous, current, now) {
+  const before = new Map(previous.map((file) => [file.id, file]));
+  const after = new Map(current.map((file) => [file.id, file]));
+  const changes = [];
+  for (const file of current) {
+    const old = before.get(file.id),
+      events = [];
+    if (!old) events.push("追加を検知");
+    else {
+      if (file.modifiedTime !== old.modifiedTime) events.push("更新");
+      if (file.name !== old.name) events.push("名前変更");
+      if (file.folder !== old.folder) events.push("保存場所変更");
+    }
+    if (events.length) changes.push({ ...file, events, detectedAt: now });
+  }
+  for (const file of previous) {
+    if (!after.has(file.id))
+      changes.push({ ...file, events: ["対象範囲外"], detectedAt: now });
+  }
+  return changes;
+}
+export function orderedDriveFiles(files) {
+  return [...files].sort(
+    (a, b) =>
+      Date.parse(b.modifiedTime) - Date.parse(a.modifiedTime) ||
+      a.id.localeCompare(b.id),
+  );
 }
 export async function driveView(env, storage, now = Date.now()) {
   const config = driveConfig(env);
@@ -195,7 +202,13 @@ export async function driveView(env, storage, now = Date.now()) {
     folderName: cache?.folderName || config?.label || null,
     inventoryCount: cache?.files.length ?? null,
     folderCount: cache?.folderCount ?? null,
-    files: recentFiles(cache?.files || [], now),
+    files: orderedDriveFiles(cache?.files || []),
+    changes: cache?.changes || [],
+    changesKnown: cache?.viewVersion === 3,
+    nextScheduledAt: new Date(
+      (Math.floor(now / driveRefreshIntervalMs) + 1) * driveRefreshIntervalMs,
+    ).toISOString(),
+    automatic: (await storage.get("drive:scheduler")) || null,
     lastAttempt: cache?.lastAttempt || null,
     lastSuccess: cache?.lastSuccess || null,
     error: cache?.error || null,
@@ -208,9 +221,6 @@ export async function driveView(env, storage, now = Date.now()) {
           filesFound: job.files.length,
         }
       : null,
-    initialHistoryIncomplete:
-      !cache?.baselineAt || now - cache.baselineAt < recentWindowMs,
-    windowStart: new Date(now - recentWindowMs).toISOString(),
   };
 }
 export async function refreshDrive(
@@ -262,13 +272,10 @@ export async function refreshDrive(
       folderName: job.folderName,
       folderCount: job.folders.length,
     };
-    const before = new Map(cache.files.map((file) => [file.id, file]));
-    const files = result.files.map((file) => ({
-      ...file,
-      observedAddedAt:
-        before.get(file.id)?.observedAddedAt ||
-        (cache.baselineAt && !before.has(file.id) ? now : null),
-    }));
+    const files = result.files;
+    const changes = cache.baselineAt
+      ? driveChanges(cache.files, files, now)
+      : [];
     if (
       new TextEncoder().encode(JSON.stringify(files)).length > maxMetadataBytes
     )
@@ -279,6 +286,8 @@ export async function refreshDrive(
     Object.assign(cache, result, {
       files,
       baselineAt: cache.baselineAt || now,
+      changes,
+      viewVersion: 3,
       lastSuccess: new Date(now).toISOString(),
       error: null,
       retryAt: now + minimumRefreshMs,
