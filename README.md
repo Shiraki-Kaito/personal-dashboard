@@ -52,7 +52,7 @@ OAuth Appは本人ログインと個人Projectsの操作を一度の認可で結
 | 本体、模擬GitHub                             | 状態・期限、通信・権限・レート・タイムアウト相当、応答のみ喪失、照合・復旧、競合、古い操作の拒否を試験。                                                                                                   |
 | ローカルWorkersランタイム、模擬OAuthとGitHub | 本人以外の拒否、本人認可、異なるOriginの拒否、並列編集・並列再試行、SQLiteを保持したランタイム再起動、ログアウトを試験。実際のプロセス再起動後に同じ保留IDを取得。                                         |
 | 実GitHub＋ローカルの本体同期処理             | 指定Projectの件数1、ID・フィールドを照合。アプリから状態変更・期限設定と解除を独立再取得。GitHub側で期限変更後、古い基準の編集が競合で停止し、変更後の値を取り込み。開始時の状態・期限へ戻して再照合済み。 |
-| Cloudflare本番                               | Workerをデプロイ。OAuth secret 2件を登録。Shiraki-Kaitoで本番ログインし、試験タスク1件を取得。ブラウザーから状態・期限を更新し「反映確認済み」を確認。開始時の値へ復元し、GitHub GraphQLでStatus=Todo・期限=2026-11-10を独立照合。未認証の5 APIは401。 |
+| Cloudflare本番                               | Workerをデプロイ。OAuth secret 2件を登録。Shiraki-Kaitoで本番ログインし、試験タスク1件を取得。ブラウザーから状態・期限を更新し「反映確認済み」を確認。開始時の値へ復元し、GitHub GraphQLでStatus=Todo・期限=2026-11-10を独立照合。未認証の5 APIは401。GitHub API側で期限を変更した後、本番画面で変更を取得し、古い編集は「競合・上書き停止」と表示された。未同期操作の破棄後、外部変更がないことを照合して開始値へ復元し、本番画面でも確認。 |
 
 実GitHub試験の再実行は `node test/live.mjs "<旧試作のconfig.json>" "<リポジトリ外の新規記録ファイル>"`。試験中はそのタスクを編集しないでください。開始時の値を先に記録し、直前に確認した値とリビジョンが変わると復元を停止します。結果不明時は記録とGitHub画面を突き合わせてください。障害注入はテストコードにのみ含まれます。
 
@@ -60,6 +60,6 @@ OAuth Appは本人ログインと個人Projectsの操作を一度の認可で結
 
 有料契約・課金の有効化は行っていません。Workers Freeはリクエスト10万件/日。SQLite Durable ObjectsはFreeでも提供され、行読み取り500万/日、書き込み10万/日などの別枠があります。同じアカウントの他アプリとも利用枠を共有します。1タブで1時間表示すると通常の定期取得は約60回、編集・照合・障害時の再試行は別です。アカウントの契約額、累積使用量や月額実績は未確認です。GitHub GraphQLはポイント制で、他の利用や二次制限の影響も受けます。
 
-メール、カレンダー、Slack、Drive、ノート、壁紙・iOSは未接続。ノートや `*_L.md` を読む処理はありません。Cloudflare本番ではアプリ→GitHubの試験・復元を確認済みです。GitHub画面からの更新→本番画面への反映と、実アカウントでの他人拒否は未確認です。
+メール、カレンダー、Slack、Drive、ノート、壁紙・iOSは未接続。ノートや `*_L.md` を読む処理はありません。Cloudflare本番ではアプリ→GitHubの試験・復元を確認済みです。GitHub APIからの更新→本番画面への反映、競合停止、未同期操作の破棄と復元も確認済みです。実アカウントでの他人拒否は未確認です。
 
 [Cloudflare Workers料金](https://developers.cloudflare.com/workers/platform/pricing/) ／ [Durable Objects料金](https://developers.cloudflare.com/durable-objects/platform/pricing/) ／ [GitHub Projects API](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/using-the-api-to-manage-projects) ／ [OAuth認可](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps) ／ [GraphQL制限](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api)
