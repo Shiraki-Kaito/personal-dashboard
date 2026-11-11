@@ -60,12 +60,19 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     });
   }
   function boot() {
-    const modules = ["worker", "auth", "github", "sync", "catalog"].map(
-      (name) => ({
-        type: "ESModule",
-        path: "src/" + name + ".js",
-      }),
-    );
+    const modules = [
+      "worker",
+      "auth",
+      "github",
+      "sync",
+      "catalog",
+      "drive",
+      "drive-auth",
+      "drive-http",
+    ].map((name) => ({
+      type: "ESModule",
+      path: "src/" + name + ".js",
+    }));
     return new Miniflare(
       convertV4MiniflareOptions({
         modules,
@@ -107,6 +114,13 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     return request("/auth/callback?code=test&state=" + state);
   }
   try {
+    assert.equal((await request("/api/drive")).status, 401);
+    assert.equal((await request("/api/drive", { refresh: true })).status, 401);
+    assert.equal((await request("/auth/google/start", {})).status, 401);
+    assert.equal(
+      (await request("/auth/google/callback?state=invalid")).status,
+      401,
+    );
     for (const action of ["state", "refresh", "edit", "retry", "discard"])
       assert.equal(
         (await request("/api/" + action, action === "state" ? null : {}))
@@ -122,6 +136,14 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       .find((x) => x.startsWith("__Host-dashboard_session"))
       .split(";")[0];
     assert.equal(await (await request("/")).text(), "private dashboard");
+    const drive = await (await request("/api/drive")).json();
+    assert.equal(drive.configured, false);
+    assert.equal(drive.connected, false);
+    assert.equal(
+      (await request("/api/drive", { refresh: true }, "https://other.test"))
+        .status,
+      403,
+    );
     assert.equal(
       (await request("/api/edit", {}, "https://other.test")).status,
       403,

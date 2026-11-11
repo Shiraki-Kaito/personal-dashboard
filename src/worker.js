@@ -3,6 +3,8 @@ import { login, logout, authorized } from "./auth.js";
 import { github, transport } from "./github.js";
 import { synchronize, InputError } from "./sync.js";
 import { projectsFrom, catalog, selectTask, taskStorage } from "./catalog.js";
+import { googleConnect } from "./drive-auth.js";
+import { driveView, refreshDrive } from "./drive.js";
 
 export default {
   async fetch(request, env) {
@@ -27,6 +29,7 @@ const actions = new Set([
   "retry",
   "discard",
   "catalog",
+  "drive",
 ]);
 export class Dashboard extends DurableObject {
   // 読み取りを含む操作全体を同一インスタンスで直列化する。
@@ -35,6 +38,8 @@ export class Dashboard extends DurableObject {
     await this.ctx.storage.transaction(async (tx) => {
       const session = await tx.get("session");
       if (session && session.expires <= Date.now()) await tx.delete("session");
+      const flow = await tx.get("drive:flow");
+      if (flow && flow.expires <= Date.now()) await tx.delete("drive:flow");
     });
   }
   fetch(request) {
@@ -74,14 +79,23 @@ export class Dashboard extends DurableObject {
     if (request.method === "POST" && pathname === "/auth/logout")
       return logout(storage);
     if (
+      (request.method === "POST" && pathname === "/auth/google/start") ||
+      (request.method === "GET" && pathname === "/auth/google/callback")
+    )
+      return googleConnect(request, this.env, storage, session);
+    if (
       request.method === "GET" &&
-      ["/", "/ui.js", "/style.css"].includes(pathname)
+      ["/", "/ui.js", "/style.css", "/drive-ui.js"].includes(pathname)
     )
       return this.env.ASSETS.fetch(request);
     const action = pathname.slice("/api/".length);
     if (!pathname.startsWith("/api/") || !actions.has(action))
       return new Response(null, { status: 404 });
-    if (request.method !== (action === "state" ? "GET" : "POST"))
+    if (
+      action === "drive"
+        ? !["GET", "POST"].includes(request.method)
+        : request.method !== (action === "state" ? "GET" : "POST")
+    )
       return new Response(null, { status: 405 });
     let input = {};
     if (request.method === "POST") {
@@ -96,6 +110,12 @@ export class Dashboard extends DurableObject {
         return new Response(null, { status: 400 });
     }
     try {
+      if (action === "drive")
+        return Response.json(
+          request.method === "POST" && input.refresh === true
+            ? await refreshDrive(this.env, storage)
+            : await driveView(this.env, storage),
+        );
       const projects = projectsFrom(this.env.PROJECT_CONFIG);
       if (action === "catalog") {
         const projectId =
