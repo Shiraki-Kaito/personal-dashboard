@@ -1,5 +1,9 @@
 import { driveClient, DriveError } from "./drive-http.js";
-import { driveToken, googleConfigured } from "./drive-auth.js";
+import {
+  driveToken,
+  googleConfigured,
+  googleAuthorizationStatus,
+} from "./drive-auth.js";
 import {
   unreadChanges,
   mergeUnread,
@@ -192,6 +196,7 @@ export function orderedDriveFiles(files) {
 export async function driveView(env, storage, now = Date.now()) {
   const config = driveConfig(env);
   const credential = await storage.get("drive:credential");
+  const authorization = googleAuthorizationStatus(env, credential);
   let cache = await storage.get("drive:cache");
   if (!config || cache?.scope !== configKey(config)) cache = null;
   let job = await storage.get("drive:job");
@@ -203,13 +208,8 @@ export async function driveView(env, storage, now = Date.now()) {
         ? "Google OAuth設定を確認してください。Client IDの末尾は.apps.googleusercontent.comです。"
         : null,
     connected: !!credential && !credential.invalid,
-    authorizationReviewAt:
-      credential?.connectedAt &&
-      env.GOOGLE_OAUTH_PUBLISHING_STATUS !== "published"
-        ? new Date(
-            credential.connectedAt + 7 * 24 * 60 * 60 * 1000,
-          ).toISOString()
-        : null,
+    authorization,
+    authorizationReviewAt: authorization.reviewAt,
     folderId: config?.folderId || null,
     includeSubfolders: config?.includeSubfolders ?? null,
     folderName: cache?.folderName || config?.label || null,

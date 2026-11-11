@@ -2,6 +2,32 @@ import { DriveError, googleRequest } from "./drive-http.js";
 
 export const driveScope =
   "https://www.googleapis.com/auth/drive.metadata.readonly";
+const testingAuthorizationLifetimeMs = 7 * 24 * 60 * 60 * 1000;
+// 公開設定の変更と、既存トークンを発行した時点の設定を区別する。
+export function googleAuthorizationStatus(env, credential) {
+  const publishingStatus =
+    env.GOOGLE_OAUTH_PUBLISHING_STATUS === "published"
+      ? "published"
+      : "testing";
+  const grantedPublishingStatus = credential
+    ? credential.grantedPublishingStatus || "testing"
+    : null;
+  return {
+    publishingStatus,
+    grantedPublishingStatus,
+    requiresReauthorization:
+      !!credential &&
+      (!!credential.invalid ||
+        (publishingStatus === "published" &&
+          grantedPublishingStatus !== "published")),
+    reviewAt:
+      credential?.connectedAt && grantedPublishingStatus !== "published"
+        ? new Date(
+            credential.connectedAt + testingAuthorizationLifetimeMs,
+          ).toISOString()
+        : null,
+  };
+}
 export function googleConfigured(env) {
   return (
     /^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(
@@ -83,6 +109,7 @@ export async function googleConnect(
       state,
       verifier,
       sessionKey: session.key,
+      publishingStatus: googleAuthorizationStatus(env, null).publishingStatus,
       expires: Date.now() + flowLifetimeMs,
     });
     const authorization = new URL(
@@ -139,6 +166,7 @@ export async function googleConnect(
         refresh: grant.refresh_token,
         expires: Date.now() + grant.expires_in * 1000,
         connectedAt: Date.now(),
+        grantedPublishingStatus: flow.publishingStatus || "testing",
       });
       await tx.delete("drive:cache");
       await tx.delete("drive:job");

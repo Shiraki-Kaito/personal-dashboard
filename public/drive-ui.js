@@ -170,6 +170,14 @@ function render() {
       ? state.automatic.error
       : null;
   const failure = state.error || automaticError;
+  const needsReauthorization = !!state.authorization?.requiresReauthorization;
+  el("driveAuthorizationMode").textContent =
+    state.authorization?.publishingStatus === "published"
+      ? "Google OAuthは本番公開済みです。" +
+        (needsReauthorization
+          ? "現在の接続は再認可が必要です。「Google Driveへ接続・再接続」から進めてください。"
+          : "認可の取消や失効時は再接続が必要です。接続の無期限継続は保証しません。")
+      : "Google OAuthはテストモードです。テスト時の認可は7日で失効するため再接続が必要です。";
   const stale =
     state.lastSuccess &&
     (failure || Date.now() - Date.parse(state.lastSuccess) > staleMs);
@@ -215,7 +223,9 @@ function render() {
     failure ||
     (!state.configured
       ? state.configurationError || "Google OAuthの設定が必要です"
-      : "");
+      : needsReauthorization
+        ? "Google Driveの再認可が必要です。「接続と設定」から再接続してください。"
+        : "");
   el("driveNotice").hidden = !notice;
   el("driveNotice").textContent = notice;
   el("driveRefresh").disabled =
@@ -247,12 +257,18 @@ function render() {
     ? state.unreadChanges.length
     : "—";
   el("driveDot").dataset.state =
-    !state.connected || failure ? "error" : state.lastSuccess ? "ok" : "";
+    !state.connected || failure || needsReauthorization
+      ? "error"
+      : state.lastSuccess
+        ? "ok"
+        : "";
   el("driveConnection").textContent = !state.connected
     ? "Drive 未接続"
     : failure
       ? "Drive 取得失敗"
-      : "Drive 接続済み";
+      : needsReauthorization
+        ? "Drive 再認可待ち"
+        : "Drive 接続済み";
   el("driveReviewAll").hidden = tab !== "changes";
   el("driveReviewAll").disabled = busy || !visibleUnread().length;
   renderFiles();

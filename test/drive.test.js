@@ -9,7 +9,12 @@ import {
   acknowledgeDrive,
 } from "../src/drive.js";
 import { DriveError, driveClient } from "../src/drive-http.js";
-import { googleConnect, driveToken, driveScope } from "../src/drive-auth.js";
+import {
+  googleConnect,
+  driveToken,
+  driveScope,
+  googleAuthorizationStatus,
+} from "../src/drive-auth.js";
 
 test("Client IDの取り違えを外部送信前に拒否し、設定値を応答へ出さない", async () => {
   const invalid = { ...env, GOOGLE_CLIENT_ID: "fixture-private-value" };
@@ -360,4 +365,70 @@ test("未確認の変更は次回取得・取得失敗・保存状態の再読�
   assert.equal(acknowledged.acknowledged, 1);
   assert.equal(acknowledged.files.length, 2);
   assert.equal((await driveView(env, restarted)).unreadChanges.length, 0);
+});
+
+test("公開だけでは既存のテスト時認可を長期接続済みにしない", () => {
+  const published = { GOOGLE_OAUTH_PUBLISHING_STATUS: "published" };
+  const legacy = { connectedAt: Date.parse("2026-11-11T03:16:00Z") };
+  const old = googleAuthorizationStatus(published, legacy);
+  assert.equal(old.requiresReauthorization, true);
+  assert.equal(old.grantedPublishingStatus, "testing");
+  assert.equal(old.reviewAt, "2026-11-18T03:16:00.000Z");
+  const current = { ...legacy, grantedPublishingStatus: "published" };
+  assert.equal(
+    googleAuthorizationStatus(published, current).requiresReauthorization,
+    false,
+  );
+  assert.equal(googleAuthorizationStatus(published, current).reviewAt, null);
+  assert.equal(
+    googleAuthorizationStatus(published, { ...current, invalid: true })
+      .requiresReauthorization,
+    true,
+  );
+  assert.equal(
+    googleAuthorizationStatus(published, null).requiresReauthorization,
+    false,
+  );
+});
+
+test("新しい認可には開始時の公開設定を記録し、途中の設定変更で昇格させない", async () => {
+  const session = { key: "owner-session" };
+  for (const mode of ["testing", "published"]) {
+    const storage = memory();
+    const initialEnv = { ...env, GOOGLE_OAUTH_PUBLISHING_STATUS: mode };
+    const start = await googleConnect(
+      new Request("https://unit.test/auth/google/start", { method: "POST" }),
+      initialEnv,
+      storage,
+      session,
+    );
+    const state = new URL(
+      (await start.json()).authorizationUrl,
+    ).searchParams.get("state");
+    const callbackEnv = { ...env, GOOGLE_OAUTH_PUBLISHING_STATUS: "published" };
+    const result = await googleConnect(
+      new Request(
+        "https://unit.test/auth/google/callback?code=fixture&state=" + state,
+      ),
+      callbackEnv,
+      storage,
+      session,
+      async () =>
+        Response.json({
+          access_token: "fixture",
+          refresh_token: "fixture-refresh",
+          expires_in: 3600,
+          scope: driveScope,
+        }),
+    );
+    assert.equal(result.status, 303);
+    const credential = await storage.get("drive:credential");
+    assert.equal(credential.grantedPublishingStatus, mode);
+    const view = await driveView(callbackEnv, storage);
+    assert.equal(
+      view.authorization.requiresReauthorization,
+      mode === "testing",
+    );
+    assert.equal(JSON.stringify(view).includes("fixture-refresh"), false);
+  }
 });
