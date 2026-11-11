@@ -1,8 +1,8 @@
 const itemQuery = `query($item:ID!, $cursor:String) {
   viewer { id }
   node(id:$item) { ... on ProjectV2Item {
-    id updatedAt isArchived project { id title url owner { ... on User { id } } items(first:1){totalCount} }
-    content { ... on DraftIssue { title } }
+    id updatedAt isArchived project { id title url owner { ... on User { id } ... on Organization { id } } items(first:1){totalCount} }
+    content { ... on DraftIssue { title } ... on Issue { title url } ... on PullRequest { title url } }
     fieldValues(first:100, after:$cursor) {
       pageInfo { hasNextPage endCursor }
       nodes {
@@ -96,16 +96,19 @@ export function github(config, request) {
         if (!item?.id) throw new RemoteError("対象消失または非表示");
         if (
           item.project.id !== config.project ||
-          item.project.owner.id !== ownerId ||
-          item.content?.title !== taskTitle ||
-          item.project.title !== "ダッシュボード試作" ||
+          !item.content ||
+          item.project.owner.id !== (config.owner_id || ownerId) ||
+          (config.mode !== "production" &&
+            (item.content?.title !== taskTitle ||
+              item.project.title !== "ダッシュボード試作")) ||
           item.isArchived
         )
           throw new RemoteError("試験対象が変更されています");
         if (snapshot && snapshot.revision !== item.updatedAt)
           throw new RemoteError("取得中に変更");
         snapshot ??= {
-          title: taskTitle,
+          title: item.content?.title || "内容を取得できません",
+          url: item.content?.url || null,
           status: null,
           due: null,
           revision: item.updatedAt,

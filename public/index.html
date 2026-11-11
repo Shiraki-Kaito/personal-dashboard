@@ -16,8 +16,20 @@
         </form>
       </header>
       <h1>GitHub Projects</h1>
-      <p>ダッシュボード試作 ／ 試験用データ</p>
+      <label
+        >Project
+        <select id="project"></select
+      ></label>
+      <p id="mode"></p>
       <section>
+        <h2>タスク一覧</h2>
+        <button id="refreshList">一覧を更新</button>
+        <a id="projectLink" rel="noreferrer">Projectを開く ↗</a>
+        <p id="listStatus" role="status"></p>
+        <p id="listCount"></p>
+        <div id="tasks"></div>
+      </section>
+      <section id="taskDetails" hidden>
         <h2>同期状況</h2>
         <strong id="phase">読み込み中</strong>
         <p role="alert" id="error"></p>
@@ -26,8 +38,8 @@
         <button id="refresh">GitHubから取得</button>
         <a id="source" rel="noreferrer">Projectを開く ↗</a>
       </section>
-      <section>
-        <h2>取得対象の全件</h2>
+      <section id="taskEditor" hidden>
+        <h2>選択したタスク</h2>
         <p id="count"></p>
         <h3 id="title">未取得</h3>
         <label

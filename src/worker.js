@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import { login, logout, authorized } from "./auth.js";
 import { github, transport } from "./github.js";
 import { synchronize, InputError } from "./sync.js";
+import { projectsFrom, catalog, selectTask, taskStorage } from "./catalog.js";
 
 export default {
   async fetch(request, env) {
@@ -19,7 +20,14 @@ export default {
     return secured;
   },
 };
-const actions = new Set(["state", "refresh", "edit", "retry", "discard"]);
+const actions = new Set([
+  "state",
+  "refresh",
+  "edit",
+  "retry",
+  "discard",
+  "catalog",
+]);
 export class Dashboard extends DurableObject {
   // 読み取りを含む操作全体を同一インスタンスで直列化する。
   tail = Promise.resolve();
@@ -42,7 +50,7 @@ export class Dashboard extends DurableObject {
     return current;
   }
   async handle(request) {
-    const { pathname, origin } = new URL(request.url);
+    const { pathname, origin, searchParams } = new URL(request.url);
     const storage = this.ctx.storage;
     if (
       request.method === "GET" &&
@@ -87,14 +95,56 @@ export class Dashboard extends DurableObject {
       if (!input || typeof input !== "object" || Array.isArray(input))
         return new Response(null, { status: 400 });
     }
-    const config = JSON.parse(this.env.PROJECT_CONFIG);
     try {
+      const projects = projectsFrom(this.env.PROJECT_CONFIG);
+      if (action === "catalog") {
+        const projectId =
+          input.projectId ||
+          searchParams.get("projectId") ||
+          projects[0].project;
+        const project = projects.find((p) => p.project === projectId);
+        if (!project) throw new InputError("対象Projectが不正です");
+        const result = await catalog(
+          project,
+          transport(session.token),
+          storage,
+          input.refresh === true,
+        );
+        return Response.json({
+          ...result,
+          items: await Promise.all(
+            result.items.map(async (item) => {
+              const state = await taskStorage(
+                storage,
+                { ...project, item: item.id },
+                projects.find((p) => p.item)?.item,
+              ).get();
+              return { ...item, pending: !!state?.pending };
+            }),
+          ),
+          projectId,
+          projects: projects.map((p) => ({
+            id: p.project,
+            title: p.title || "ダッシュボード試作",
+            mode: p.kind || p.mode || "test",
+            url: p.url,
+          })),
+        });
+      }
+      const defaultProject = projects.find((p) => p.item) || projects[0];
+      const projectId =
+        input.projectId ||
+        searchParams.get("projectId") ||
+        defaultProject.project;
+      const itemId =
+        input.itemId || searchParams.get("itemId") || defaultProject.item;
+      const config = await selectTask(projects, projectId, itemId, storage);
       const result = await synchronize(
         action,
         input,
         config,
         github(config, transport(session.token)),
-        storage,
+        taskStorage(storage, config, projects.find((p) => p.item)?.item),
       );
       return Response.json(result);
     } catch (e) {

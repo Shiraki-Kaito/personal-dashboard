@@ -26,7 +26,9 @@ export async function synchronize(action, input, config, api, storage) {
     if (state.pending || !same(base, state.remote))
       throw new InputError("画面を再取得してください");
     if (!(
-      (field === "status" && config.options.some((o) => o.id === value)) ||
+      (field === "status" &&
+        (config.options.some((o) => o.id === value) ||
+          (value === null && config.mode === "production"))) ||
       (field === "due" && (value === null || validDate(value)))
     ))
       throw new InputError("入力値が不正です");

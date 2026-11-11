@@ -60,10 +60,12 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     });
   }
   function boot() {
-    const modules = ["worker", "auth", "github", "sync"].map((name) => ({
-      type: "ESModule",
-      path: "src/" + name + ".js",
-    }));
+    const modules = ["worker", "auth", "github", "sync", "catalog"].map(
+      (name) => ({
+        type: "ESModule",
+        path: "src/" + name + ".js",
+      }),
+    );
     return new Miniflare(
       convertV4MiniflareOptions({
         modules,
