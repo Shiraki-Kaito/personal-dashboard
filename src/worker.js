@@ -6,6 +6,7 @@ import { projectsFrom, catalog, selectTask, taskStorage } from "./catalog.js";
 import { googleConnect } from "./drive-auth.js";
 import { driveView, refreshDrive, acknowledgeDrive } from "./drive.js";
 import { DriveReviewError } from "./drive-review.js";
+import { homeView } from "./home.js";
 import { scheduleAlarm, runHourlyDrive } from "./scheduler.js";
 
 export default {
@@ -28,6 +29,7 @@ export default {
   },
 };
 const actions = new Set([
+  "home",
   "state",
   "refresh",
   "edit",
@@ -122,6 +124,7 @@ export class Dashboard extends DurableObject {
         "/ui.js",
         "/task-drafts.js",
         "/confirm.js",
+        "/home-ui.js",
         "/style.css",
         "/drive-ui.js",
         "/motion-ui.js",
@@ -135,7 +138,7 @@ export class Dashboard extends DurableObject {
     if (!pathname.startsWith("/api/") || !actions.has(action))
       return new Response(null, { status: 404 });
     if (
-      action === "drive"
+      ["drive", "home"].includes(action)
         ? !["GET", "POST"].includes(request.method)
         : request.method !== (action === "state" ? "GET" : "POST")
     )
@@ -153,6 +156,15 @@ export class Dashboard extends DurableObject {
         return new Response(null, { status: 400 });
     }
     try {
+      if (action === "home")
+        return Response.json(
+          await homeView(
+            this.env,
+            storage,
+            transport(session.token),
+            input.refresh === true,
+          ),
+        );
       if (action === "drive" && Object.hasOwn(input, "acknowledge")) {
         if (input.refresh)
           throw new DriveReviewError(

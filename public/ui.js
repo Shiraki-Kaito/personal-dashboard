@@ -162,7 +162,7 @@ function render(s) {
   }
   const item = catalogState?.items.find((item) => item.id === itemId);
   if (item) item.pending = !!s.pending;
-  if (catalogState)
+  if (catalogState && document.body.dataset.view !== "home")
     el("metricPending").textContent =
       "未同期 " +
       catalogState.items.filter((item) => item.pending).length +
@@ -272,7 +272,7 @@ async function chooseTask(id) {
   await call("state");
   await call("refresh");
 }
-async function loadCatalog(refresh) {
+async function loadCatalog(refresh, autoSelect = true) {
   if (catalogBusy || busy) return;
   catalogBusy = true;
   controls();
@@ -315,10 +315,8 @@ async function loadCatalog(refresh) {
       data.total === null
         ? "未取得"
         : data.items.length + " / " + data.total + "件";
-    el("metricTasks").textContent = data.total ?? "—";
     el("navTaskCount").textContent = data.total ?? "—";
-    el("metricPending").textContent =
-      "未同期 " + data.items.filter((item) => item.pending).length + "件";
+    renderCatalogMetrics();
     renderRows();
     connection();
   } catch (error) {
@@ -330,7 +328,7 @@ async function loadCatalog(refresh) {
     catalogBusy = false;
     controls();
   }
-  if (!itemId) {
+  if (autoSelect && !itemId) {
     const first = catalogState?.items.find((item) => item.editable);
     if (first) await chooseTask(first.id);
   }
@@ -373,6 +371,48 @@ el("project").onchange = async () => {
   await loadCatalog(true);
 };
 document.addEventListener("dashboard:refresh", refreshCurrent);
+
+function renderCatalogMetrics() {
+  if (!catalogState || document.body.dataset.view === "home") return;
+  el("metricTasksLabel").textContent = "GitHubタスク";
+  el("metricTasks").textContent = catalogState.total ?? "—";
+  el("metricPending").textContent =
+    "未同期 " + catalogState.items.filter((item) => item.pending).length + "件";
+}
+document.addEventListener("dashboard:view", renderCatalogMetrics);
+document.addEventListener("dashboard:open-task", async (event) => {
+  if (busy || catalogBusy) return;
+  if (
+    dirty &&
+    !(await confirmDiscard("入力中の変更を破棄し、ホームのタスクを開きます。"))
+  )
+    return;
+  drafts.clear();
+  dirty = false;
+  const target = event.detail;
+  document.dispatchEvent(
+    new CustomEvent("dashboard:show-panel", { detail: { panel: "tasks" } }),
+  );
+  if (target.projectId !== projectId) {
+    projectId = target.projectId;
+    itemId = null;
+    state = null;
+    catalogState = null;
+    el("taskEditor").hidden = true;
+    el("taskSearch").value = "";
+    await loadCatalog(false, false);
+  }
+  if (
+    catalogState?.items.some(
+      (item) => item.id === target.itemId && item.editable,
+    )
+  )
+    await chooseTask(target.itemId);
+  else {
+    el("listStatus").textContent =
+      "対象タスクを開けません。一覧を更新して元のProjectを確認してください。";
+  }
+});
 window.addEventListener("beforeunload", (event) => {
   if (drafts.dirty) {
     event.preventDefault();
@@ -382,7 +422,13 @@ window.addEventListener("beforeunload", (event) => {
 controls();
 await loadCatalog(true);
 setInterval(() => {
-  if (!dirty && !document.hidden && !busy && !catalogBusy) {
+  if (
+    !dirty &&
+    !document.hidden &&
+    document.body.dataset.view !== "home" &&
+    !busy &&
+    !catalogBusy
+  ) {
     if (itemId) call("refresh");
     else loadCatalog(true);
   }

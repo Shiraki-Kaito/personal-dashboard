@@ -36,21 +36,30 @@ document
   .forEach(
     (button) => (button.onclick = () => button.closest("dialog").close()),
   );
+function showPanel(panel, focusId) {
+  document.body.dataset.view = panel;
+  document
+    .querySelectorAll(".sidebar nav .nav-button")
+    .forEach((nav) =>
+      nav.classList.toggle("active", nav.dataset.panel === panel),
+    );
+  if (focusId) {
+    const target = document.getElementById(focusId);
+    target.focus();
+    target.scrollIntoView({
+      block: "nearest",
+      behavior: reduced.matches ? "instant" : "smooth",
+    });
+  }
+  document.dispatchEvent(new CustomEvent("dashboard:view", { detail: panel }));
+}
+document.addEventListener("dashboard:show-panel", (event) =>
+  showPanel(event.detail.panel, event.detail.focusId),
+);
 document.querySelectorAll("[data-focus]").forEach(
   (button) =>
     (button.onclick = () => {
-      if (button.dataset.panel) {
-        document.body.dataset.view = button.dataset.panel;
-        document
-          .querySelectorAll(".sidebar nav .nav-button")
-          .forEach((nav) => nav.classList.toggle("active", nav === button));
-      }
-      const target = document.getElementById(button.dataset.focus);
-      target.focus();
-      target.scrollIntoView({
-        block: "nearest",
-        behavior: reduced.matches ? "instant" : "smooth",
-      });
+      showPanel(button.dataset.panel, button.dataset.focus);
     }),
 );
 const clock = document.getElementById("dateLabel");

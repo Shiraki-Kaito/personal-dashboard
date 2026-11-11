@@ -22,9 +22,17 @@ export class RemoteError extends Error {
     this.retryAt = retryAt;
   }
 }
+// 大量のページ取得で1要求を占有しないためのアプリ内上限。再試行も含める。
+const maximumRequests = 40;
 export function transport(token, send = fetch) {
+  let requests = 0;
   return async (query, variables, read) => {
     for (let attempt = 0; ; attempt++) {
+      if (requests >= maximumRequests)
+        throw new RemoteError(
+          "取得要求数の上限に達しました。全件取得は未完了です",
+        );
+      requests++;
       let reason;
       try {
         const response = await send("https://api.github.com/graphql", {

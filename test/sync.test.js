@@ -127,3 +127,14 @@ test("取得できないIDを検出する", async () => {
   }));
   await assert.rejects(api.read(), /対象消失/);
 });
+
+test("複数ページ取得の要求上限を越えたら部分取得を止める", async () => {
+  let requests = 0;
+  const send = transport("fixture", async () => {
+    requests++;
+    return Response.json({ data: { ok: true } });
+  });
+  for (let i = 0; i < 40; i++) await send("query", {}, true);
+  await assert.rejects(send("query", {}, true), /取得要求数の上限/);
+  assert.equal(requests, 40);
+});

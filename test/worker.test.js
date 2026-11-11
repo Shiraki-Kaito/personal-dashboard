@@ -71,6 +71,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "drive-auth",
       "drive-http",
       "scheduler",
+      "home",
     ].map((name) => ({
       type: "ESModule",
       path: "src/" + name + ".js",
@@ -130,6 +131,8 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     assert.equal(policy.status, 200);
     assert.equal(await policy.text(), "public policy");
     assert.equal((await request("/api/drive")).status, 401);
+    assert.equal((await request("/api/home")).status, 401);
+    assert.equal((await request("/home-ui.js")).status, 401);
     assert.equal(
       (
         await request("/api/drive", {
@@ -144,7 +147,14 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       (await request("/auth/google/callback?state=invalid")).status,
       401,
     );
-    for (const action of ["state", "refresh", "edit", "retry", "discard"])
+    for (const action of [
+      "state",
+      "refresh",
+      "edit",
+      "retry",
+      "discard",
+      "home",
+    ])
       assert.equal(
         (await request("/api/" + action, action === "state" ? null : {}))
           .status,
@@ -159,6 +169,12 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       .find((x) => x.startsWith("__Host-dashboard_session"))
       .split(";")[0];
     assert.equal(await (await request("/")).text(), "private dashboard");
+    assert.equal((await request("/api/home")).status, 200);
+    assert.equal(
+      (await request("/api/home", { refresh: true }, "https://other.test"))
+        .status,
+      403,
+    );
     const drive = await (await request("/api/drive")).json();
     assert.equal((await request("/auth/google/start", {}, "null")).status, 403);
     assert.equal(

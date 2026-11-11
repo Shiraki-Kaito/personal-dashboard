@@ -1,13 +1,22 @@
-import { ownerId, RemoteError } from "./github.js";
+import { ownerId, RemoteError, github } from "./github.js";
 import { InputError } from "./sync.js";
 
+const fieldPageSize = 20;
 const query = `query($project:ID!, $cursor:String) {
   viewer { id }
   node(id:$project) { ... on ProjectV2 {
     id title url owner { ... on User { id } ... on Organization { id } }
     items(first:100, after:$cursor) {
       totalCount pageInfo { hasNextPage endCursor }
-      nodes { id isArchived content {
+      nodes { id updatedAt isArchived
+      fieldValues(first:${fieldPageSize}) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          ... on ProjectV2ItemFieldSingleSelectValue { optionId field { ... on ProjectV2SingleSelectField { id } } }
+          ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2Field { id } } }
+        }
+      }
+      content {
         ... on DraftIssue { title }
         ... on Issue { title url }
         ... on PullRequest { title url }
@@ -73,13 +82,42 @@ export async function catalog(config, request, storage, refresh) {
       for (const item of connection.nodes) {
         if (!item || ids.has(item.id)) throw new RemoteError("一覧取得不整合");
         ids.add(item.id);
+        const editable = !item.isArchived && !!item.content;
+        let values = {};
+        if (editable && config.status_field && config.due_field) {
+          if (!Array.isArray(item.fieldValues?.nodes))
+            throw new RemoteError("状態・期限の取得が未完了です");
+          if (item.fieldValues.pageInfo.hasNextPage) {
+            // 項目数が多いタスクだけ、既存アダプターで全ページとリビジョンを照合する。
+            const detail = await github(
+              { ...config, item: item.id },
+              request,
+            ).read();
+            if (detail.revision !== item.updatedAt)
+              throw new RemoteError("取得中にタスクが変更されました");
+            values = {
+              status: detail.status,
+              due: detail.due,
+              fieldsComplete: true,
+            };
+          } else {
+            values = { status: null, due: null, fieldsComplete: true };
+            for (const field of item.fieldValues.nodes) {
+              if (field?.field?.id === config.status_field)
+                values.status = field.optionId;
+              if (field?.field?.id === config.due_field)
+                values.due = field.date;
+            }
+          }
+        }
         items.push({
           id: item.id,
           title: item.content?.title || "内容を取得できません",
           url: item.content?.url || null,
           archived: item.isArchived,
           accessible: !!item.content,
-          editable: !item.isArchived && !!item.content,
+          editable,
+          ...values,
         });
       }
       const page = connection.pageInfo;
@@ -98,6 +136,7 @@ export async function catalog(config, request, storage, refresh) {
       error: null,
       retryAt: null,
       lastSuccess: new Date().toISOString(),
+      hasPriorityFields: !!config.status_field && !!config.due_field,
     });
   } catch (error) {
     if (!(error instanceof RemoteError)) throw error;

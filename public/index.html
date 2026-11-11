@@ -9,8 +9,9 @@
     <script type="module" src="/ui.js"></script>
     <script type="module" src="/drive-ui.js"></script>
     <script type="module" src="/motion-ui.js"></script>
+    <script type="module" src="/home-ui.js"></script>
   </head>
-  <body data-view="drive">
+  <body data-view="home">
     <a class="skip-link" href="#workspace">メインへ移動</a>
     <aside class="sidebar">
       <div class="brand">
@@ -21,9 +22,14 @@
       <nav aria-label="メイン">
         <button
           class="nav-button active"
-          data-panel="drive"
-          data-focus="driveSearch"
+          data-panel="home"
+          data-focus="homeHeading"
         >
+          <span class="nav-symbol" aria-hidden="true">⌂</span
+          ><span class="nav-label">ホーム</span
+          ><span class="nav-count" id="navHomeCount">—</span>
+        </button>
+        <button class="nav-button" data-panel="drive" data-focus="driveSearch">
           <span class="nav-symbol" aria-hidden="true">▦</span
           ><span class="nav-label">Drive</span
           ><span class="nav-count" id="navDriveCount">—</span>
@@ -100,13 +106,100 @@
         <div class="metric">
           <span class="metric-symbol violet" aria-hidden="true">✓</span>
           <div>
-            <span class="metric-label">GitHubタスク</span
+            <span class="metric-label" id="metricTasksLabel">GitHubタスク</span
             ><strong id="metricTasks">—</strong>
           </div>
           <span id="metricPending" class="metric-note">Projectを確認中</span>
         </div>
       </div>
       <div class="dashboard-grid">
+        <section
+          class="panel surface home-panel"
+          aria-labelledby="homeHeading"
+          data-enter
+        >
+          <div class="panel-heading">
+            <div>
+              <h2 id="homeHeading" tabindex="-1">優先確認</h2>
+              <p class="eyebrow">
+                同期の保留、期限超過、今日の期限をまとめて確認
+              </p>
+            </div>
+            <button
+              class="icon-button"
+              id="homeRefresh"
+              aria-label="ホームを更新"
+            >
+              ↻
+            </button>
+          </div>
+          <div class="panel-toolbar">
+            <div class="segmented" aria-label="タスクの分類">
+              <button id="homePriorityTab" class="selected" aria-pressed="true">
+                要確認 <span id="homePriorityCount">—</span>
+              </button>
+              <button id="homeOtherTab" aria-pressed="false">
+                その他 <span id="homeOtherCount">—</span>
+              </button>
+              <button id="homeDoneTab" aria-pressed="false">
+                完了 <span id="homeDoneCount">—</span>
+              </button>
+            </div>
+          </div>
+          <div
+            id="homeAlerts"
+            class="home-alerts scroll-area"
+            role="status"
+            hidden
+          ></div>
+          <p id="homeNotice" class="inline-notice" role="status" hidden></p>
+          <div
+            id="homeTasks"
+            class="home-list scroll-area"
+            tabindex="0"
+            aria-label="ホームのタスク一覧"
+          >
+            <div class="empty-state">実運用Projectを確認しています</div>
+          </div>
+          <footer class="panel-footer">
+            <span id="homeGithubTime">未取得</span
+            ><span id="homeSourceCount"></span>
+          </footer>
+        </section>
+        <section
+          class="panel surface home-panel"
+          aria-labelledby="homeDriveHeading"
+          data-enter
+        >
+          <div class="panel-heading">
+            <div>
+              <h2 id="homeDriveHeading">
+                Driveの未確認
+                <span id="homeDriveCount" class="home-total">—</span>
+              </h2>
+              <p class="eyebrow">確認するまで保持・元ファイルは変更しません</p>
+            </div>
+            <button
+              id="homeOpenDrive"
+              class="icon-button"
+              aria-label="Driveの全件一覧へ移動"
+            >
+              ↗
+            </button>
+          </div>
+          <div
+            id="homeDriveFiles"
+            class="home-list scroll-area"
+            tabindex="0"
+            aria-label="ホームの未確認ファイル一覧"
+          >
+            <div class="empty-state">Driveを確認しています</div>
+          </div>
+          <footer class="panel-footer">
+            <span id="homeDriveTime">未取得</span
+            ><span>メール・カレンダー・Slack・ノートは未接続</span>
+          </footer>
+        </section>
         <section
           class="panel surface drive-panel"
           id="drivePanel"
@@ -360,6 +453,7 @@
             Google OAuthの状態を確認しています。
           </p>
           <p id="driveAuthorizationDue"></p>
+          <p id="driveTokenRefresh"></p>
           <form
             id="driveConnect"
             action="/auth/google/start"

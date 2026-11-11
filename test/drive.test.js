@@ -261,6 +261,16 @@ test("失効時はリフレッシュし、再認可が必要なら未接続を�
   );
   const credential = await storage.get("drive:credential");
   assert.equal(credential.refresh, "refresh");
+  const first = (await driveView(env, storage)).authorization;
+  assert.equal(first.refresh.count, 1);
+  assert.ok(first.refresh.lastAttempt);
+  assert.ok(first.refresh.lastSuccess);
+  assert.equal(first.refresh.error, null);
+  assert.ok(Date.parse(first.accessTokenExpiresAt) > Date.now());
+  assert.equal(
+    await driveToken(env, storage, () => assert.fail("期限内は交換しない")),
+    "renewed",
+  );
   await storage.put("drive:credential", { ...credential, expires: 0 });
   await assert.rejects(
     driveToken(env, storage, async () =>
@@ -269,6 +279,11 @@ test("失効時はリフレッシュし、再認可が必要なら未接続を�
     /再接続/,
   );
   assert.equal((await driveView(env, storage, now)).connected, false);
+  const failedRefresh = (await driveView(env, storage)).authorization.refresh;
+  assert.equal(failedRefresh.count, 1);
+  assert.equal(failedRefresh.lastSuccess, first.refresh.lastSuccess);
+  assert.match(failedRefresh.error, /再接続/);
+  assert.equal(JSON.stringify(failedRefresh).includes("renewed"), false);
 });
 test("OAuthのstateを本人セッションに結び付け、成功時も資格情報をブラウザーへ返さない", async () => {
   const storage = memory(),

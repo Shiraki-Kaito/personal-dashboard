@@ -216,6 +216,19 @@ function render() {
       time(state.authorizationReviewAt) +
       "（失効や取消により早まる場合があります）"
     : "";
+  el("driveTokenRefresh").textContent =
+    "トークン自動更新 最終試行 " +
+    time(state.authorization?.refresh?.lastAttempt) +
+    " ／ 最終成功 " +
+    time(state.authorization?.refresh?.lastSuccess) +
+    " ／ 成功 " +
+    (state.authorization?.refresh?.count || 0) +
+    "回" +
+    " ／ 現トークン期限 " +
+    time(state.authorization?.accessTokenExpiresAt) +
+    (state.authorization?.refresh?.error
+      ? " ／ " + state.authorization.refresh.error
+      : "");
   el("driveScope").textContent =
     (state.folderName || "対象未設定") +
     (state.includeSubfolders ? " · サブフォルダを含む" : "");
@@ -309,6 +322,8 @@ async function load(refresh = false, acknowledge = null) {
     state = await response.json();
     success = true;
     if (acknowledge)
+      document.dispatchEvent(new Event("dashboard:drive-reviewed"));
+    if (acknowledge)
       el("driveReviewStatus").textContent =
         state.acknowledged === acknowledge.length
           ? "確認済みにしました"
@@ -401,6 +416,25 @@ el("driveConnect").onsubmit = async (event) => {
   }
 };
 document.addEventListener("dashboard:refresh", () => load(true));
+document.addEventListener("dashboard:review-drive", (event) =>
+  load(false, [event.detail]),
+);
+document.addEventListener("dashboard:open-drive-file", async (event) => {
+  if (!(await load())) return;
+  const review = state.unreadChanges.find(
+    (file) => file.id === event.detail.id,
+  );
+  const file =
+    review || state.files.find((file) => file.id === event.detail.id);
+  if (file) openFile({ ...file, review, events: review?.events });
+  else
+    document.dispatchEvent(
+      new CustomEvent("dashboard:home-error", {
+        detail:
+          "対象のファイルが一覧にありません。最新の取得状況を確認してください。",
+      }),
+    );
+});
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) load();
 });

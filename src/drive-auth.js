@@ -26,6 +26,15 @@ export function googleAuthorizationStatus(env, credential) {
             credential.connectedAt + testingAuthorizationLifetimeMs,
           ).toISOString()
         : null,
+    accessTokenExpiresAt: Number.isFinite(credential?.expires)
+      ? new Date(credential.expires).toISOString()
+      : null,
+    refresh: {
+      lastAttempt: credential?.lastRefreshAttemptAt || null,
+      lastSuccess: credential?.lastRefreshedAt || null,
+      count: credential?.refreshCount || 0,
+      error: credential?.lastRefreshError || null,
+    },
   };
 }
 export function googleConfigured(env) {
@@ -167,6 +176,7 @@ export async function googleConnect(
         expires: Date.now() + grant.expires_in * 1000,
         connectedAt: Date.now(),
         grantedPublishingStatus: flow.publishingStatus || "testing",
+        refreshCount: 0,
       });
       await tx.delete("drive:cache");
       await tx.delete("drive:job");
@@ -182,6 +192,8 @@ export async function driveToken(env, storage, send = fetch) {
   if (!credential || credential.invalid)
     throw new DriveError("Google Driveは未接続です", "authentication");
   if (credential.expires > Date.now() + tokenSafetyMs) return credential.token;
+  credential.lastRefreshAttemptAt = new Date().toISOString();
+  await storage.put("drive:credential", credential);
   try {
     const grant = await exchange(
       {
@@ -195,13 +207,20 @@ export async function driveToken(env, storage, send = fetch) {
     credential.token = grant.access_token;
     credential.refresh = grant.refresh_token || credential.refresh;
     credential.expires = Date.now() + grant.expires_in * 1000;
+    credential.lastRefreshedAt = new Date().toISOString();
+    credential.refreshCount = (credential.refreshCount || 0) + 1;
+    credential.lastRefreshError = null;
     await storage.put("drive:credential", credential);
     return credential.token;
   } catch (error) {
+    credential.lastRefreshError =
+      error instanceof DriveError
+        ? error.message
+        : "Googleトークンの自動更新に失敗しました";
     if (error instanceof DriveError && error.code === "authentication") {
       credential.invalid = true;
-      await storage.put("drive:credential", credential);
     }
+    await storage.put("drive:credential", credential);
     throw error;
   }
 }

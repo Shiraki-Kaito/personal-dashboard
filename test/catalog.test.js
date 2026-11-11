@@ -69,3 +69,78 @@ test("旧状態を継承し、別タスクの未同期操作を分離する", as
   assert.equal((await other.get()).pending, null);
   assert.equal((await old.get()).pending.id, "pending");
 });
+
+test("一覧でも状態と期限を取り、フィールドの続きは全ページを照合する", async () => {
+  const storage = memory(),
+    config = {
+      project: "p",
+      mode: "production",
+      status_field: "s",
+      due_field: "d",
+    };
+  let changeRevision = false;
+  const request = async (_, variables) => {
+    if (variables.project)
+      return {
+        viewer: { id: ownerId },
+        node: {
+          id: "p",
+          owner: { id: ownerId },
+          title: "Tasks",
+          url: "https://github.com",
+          items: {
+            totalCount: 2,
+            pageInfo: { hasNextPage: false },
+            nodes: [
+              {
+                id: "a",
+                updatedAt: "a1",
+                content: { title: "A" },
+                fieldValues: {
+                  pageInfo: { hasNextPage: false },
+                  nodes: [
+                    { optionId: "done", field: { id: "s" } },
+                    { date: "2026-11-12", field: { id: "d" } },
+                  ],
+                },
+              },
+              {
+                id: "b",
+                updatedAt: "b1",
+                content: { title: "B" },
+                fieldValues: {
+                  pageInfo: { hasNextPage: true, endCursor: "more" },
+                  nodes: [],
+                },
+              },
+            ],
+          },
+        },
+      };
+    return {
+      viewer: { id: ownerId },
+      node: {
+        id: "b",
+        updatedAt: changeRevision && variables.cursor ? "b2" : "b1",
+        project: { id: "p", owner: { id: ownerId }, items: { totalCount: 2 } },
+        content: { title: "B" },
+        fieldValues: {
+          pageInfo: { hasNextPage: !variables.cursor, endCursor: "next" },
+          nodes: variables.cursor
+            ? [{ optionId: "todo", field: { id: "s" } }]
+            : [{ date: "2026-11-13", field: { id: "d" } }],
+        },
+      },
+    };
+  };
+  const before = await catalog(config, request, storage, true);
+  assert.equal(before.hasPriorityFields, true);
+  assert.equal(before.items[0].status, "done");
+  assert.equal(before.items[0].due, "2026-11-12");
+  assert.equal(before.items[1].status, "todo");
+  assert.equal(before.items[1].due, "2026-11-13");
+  changeRevision = true;
+  const failed = await catalog(config, request, storage, true);
+  assert.match(failed.error, /取得中に変更/);
+  assert.deepEqual(failed.items, before.items);
+});

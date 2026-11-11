@@ -1530,3 +1530,149 @@ dd {
   color: var(--muted);
   line-height: 1.9;
 }
+.home-panel {
+  display: none;
+}
+body[data-view="home"] .home-panel {
+  display: flex;
+}
+body[data-view="home"] .drive-panel,
+body[data-view="home"] .task-panel {
+  display: none;
+}
+.home-list {
+  flex: 1;
+  min-height: 0;
+  padding: 0 16px 8px;
+}
+.home-list .empty-state {
+  min-height: 100px;
+}
+.home-alerts {
+  margin: 0 18px 8px;
+  padding: 9px 12px;
+  border: 1px solid #e1baa725;
+  background: #e1baa709;
+  border-radius: 8px;
+  color: var(--error);
+  font-size: 11px;
+  max-height: 85px;
+  flex: none;
+}
+.home-alerts p + p {
+  margin-top: 5px;
+}
+.home-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 5px;
+  border-bottom: 1px solid var(--line);
+}
+.home-task-open {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  text-align: left;
+  border-radius: 7px;
+}
+.home-task-open:hover:not(:disabled) {
+  background: #ffffff06;
+}
+.home-item-title {
+  display: block;
+  font-weight: 550;
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.home-item-meta {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.home-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+.home-reason {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #ffc6a210;
+  color: var(--error);
+}
+.home-stale {
+  color: var(--muted);
+  background: #ffffff08;
+}
+.home-source-link {
+  flex: none;
+  padding: 8px;
+  font-size: 17px;
+  color: var(--muted);
+}
+.home-total {
+  color: var(--mint);
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 900px) {
+  body[data-view="home"] .dashboard-grid {
+    flex-direction: column;
+  }
+  body[data-view="home"] .home-panel {
+    flex: 1;
+  }
+  .home-panel .panel-heading {
+    padding-block: 12px;
+  }
+  .home-panel .panel-toolbar {
+    padding-bottom: 8px;
+  }
+  .home-panel .panel-footer {
+    padding-block: 7px;
+  }
+  .home-panel .panel-footer span:last-child {
+    max-width: 150px;
+    text-align: right;
+  }
+}
+@media (max-width: 440px) {
+  .sidebar nav {
+    gap: 3px;
+  }
+  .sidebar .nav-button {
+    padding-inline: 8px;
+    gap: 4px;
+  }
+  .sidebar .nav-label {
+    white-space: nowrap;
+  }
+  .home-list {
+    padding-inline: 10px;
+  }
+  .home-item-title {
+    font-size: 12px;
+  }
+}
+@media (min-width: 901px) and (max-height: 600px) {
+  .sidebar {
+    padding-block: 20px 12px;
+  }
+  .brand {
+    padding-bottom: 20px;
+  }
+  .sidebar .nav-button {
+    padding-block: 10px;
+  }
+  .profile {
+    padding-top: 10px;
+    margin-top: 8px;
+  }
+}
