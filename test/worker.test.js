@@ -137,6 +137,11 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       .split(";")[0];
     assert.equal(await (await request("/")).text(), "private dashboard");
     const drive = await (await request("/api/drive")).json();
+    assert.equal((await request("/auth/google/start", {}, "null")).status, 403);
+    assert.equal(
+      (await request("/auth/google/start", {}, "https://other.test")).status,
+      403,
+    );
     assert.equal(drive.configured, false);
     assert.equal(drive.connected, false);
     assert.equal(

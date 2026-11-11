@@ -1,4 +1,18 @@
 const el = (id) => document.getElementById(id);
+el("logout").onsubmit = async (event) => {
+  event.preventDefault();
+  const button = el("logout").querySelector("button");
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    const response = await fetch("/auth/logout", { method: "POST" });
+    if (!response.ok) throw Error("ログアウトに失敗しました");
+    location.replace("/");
+  } catch (error) {
+    el("error").textContent = error.message;
+    button.disabled = false;
+  }
+};
 const pollMs = 60000,
   staleMs = 2 * pollMs;
 let state = null,

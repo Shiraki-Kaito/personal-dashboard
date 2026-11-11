@@ -2,6 +2,13 @@ import { DriveError, googleRequest } from "./drive-http.js";
 
 export const driveScope =
   "https://www.googleapis.com/auth/drive.metadata.readonly";
+export function googleConfigured(env) {
+  return (
+    /^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(
+      env.GOOGLE_CLIENT_ID || "",
+    ) && !!env.GOOGLE_CLIENT_SECRET
+  );
+}
 const flowLifetimeMs = 10 * 60 * 1000;
 const tokenSafetyMs = 60 * 1000;
 function random() {
@@ -62,6 +69,11 @@ export async function googleConnect(
 ) {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET)
     return new Response("Google OAuthの設定が必要です", { status: 503 });
+  if (!googleConfigured(env))
+    return new Response(
+      "GOOGLE_CLIENT_IDには末尾が.apps.googleusercontent.comのClient IDを登録してください",
+      { status: 503 },
+    );
   const url = new URL(request.url);
   const redirectUri = url.origin + "/auth/google/callback";
   if (url.pathname === "/auth/google/start") {
@@ -87,10 +99,8 @@ export async function googleConnect(
       code_challenge: await challenge(verifier),
       code_challenge_method: "S256",
     });
-    return new Response(null, {
-      status: 303,
-      headers: { Location: authorization.toString() },
-    });
+    // no-referrer下のフォームPOSTはOriginがnullになるため、同一サイトfetchで開始する。
+    return Response.json({ authorizationUrl: authorization.toString() });
   }
   const flow = await storage.get("drive:flow");
   if (

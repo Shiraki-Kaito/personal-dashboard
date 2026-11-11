@@ -11,7 +11,7 @@ function render() {
     state.lastSuccess &&
     (state.error || Date.now() - Date.parse(state.lastSuccess) > staleMs);
   el("driveStatus").textContent = !state.configured
-    ? "Google OAuthの設定待ちです"
+    ? state.configurationError || "Google OAuthの設定待ちです"
     : !state.connected
       ? "Google Driveは未接続です。本人のGoogle認可が必要です"
       : state.error
@@ -117,6 +117,34 @@ async function load(refresh = false) {
   }
 }
 el("driveRefresh").onclick = () => load(true);
+el("driveConnect").onsubmit = async (event) => {
+  event.preventDefault();
+  const button = el("driveConnect").querySelector("button");
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    const response = await fetch("/auth/google/start", {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    });
+    if (response.status === 401) {
+      location.replace("/");
+      return;
+    }
+    if (!response.ok)
+      throw Error(
+        "Google接続を開始できません。設定とログイン状態を確認してください",
+      );
+    const result = await response.json();
+    const target = new URL(result.authorizationUrl);
+    if (target.origin !== "https://accounts.google.com")
+      throw Error("認可先が不正です");
+    location.assign(target.toString());
+  } catch (error) {
+    el("driveStatus").textContent = error.message;
+    button.disabled = false;
+  }
+};
 await load();
 if (state?.connected) await load(true);
 setInterval(() => {

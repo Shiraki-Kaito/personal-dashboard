@@ -1,5 +1,5 @@
 import { driveClient, DriveError } from "./drive-http.js";
-import { driveToken } from "./drive-auth.js";
+import { driveToken, googleConfigured } from "./drive-auth.js";
 
 export const recentWindowMs = 12 * 60 * 60 * 1000;
 const minimumRefreshMs = 5 * 60 * 1000;
@@ -147,8 +147,11 @@ export async function driveView(env, storage, now = Date.now()) {
   let cache = await storage.get("drive:cache");
   if (!config || cache?.scope !== configKey(config)) cache = null;
   return {
-    configured:
-      !!config && !!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET,
+    configured: !!config && googleConfigured(env),
+    configurationError:
+      env.GOOGLE_CLIENT_ID && !googleConfigured(env)
+        ? "Google OAuth設定を確認してください。Client IDの末尾は.apps.googleusercontent.comです。"
+        : null,
     connected: !!credential && !credential.invalid,
     folderId: config?.folderId || null,
     includeSubfolders: config?.includeSubfolders ?? null,
@@ -172,8 +175,7 @@ export async function refreshDrive(
   now = Date.now(),
 ) {
   const config = driveConfig(env);
-  if (!config || !env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET)
-    return driveView(env, storage, now);
+  if (!config || !googleConfigured(env)) return driveView(env, storage, now);
   let cache = await storage.get("drive:cache");
   if (cache?.scope !== configKey(config))
     cache = {

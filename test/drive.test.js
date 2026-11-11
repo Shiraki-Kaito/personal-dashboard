@@ -10,12 +10,38 @@ import {
 import { DriveError, driveClient } from "../src/drive-http.js";
 import { googleConnect, driveToken, driveScope } from "../src/drive-auth.js";
 
+test("Client IDの取り違えを外部送信前に拒否し、設定値を応答へ出さない", async () => {
+  const invalid = { ...env, GOOGLE_CLIENT_ID: "fixture-private-value" };
+  const storage = memory();
+  const response = await googleConnect(
+    new Request("https://unit.test/auth/google/start", { method: "POST" }),
+    invalid,
+    storage,
+    { key: "owner" },
+    () => assert.fail("外部送信は禁止"),
+  );
+  assert.equal(response.status, 503);
+  assert.equal(
+    (await response.text()).includes("fixture-private-value"),
+    false,
+  );
+  assert.equal(await storage.get("drive:flow"), undefined);
+  const view = await refreshDrive(
+    invalid,
+    storage,
+    () => assert.fail("取得は禁止"),
+    now,
+  );
+  assert.equal(view.configured, false);
+  assert.equal(JSON.stringify(view).includes("fixture-private-value"), false);
+});
+
 const folderType = "application/vnd.google-apps.folder";
 const now = Date.parse("2026-11-11T03:00:00Z");
 const config = { folderId: "root", includeSubfolders: true };
 const env = {
   DRIVE_CONFIG: JSON.stringify(config),
-  GOOGLE_CLIENT_ID: "fixture-id",
+  GOOGLE_CLIENT_ID: "1234-fixture.apps.googleusercontent.com",
   GOOGLE_CLIENT_SECRET: "fixture-secret",
 };
 function file(id, modifiedTime = "2026-01-01T00:00:00Z", parent = "root") {
@@ -199,7 +225,8 @@ test("OAuthのstateを本人セッションに結び付け、成功時も資格�
     storage,
     session,
   );
-  const auth = new URL(start.headers.get("Location"));
+  assert.equal(start.status, 200);
+  const auth = new URL((await start.json()).authorizationUrl);
   assert.equal(auth.searchParams.get("scope"), driveScope);
   assert.equal(auth.searchParams.get("code_challenge_method"), "S256");
   const callback = new Request(

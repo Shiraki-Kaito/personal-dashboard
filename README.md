@@ -35,6 +35,10 @@ npx.cmd wrangler secret put GOOGLE_CLIENT_ID
 npx.cmd wrangler secret put GOOGLE_CLIENT_SECRET
 ```
 
+Client IDは末尾が `.apps.googleusercontent.com` の文字列です。Secretとは別の値を登録します。サーバーはClient IDの形式を確認し、取り違えた値を認可URLへ入れる前に拒否します。Secretを誤ってIDとして使い、認可URLへ送信した場合は、Google CloudでSecretを再発行し古いSecretを無効化してから再登録してください。
+
+接続開始とログアウトは同一サイトのJavaScript通信で送信します。ページの `Referrer-Policy: no-referrer` により通常のフォームPOSTではOriginがnullになるためです。Originがnull・別サイトの場合の拒否を維持しています。修正後は自動テスト22件合格。本番の接続ボタンが送信元エラーを通過してGoogleへ遷移することを確認しました。実Driveの取得は正しいクライアント設定と本人認可の完了待ちです。[OriginとReferrer Policyの関係](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Referrer-Policy)
+
 OAuthはテストモードです。Googleの仕様では、この設定でDriveスコープを使うリフレッシュトークンは7日で失効するため、期限後は再接続が必要です。公開状態の変更や追加の検証が必要になる段階は、利用条件を再確認してから進めます。
 
 自動テスト21件が合格しました。新しいDrive検証は模擬APIで、12時間の境界、再帰・ページ分割・空ページ、不完全検索、初回と追加検知、障害時のキャッシュ保持、期限切れトークンの更新、OAuthのセッション結合、秘密値をAPIへ返さないことを確認しました。ローカルWorkerでは新しい取得・認可経路の未認証拒否と異なるOriginの拒否を確認済みです。本番も未認証時の取得・更新・認可開始・コールバックが401で、認可前は「Google OAuthの設定待ち」と表示することを確認しました。実Driveの全サブフォルダ取得、取得件数の元画面との照合、実アカウントの権限・失効復旧はGoogle認可後の検証待ちです。
