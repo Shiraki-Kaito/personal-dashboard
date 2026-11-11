@@ -141,6 +141,7 @@ export async function googleConnect(
         connectedAt: Date.now(),
       });
       await tx.delete("drive:cache");
+      await tx.delete("drive:job");
     });
     return new Response(null, { status: 303, headers: { Location: "/" } });
   } catch (error) {

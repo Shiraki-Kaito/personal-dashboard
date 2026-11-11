@@ -3,6 +3,7 @@ const pollMs = 5 * 60 * 1000,
   staleMs = 10 * 60 * 1000;
 let busy = false,
   state = null;
+let continuationTimer = null;
 const time = (value) =>
   value ? new Date(value).toLocaleString("ja-JP") : "なし";
 function render() {
@@ -14,13 +15,21 @@ function render() {
     ? state.configurationError || "Google OAuthの設定待ちです"
     : !state.connected
       ? "Google Driveは未接続です。本人のGoogle認可が必要です"
-      : state.error
-        ? "取得失敗 ／ " + state.error
-        : !state.lastSuccess
-          ? "Driveは接続済み・取得前"
-          : stale
-            ? "古い一覧を表示しています"
-            : "取得成功";
+      : state.scanning
+        ? "取得中 ／ フォルダ " +
+          state.progress.foldersDone +
+          " / " +
+          state.progress.foldersFound +
+          "・ファイル " +
+          state.progress.filesFound +
+          " 件確認"
+        : state.error
+          ? "取得失敗 ／ " + state.error
+          : !state.lastSuccess
+            ? "Driveは接続済み・取得前"
+            : stale
+              ? "古い一覧を表示しています"
+              : "取得成功";
   el("driveTimes").textContent =
     "最終試行 " +
     time(state.lastAttempt) +
@@ -87,6 +96,7 @@ function render() {
 }
 async function load(refresh = false) {
   if (busy) return;
+  clearTimeout(continuationTimer);
   busy = true;
   render();
   try {
@@ -114,6 +124,14 @@ async function load(refresh = false) {
   } finally {
     busy = false;
     render();
+    if (state?.connected && !document.hidden) {
+      const delay = state.scanning
+        ? 2500
+        : Math.max(pollMs, (state.retryAt || 0) - Date.now());
+      continuationTimer = setTimeout(() => {
+        if (!document.hidden) load(true);
+      }, delay);
+    }
   }
 }
 el("driveRefresh").onclick = () => load(true);
@@ -147,7 +165,7 @@ el("driveConnect").onsubmit = async (event) => {
 };
 await load();
 if (state?.connected) await load(true);
-setInterval(() => {
+document.addEventListener("visibilitychange", () => {
   if (!document.hidden && state?.connected) load(true);
-}, pollMs);
+});
 setInterval(render, 5000);

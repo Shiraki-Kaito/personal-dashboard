@@ -37,6 +37,50 @@ test("Client IDの取り違えを外部送信前に拒否し、設定値を応�
 });
 
 const folderType = "application/vnd.google-apps.folder";
+test("40フォルダを超える一覧を永続化し、再開後に全件取得を確定する", async () => {
+  const storage = memory(),
+    start = Date.now();
+  await storage.put("drive:credential", {
+    token: "fixture-token",
+    refresh: "fixture-refresh",
+    expires: start + 3600000,
+  });
+  const send = async (url) => {
+    const u = new URL(url);
+    if (u.pathname.endsWith("/root"))
+      return Response.json({ id: "root", name: "Root", mimeType: folderType });
+    const parent = u.searchParams.get("q").split("'")[1];
+    if (parent === "root")
+      return Response.json({
+        files: Array.from({ length: 45 }, (_, i) => ({
+          id: "folder" + i,
+          name: "Folder " + i,
+          mimeType: folderType,
+          parents: ["root"],
+        })),
+      });
+    return Response.json({
+      files: [file("file" + parent, "2026-01-01T00:00:00Z", parent)],
+    });
+  };
+  let result = await refreshDrive(env, storage, send, start);
+  assert.equal(result.scanning, true);
+  assert.equal(result.lastSuccess, null);
+  assert.equal(result.files.length, 0);
+  assert.ok(await storage.get("drive:job"));
+  let rounds = 1;
+  while (result.scanning && rounds < 10) {
+    result = await refreshDrive(env, storage, send, start + rounds * 3000);
+    rounds++;
+  }
+  assert.equal(result.scanning, false);
+  assert.equal(result.inventoryCount, 45);
+  assert.equal(result.folderCount, 46);
+  assert.ok(result.lastSuccess);
+  assert.equal(result.error, null);
+  assert.equal(await storage.get("drive:job"), undefined);
+  assert.equal(rounds, 3);
+});
 const now = Date.parse("2026-11-11T03:00:00Z");
 const config = { folderId: "root", includeSubfolders: true };
 const env = {
