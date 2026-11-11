@@ -4,7 +4,8 @@ import { github, transport } from "./github.js";
 import { synchronize, InputError } from "./sync.js";
 import { projectsFrom, catalog, selectTask, taskStorage } from "./catalog.js";
 import { googleConnect } from "./drive-auth.js";
-import { driveView, refreshDrive } from "./drive.js";
+import { driveView, refreshDrive, acknowledgeDrive } from "./drive.js";
+import { DriveReviewError } from "./drive-review.js";
 import { scheduleAlarm, runHourlyDrive } from "./scheduler.js";
 
 export default {
@@ -84,6 +85,10 @@ export class Dashboard extends DurableObject {
   async handle(request) {
     const { pathname, origin, searchParams } = new URL(request.url);
     const storage = this.ctx.storage;
+    if (pathname === "/privacy" && request.method === "GET") {
+      // Assets自身が拡張子なしURLを解決する。.htmlへ変換すると正規URLへ再転送される。
+      return this.env.ASSETS.fetch(request);
+    }
     if (
       request.method === "GET" &&
       ["/auth/login", "/auth/callback"].includes(pathname)
@@ -93,7 +98,7 @@ export class Dashboard extends DurableObject {
     if (!session) {
       if (pathname === "/" && request.method === "GET")
         return new Response(
-          '<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>個人ダッシュボード</title><main><h1>個人ダッシュボード</h1><a href="/auth/login">GitHubでログイン</a></main></html>',
+          '<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>個人ダッシュボード</title><main><h1>personal-dashboard</h1><p>GitHub ProjectsとGoogle Driveの情報を確認する、管理者本人専用のダッシュボードです。</p><p><a href="/auth/login">GitHubでログイン</a></p><p><a href="/privacy">プライバシーポリシー</a></p></main></html>',
           { headers: { "Content-Type": "text/html; charset=utf-8" } },
         );
       return Response.json(
@@ -115,6 +120,8 @@ export class Dashboard extends DurableObject {
       [
         "/",
         "/ui.js",
+        "/task-drafts.js",
+        "/confirm.js",
         "/style.css",
         "/drive-ui.js",
         "/motion-ui.js",
@@ -146,6 +153,15 @@ export class Dashboard extends DurableObject {
         return new Response(null, { status: 400 });
     }
     try {
+      if (action === "drive" && Object.hasOwn(input, "acknowledge")) {
+        if (input.refresh)
+          throw new DriveReviewError(
+            "取得と確認済み操作は同時に実行できません",
+          );
+        return Response.json(
+          await acknowledgeDrive(this.env, storage, input.acknowledge),
+        );
+      }
       if (action === "drive")
         return Response.json(
           request.method === "POST" &&
@@ -206,7 +222,7 @@ export class Dashboard extends DurableObject {
       );
       return Response.json(result);
     } catch (e) {
-      if (e instanceof InputError)
+      if (e instanceof InputError || e instanceof DriveReviewError)
         return Response.json({ error: e.message }, { status: 409 });
       throw e;
     }

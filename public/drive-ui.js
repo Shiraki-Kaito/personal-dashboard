@@ -1,3 +1,4 @@
+import { confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 const statePollMs = 60000,
   progressPollMs = 2500,
@@ -6,7 +7,8 @@ let busy = false,
   state = null,
   timer = null,
   tab = "all",
-  fileSignature = "";
+  fileSignature = "",
+  currentReview = null;
 const time = (value) =>
   value ? new Date(value).toLocaleString("ja-JP") : "なし";
 function shortTime(value) {
@@ -38,6 +40,8 @@ function fileKind(mime) {
   return { type: "file", short: "FILE", name: "ファイル" };
 }
 function openFile(file) {
+  currentReview = file.review;
+  el("fileReview").hidden = !currentReview;
   const kind = fileKind(file.mimeType);
   el("fileDialogType").textContent = kind.name;
   el("fileDialogName").textContent = file.name;
@@ -45,8 +49,15 @@ function openFile(file) {
   el("fileDialogModified").textContent = time(file.modifiedTime);
   el("fileDialogCreated").textContent = time(file.createdTime);
   el("fileDialogChanges").textContent =
-    file.events?.join("・") ||
-    (state.changesKnown ? "今回の変更なし" : "最初の全件照合を待っています");
+    (file.events?.join("・") || "") +
+      (file.review
+        ? " ／ 検知 " +
+          time(file.review.detectedAt) +
+          "（" +
+          file.review.occurrences +
+          "回）"
+        : "") ||
+    (state.changesKnown ? "未確認の変更なし" : "最初の全件照合を待っています");
   el("fileDialogLink").href =
     "https://drive.google.com/open?id=" + encodeURIComponent(file.id);
   el("fileDialog").showModal();
@@ -54,13 +65,14 @@ function openFile(file) {
 function renderFiles(force = false) {
   if (!state) return;
   const query = el("driveSearch").value.trim().toLocaleLowerCase();
-  const changes = new Map(state.changes.map((file) => [file.id, file]));
-  const source = tab === "changes" ? state.changes : state.files;
+  const changes = new Map(state.unreadChanges.map((file) => [file.id, file]));
+  const source = tab === "changes" ? state.unreadChanges : state.files;
   const files = source.filter((file) =>
     (file.name + " " + file.folder).toLocaleLowerCase().includes(query),
   );
   const signature = [
     state.lastSuccess,
+    state.unreadChanges.map((file) => file.changeId).join(","),
     tab,
     query,
     files.length,
@@ -82,7 +94,7 @@ function renderFiles(force = false) {
       events = change?.events || file.events;
     row.className = "file-row";
     row.type = "button";
-    row.onclick = () => openFile({ ...file, events });
+    row.onclick = () => openFile({ ...file, events, review: change || null });
     icon.className = "file-icon";
     icon.dataset.kind = kind.type;
     icon.textContent = kind.short;
@@ -127,7 +139,7 @@ function renderFiles(force = false) {
           ? "ファイルを取得しています"
           : tab === "changes"
             ? state.changesKnown
-              ? "前回からの変更はありません"
+              ? "未確認の変更はありません"
               : "最初の全件照合を待っています"
             : state.lastSuccess
               ? "ファイルはまだありません"
@@ -150,7 +162,7 @@ function renderFiles(force = false) {
 }
 function render() {
   if (!state) return;
-  state.changes ??= [];
+  state.unreadChanges ??= state.changes || [];
   const automaticError =
     state.automatic?.error &&
     Date.parse(state.automatic.lastTriggeredAt) >
@@ -191,6 +203,11 @@ function render() {
     time(state.nextScheduledAt) +
     " ／ 前回のCron起動 " +
     time(state.automatic?.lastTriggeredAt);
+  el("driveAuthorizationDue").textContent = state.authorizationReviewAt
+    ? "再接続の目安 " +
+      time(state.authorizationReviewAt) +
+      "（失効や取消により早まる場合があります）"
+    : "";
   el("driveScope").textContent =
     (state.folderName || "対象未設定") +
     (state.includeSubfolders ? " · サブフォルダを含む" : "");
@@ -221,13 +238,13 @@ function render() {
   el("metricFolders").textContent =
     state.folderCount !== null ? state.folderCount + "フォルダ" : "初回取得前";
   el("metricChanges").textContent = state.changesKnown
-    ? state.changes.length
+    ? state.unreadChanges.length
     : "—";
   el("metricChangesNote").textContent = state.changesKnown
-    ? "前回取得と照合済み"
+    ? "確認するまで保持"
     : "次の取得で照合";
   el("changeTabCount").textContent = state.changesKnown
-    ? state.changes.length
+    ? state.unreadChanges.length
     : "—";
   el("driveDot").dataset.state =
     !state.connected || failure ? "error" : state.lastSuccess ? "ok" : "";
@@ -236,12 +253,21 @@ function render() {
     : failure
       ? "Drive 取得失敗"
       : "Drive 接続済み";
+  el("driveReviewAll").hidden = tab !== "changes";
+  el("driveReviewAll").disabled = busy || !visibleUnread().length;
   renderFiles();
   document.dispatchEvent(
     new CustomEvent("dashboard:busy", { detail: { service: "drive", busy } }),
   );
 }
-async function load(refresh = false) {
+function visibleUnread() {
+  const query = el("driveSearch").value.trim().toLocaleLowerCase();
+  return (state?.unreadChanges || []).filter((file) =>
+    (file.name + " " + file.folder).toLocaleLowerCase().includes(query),
+  );
+}
+async function load(refresh = false, acknowledge = null) {
+  let success = false;
   if (busy) return;
   clearTimeout(timer);
   busy = true;
@@ -249,11 +275,13 @@ async function load(refresh = false) {
   try {
     const response = await fetch(
       "/api/drive",
-      refresh
+      refresh || acknowledge
         ? {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refresh: true, manual: true }),
+            body: JSON.stringify(
+              acknowledge ? { acknowledge } : { refresh: true, manual: true },
+            ),
           }
         : {},
     );
@@ -263,6 +291,12 @@ async function load(refresh = false) {
     }
     if (!response.ok) throw Error("Driveの状態を取得できません");
     state = await response.json();
+    success = true;
+    if (acknowledge)
+      el("driveReviewStatus").textContent =
+        state.acknowledged === acknowledge.length
+          ? "確認済みにしました"
+          : "新しい変更は未確認で残しました";
   } catch (error) {
     if (state) state.error = error.message;
     else el("driveStatus").textContent = error.message;
@@ -277,6 +311,7 @@ async function load(refresh = false) {
         state?.scanning ? progressPollMs : statePollMs,
       );
   }
+  return success;
 }
 for (const [id, value] of [
   ["driveAllTab", "all"],
@@ -291,15 +326,40 @@ for (const [id, value] of [
       el(button).classList.toggle("selected", mode === tab);
       el(button).setAttribute("aria-pressed", String(mode === tab));
     }
+    render();
     renderFiles(true);
   };
 }
-el("driveSearch").oninput = () => renderFiles(true);
+el("driveSearch").oninput = () => {
+  render();
+  renderFiles(true);
+};
 el("driveRefresh").onclick = () => load(true);
+el("driveReviewAll").onclick = () => {
+  const entries = visibleUnread().map(({ id, changeId }) => ({ id, changeId }));
+  if (entries.length) load(false, entries);
+};
+el("fileReview").onclick = async () => {
+  if (!currentReview || busy) return;
+  const { id, changeId } = currentReview;
+  el("fileReview").disabled = true;
+  try {
+    if (await load(false, [{ id, changeId }])) el("fileDialog").close();
+  } finally {
+    el("fileReview").disabled = false;
+  }
+};
 el("driveConnect").onsubmit = async (event) => {
   event.preventDefault();
   const button = el("driveConnect").querySelector("button");
-  if (button.disabled) return;
+  if (button.disabled || busy) return;
+  if (
+    state?.unreadChanges?.length &&
+    !(await confirmDiscard(
+      "Googleへ再接続すると、アカウントを選び直すため取得一覧と未確認表示をリセットします。Driveのファイルは変更しません。未確認を破棄して再接続しますか？",
+    ))
+  )
+    return;
   button.disabled = true;
   try {
     const response = await fetch("/auth/google/start", {

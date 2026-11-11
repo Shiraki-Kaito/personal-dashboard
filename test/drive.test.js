@@ -6,6 +6,7 @@ import {
   orderedDriveFiles,
   refreshDrive,
   driveView,
+  acknowledgeDrive,
 } from "../src/drive.js";
 import { DriveError, driveClient } from "../src/drive-http.js";
 import { googleConnect, driveToken, driveScope } from "../src/drive-auth.js";
@@ -320,4 +321,43 @@ test("Driveのレート制限・認証・権限・削除を区別し、要求数
   const read = driveClient("fixture", async () => Response.json({ files: [] }));
   for (let i = 0; i < 40; i++) await read("files", {});
   await assert.rejects(read("files", {}), /取得上限/);
+});
+
+test("未確認の変更は次回取得・取得失敗・保存状態の再読込を越えて保持する", async () => {
+  const s = memory();
+  await s.put("drive:credential", {
+    token: "fixture",
+    expires: Date.now() + 3600000,
+  });
+  let items = [file("first")],
+    fail = false;
+  const send = async (url) => {
+    if (fail) return Response.json({}, { status: 403 });
+    if (new URL(url).pathname.endsWith("/root"))
+      return Response.json({ id: "root", name: "Root", mimeType: folderType });
+    return Response.json({ files: items });
+  };
+  await refreshDrive(env, s, send, now);
+  items = [file("first"), file("second")];
+  const changed = await refreshDrive(env, s, send, now + 60000);
+  assert.equal(changed.unreadChanges.length, 1);
+  const unchanged = await refreshDrive(env, s, send, now + 120000);
+  assert.deepEqual(unchanged.unreadChanges, changed.unreadChanges);
+  fail = true;
+  const failed = await refreshDrive(env, s, send, now + 180000);
+  assert.ok(failed.error);
+  assert.deepEqual(failed.unreadChanges, changed.unreadChanges);
+  const restarted = memory();
+  await restarted.put("drive:cache", await s.get("drive:cache"));
+  const loaded = await driveView(env, restarted);
+  assert.deepEqual(loaded.unreadChanges, changed.unreadChanges);
+  const acknowledged = await acknowledgeDrive(
+    env,
+    restarted,
+    loaded.unreadChanges,
+  );
+  assert.equal(acknowledged.unreadChanges.length, 0);
+  assert.equal(acknowledged.acknowledged, 1);
+  assert.equal(acknowledged.files.length, 2);
+  assert.equal((await driveView(env, restarted)).unreadChanges.length, 0);
 });

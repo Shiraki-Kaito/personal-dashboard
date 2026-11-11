@@ -90,7 +90,7 @@
         <div class="metric">
           <span class="metric-symbol mint" aria-hidden="true">↗</span>
           <div>
-            <span class="metric-label">前回からの変更</span
+            <span class="metric-label">Driveの未確認</span
             ><strong id="metricChanges">—</strong>
           </div>
           <span class="metric-note" id="metricChangesNote"
@@ -147,7 +147,7 @@
               <button id="driveAllTab" class="selected" aria-pressed="true">
                 更新順</button
               ><button id="driveChangesTab" aria-pressed="false">
-                今回の変更 <span id="changeTabCount">—</span>
+                未確認 <span id="changeTabCount">—</span>
               </button>
             </div>
             <label class="search"
@@ -177,7 +177,11 @@
           <footer class="panel-footer">
             <span id="driveStatus" role="status">接続確認中</span
             ><span id="driveCount"></span>
+            <button id="driveReviewAll" class="text-button" hidden>
+              表示中を確認済み
+            </button>
           </footer>
+          <p id="driveReviewStatus" class="review-status" role="status"></p>
           <p class="inline-notice" id="driveNotice" hidden></p>
         </section>
         <section
@@ -316,7 +320,7 @@
           <dd id="fileDialogModified"></dd>
           <dt>作成日時</dt>
           <dd id="fileDialogCreated"></dd>
-          <dt>前回取得からの変更</dt>
+          <dt>未確認の変更</dt>
           <dd id="fileDialogChanges"></dd>
         </dl>
         <a
@@ -326,6 +330,9 @@
           rel="noreferrer"
           >Driveで開く ↗</a
         >
+        <button id="fileReview" class="button button-secondary" hidden>
+          確認済みにする
+        </button>
       </div>
     </dialog>
     <dialog id="settingsDialog" class="settings-dialog">
@@ -350,6 +357,7 @@
             通常のサブフォルダを含みます。ショートカット先はたどりません。「対象範囲外」は削除・移動・アクセス権変更などで一覧から外れたことを表します。
           </p>
           <p>Google OAuthはテストモードのため、7日後に再接続が必要です。</p>
+          <p id="driveAuthorizationDue"></p>
           <form
             id="driveConnect"
             action="/auth/google/start"

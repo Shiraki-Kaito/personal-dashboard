@@ -1,3 +1,6 @@
+import { confirmDiscard } from "./confirm.js";
+import { TaskDrafts } from "./task-drafts.js";
+const drafts = new TaskDrafts();
 const el = (id) => document.getElementById(id);
 const pollMs = 60000,
   staleMs = 2 * pollMs;
@@ -32,6 +35,8 @@ function controls() {
   el("refreshList").disabled = working;
   for (const id of ["saveStatus", "saveDue", "due", "status"])
     el(id).disabled = working || !state?.remote || !!state.pending;
+  el("saveStatus").disabled ||= !drafts.entries.has("status");
+  el("saveDue").disabled ||= !drafts.entries.has("due");
   for (const id of ["retry", "discard"])
     el(id).disabled = working || !state?.pending;
   el("refresh").disabled = working || !itemId;
@@ -118,8 +123,8 @@ function renderRows() {
 }
 function render(s) {
   state = s;
-  dirty = false;
-  el("phase").textContent = s.phase;
+  dirty = drafts.dirty;
+  el("phase").textContent = s.phase + (dirty ? " ／ 入力中・未反映" : "");
   el("error").textContent =
     (s.error || "") + (s.retryAt ? " ／ 再取得可能 " + time(s.retryAt) : "");
   el("times").textContent =
@@ -137,8 +142,8 @@ function render(s) {
     new Option("未設定", ""),
     ...s.options.map((o) => new Option(o.name, o.id)),
   );
-  el("status").value = s.remote?.status || "";
-  el("due").value = s.remote?.due || "";
+  el("status").value = drafts.value("status", s.remote) || "";
+  el("due").value = drafts.value("due", s.remote) || "";
   el("changes").hidden = !s.pending;
   if (s.pending) {
     const { field, value, base } = s.pending;
@@ -169,6 +174,12 @@ function render(s) {
 }
 async function call(action, body = {}) {
   if (busy || catalogBusy || !itemId) return;
+  const submitted =
+    action === "edit"
+      ? body
+      : ["retry", "refresh"].includes(action)
+        ? state?.pending
+        : null;
   busy = true;
   controls();
   try {
@@ -193,6 +204,7 @@ async function call(action, body = {}) {
     const result = await response.json();
     if (!response.ok) throw Error(result.error || "再取得してください");
     requestError = null;
+    drafts.receive(result, submitted);
     render(result);
   } catch (error) {
     requestError = error.message;
@@ -208,19 +220,25 @@ el("refresh").onclick = async () => {
   if (
     !dirty ||
     (await confirmDiscard("入力中の変更を破棄し、GitHubから再取得します。"))
-  )
+  ) {
+    drafts.clear();
     call("refresh");
+  }
 };
 for (const [id, field] of [
   ["saveStatus", "status"],
   ["saveDue", "due"],
 ]) {
   el(field).oninput = () => {
-    dirty = true;
-    el("phase").textContent = "入力中・未反映";
+    drafts.edit(field, el(field).value || null, state.remote);
+    dirty = drafts.dirty;
+    el("phase").textContent = dirty ? "入力中・未反映" : state.phase;
+    controls();
   };
-  el(id).onclick = () =>
-    call("edit", { field, value: el(field).value || null, base: state.remote });
+  el(id).onclick = () => {
+    const input = drafts.submission(field);
+    if (input) call("edit", input);
+  };
 }
 el("retry").onclick = () => call("retry", { id: state.pending.id });
 el("discard").onclick = async () => {
@@ -228,23 +246,12 @@ el("discard").onclick = async () => {
     await confirmDiscard(
       "未同期のローカル変更を破棄し、GitHubの値を取得します。",
     )
-  )
+  ) {
+    drafts.clear();
     call("discard", { id: state.pending.id });
+  }
 };
-async function confirmDiscard(message) {
-  const dialog = el("confirmDialog");
-  if (dialog.open) return false;
-  el("confirmMessage").textContent = message;
-  // Escapeや背景クリックが以前の「破棄」を再利用しないよう毎回初期化する。
-  dialog.returnValue = "cancel";
-  dialog.showModal();
-  return new Promise((resolve) => {
-    dialog.onclose = () => {
-      dialog.onclose = null;
-      resolve(dialog.returnValue === "confirm");
-    };
-  });
-}
+
 async function chooseTask(id) {
   if (
     busy ||
@@ -253,6 +260,7 @@ async function chooseTask(id) {
   )
     return;
   itemId = id;
+  drafts.clear();
   state = null;
   dirty = false;
   el("taskEditor").hidden = false;
@@ -335,6 +343,7 @@ async function refreshCurrent() {
   )
     return;
   dirty = false;
+  drafts.clear();
   await loadCatalog(true);
   if (itemId) await call("refresh");
 }
@@ -349,6 +358,7 @@ el("project").onchange = async () => {
     return;
   }
   projectId = el("project").value;
+  drafts.clear();
   itemId = null;
   state = null;
   catalogState = null;
@@ -363,6 +373,12 @@ el("project").onchange = async () => {
   await loadCatalog(true);
 };
 document.addEventListener("dashboard:refresh", refreshCurrent);
+window.addEventListener("beforeunload", (event) => {
+  if (drafts.dirty) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
 controls();
 await loadCatalog(true);
 setInterval(() => {

@@ -24,6 +24,14 @@
   font-size: 14px;
   line-height: 1.55;
 }
+.review-status {
+  font-size: 10px;
+  color: var(--mint);
+  padding: 0 21px 8px;
+}
+.review-status:empty {
+  display: none;
+}
 * {
   box-sizing: border-box;
 }
@@ -1478,6 +1486,28 @@ dd {
   }
   .file-list {
     min-height: 0;
+  }
+}
+@media (min-width: 901px) and (max-height: 600px) {
+  .workspace {
+    padding-block: 10px;
+    gap: 8px;
+  }
+  .topbar h1 {
+    font-size: 22px;
+  }
+  .metric {
+    padding-block: 6px;
+  }
+  .metric strong {
+    font-size: 20px;
+  }
+  .metric-symbol {
+    width: 30px;
+    height: 30px;
+  }
+  .task-panel {
+    overflow-y: auto;
   }
 }
 @media (prefers-reduced-motion: reduce) {

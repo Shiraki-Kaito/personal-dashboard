@@ -1,5 +1,11 @@
 import { driveClient, DriveError } from "./drive-http.js";
 import { driveToken, googleConfigured } from "./drive-auth.js";
+import {
+  unreadChanges,
+  mergeUnread,
+  reviewChanges,
+  DriveReviewError,
+} from "./drive-review.js";
 
 export const driveRefreshIntervalMs = 60 * 60 * 1000;
 const minimumRefreshMs = 60 * 1000;
@@ -197,6 +203,13 @@ export async function driveView(env, storage, now = Date.now()) {
         ? "Google OAuth設定を確認してください。Client IDの末尾は.apps.googleusercontent.comです。"
         : null,
     connected: !!credential && !credential.invalid,
+    authorizationReviewAt:
+      credential?.connectedAt &&
+      env.GOOGLE_OAUTH_PUBLISHING_STATUS !== "published"
+        ? new Date(
+            credential.connectedAt + 7 * 24 * 60 * 60 * 1000,
+          ).toISOString()
+        : null,
     folderId: config?.folderId || null,
     includeSubfolders: config?.includeSubfolders ?? null,
     folderName: cache?.folderName || config?.label || null,
@@ -204,6 +217,7 @@ export async function driveView(env, storage, now = Date.now()) {
     folderCount: cache?.folderCount ?? null,
     files: orderedDriveFiles(cache?.files || []),
     changes: cache?.changes || [],
+    unreadChanges: unreadChanges(cache),
     changesKnown: cache?.viewVersion === 3,
     nextScheduledAt: new Date(
       (Math.floor(now / driveRefreshIntervalMs) + 1) * driveRefreshIntervalMs,
@@ -283,17 +297,27 @@ export async function refreshDrive(
         "メタデータの保存上限に達したため一覧は未完了です",
         "limit",
       );
+    const unread = mergeUnread(unreadChanges(cache), changes);
+    if (
+      new TextEncoder().encode(JSON.stringify({ files, unread })).length >
+      maxMetadataBytes
+    )
+      throw new DriveReviewError(
+        "一覧と未確認の変更が保存上限に達しました。前回の一覧を保持します",
+      );
     Object.assign(cache, result, {
       files,
       baselineAt: cache.baselineAt || now,
       changes,
+      unreadChanges: unread,
       viewVersion: 3,
       lastSuccess: new Date(now).toISOString(),
       error: null,
       retryAt: now + minimumRefreshMs,
     });
   } catch (error) {
-    if (!(error instanceof DriveError)) throw error;
+    if (!(error instanceof DriveError) && !(error instanceof DriveReviewError))
+      throw error;
     if (error.code === "authentication") {
       const credential = await storage.get("drive:credential");
       if (credential)
@@ -307,4 +331,14 @@ export async function refreshDrive(
     await tx.delete("drive:job");
   });
   return driveView(env, storage, now);
+}
+
+export async function acknowledgeDrive(env, storage, entries) {
+  const config = driveConfig(env);
+  const cache = await storage.get("drive:cache");
+  if (!config || !cache || cache.scope !== configKey(config))
+    throw new DriveReviewError("対象の一覧を取得してから確認してください");
+  const { remaining, acknowledged } = reviewChanges(cache, entries);
+  await storage.put("drive:cache", { ...cache, unreadChanges: remaining });
+  return { ...(await driveView(env, storage)), acknowledged };
 }

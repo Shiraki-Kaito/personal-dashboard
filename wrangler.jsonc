@@ -5,6 +5,7 @@
   "workers_dev": true,
   "preview_urls": false,
   "observability": { "enabled": false },
+  "vars": { "GOOGLE_OAUTH_PUBLISHING_STATUS": "testing" },
   "triggers": { "crons": ["0 * * * *"] },
   "assets": {
     "directory": "./public",

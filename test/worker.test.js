@@ -67,6 +67,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "sync",
       "catalog",
       "drive",
+      "drive-review",
       "drive-auth",
       "drive-http",
       "scheduler",
@@ -89,7 +90,16 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
           PROJECT_CONFIG: JSON.stringify(cfg),
         },
         outboundService: upstream,
-        serviceBindings: { ASSETS: () => new Response("private dashboard") },
+        serviceBindings: {
+          ASSETS: (req) => {
+            const pathname = new URL(req.url).pathname;
+            if (pathname === "/privacy.html")
+              return Response.redirect(origin + "/privacy", 307);
+            return new Response(
+              pathname === "/privacy" ? "public policy" : "private dashboard",
+            );
+          },
+        },
       }),
     );
   }
@@ -115,7 +125,18 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     return request("/auth/callback?code=test&state=" + state);
   }
   try {
+    const policy = await request("/privacy");
+    assert.equal(policy.status, 200);
+    assert.equal(await policy.text(), "public policy");
     assert.equal((await request("/api/drive")).status, 401);
+    assert.equal(
+      (
+        await request("/api/drive", {
+          acknowledge: [{ id: "fixture", changeId: "fixture" }],
+        })
+      ).status,
+      401,
+    );
     assert.equal((await request("/api/drive", { refresh: true })).status, 401);
     assert.equal((await request("/auth/google/start", {})).status, 401);
     assert.equal(
