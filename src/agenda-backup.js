@@ -1,5 +1,6 @@
 import { InputError } from "./sync.js";
 import { digest } from "./agenda-rules.js";
+import { displayAccounts, validAccountLabel } from "./agenda-labels.js";
 
 const maximumAccounts = 5,
   maximumOperations = 1000;
@@ -34,7 +35,7 @@ const namespaces = [
 
 // 認証用キー・OAuth途中状態にはアクセスせず、アプリの保存情報だけを選ぶ。
 export async function createAgendaBackup(storage) {
-  const accounts = (await storage.get("agenda:accounts")) || [];
+  const accounts = await displayAccounts(storage);
   const result = [];
   for (const account of accounts) {
     const cache = await storage.get("agenda:cache:" + account.id);
@@ -46,13 +47,22 @@ export async function createAgendaBackup(storage) {
         "予定の操作記録がバックアップ上限1000件を超えています",
       );
     result.push({
-      account: pick(account, ["id", "email", "calendar"]),
+      account: pick(account, ["id", "email", "calendar", "label"]),
       cache: cache
         ? {
             ...pick(cache, cacheKeys),
             hasMore: !!cache.nextPageToken || !!cache.limited,
             messages: cache.messages.map((message) => ({
               ...pick(message, messageKeys),
+              ...(message.priority
+                ? {
+                    priority: pick(message.priority, [
+                      "category",
+                      "important",
+                      "reason",
+                    ]),
+                  }
+                : {}),
               // 抜粋から再抽出すると元の全文による判定を変えてしまうため保持する。
               candidate: pick(message.candidate, [
                 "title",
@@ -122,6 +132,16 @@ export async function agendaRestoreEntries(storage, backup) {
         !ids.has(account.id),
     );
     ids.add(account.id);
+    requireValid(
+      account.label === undefined || validAccountLabel(account.label),
+    );
+    if (account.label) {
+      const key = "agenda:label:" + account.id,
+        existing = await storage.get(key);
+      if (existing === undefined || existing === "")
+        entries.set(key, account.label);
+      else if (existing !== account.label) conflicts.push(key);
+    }
     if (
       !connected.some(
         (a) =>
@@ -227,9 +247,26 @@ export async function agendaRestoreEntries(storage, backup) {
             date(message.receivedAt) &&
             validCandidate(message.candidate),
         );
+        requireValid(
+          message.priority === undefined ||
+            (["career", "school", "other"].includes(
+              message.priority?.category,
+            ) &&
+              typeof message.priority.important === "boolean" &&
+              text(message.priority.reason, 200)),
+        );
         seen.add(message.id);
         return {
           ...pick(message, messageKeys),
+          ...(message.priority
+            ? {
+                priority: pick(message.priority, [
+                  "category",
+                  "important",
+                  "reason",
+                ]),
+              }
+            : {}),
           candidate: pick(message.candidate, [
             "title",
             "start",

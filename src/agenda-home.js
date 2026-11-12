@@ -1,11 +1,13 @@
-import { agendaAccounts, agendaConnectionStatus } from "./agenda-google.js";
+import { agendaConnectionStatus } from "./agenda-google.js";
+import { mailPriority } from "./agenda-priority.js";
+import { displayAccounts } from "./agenda-labels.js";
 const mailFreshMs = 60 * 60 * 1000;
 // 保存済みのメール候補・確認記録・未確定操作を集約する。Googleへの通信は行わない。
 export async function agendaHome(storage, now = Date.now()) {
   const accounts = [],
     entries = [],
     alerts = [];
-  for (const account of await agendaAccounts(storage)) {
+  for (const account of await displayAccounts(storage)) {
     const connection = agendaConnectionStatus(
       await storage.get("agenda:credential:" + account.id),
     );
@@ -55,13 +57,16 @@ export async function agendaHome(storage, now = Date.now()) {
           accountId: account.id,
           messageId: id,
           email: account.email,
+          accountName: account.label
+            ? account.label + " · " + account.email
+            : account.email,
           title: operation.draft.title,
           reason: operation.error || operation.phase,
         });
     }
     for (const message of messages) {
       if (
-        !message.candidate?.isCandidate ||
+        !(message.priority || mailPriority(message)).important ||
         reviews[message.id] ||
         pending.includes(message.id)
       )
@@ -75,8 +80,13 @@ export async function agendaHome(storage, now = Date.now()) {
         accountId: account.id,
         messageId: message.id,
         email: account.email,
+        accountName: account.label
+          ? account.label + " · " + account.email
+          : account.email,
         title: message.subject || "件名なし",
-        reason: operation?.error || message.candidate.status,
+        reason:
+          operation?.error ||
+          (message.priority || mailPriority(message)).reason,
         receivedAt: message.receivedAt,
       });
     }

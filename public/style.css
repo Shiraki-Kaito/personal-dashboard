@@ -1800,3 +1800,15 @@ body[data-view="home"] .task-panel {
     margin-top: 8px;
   }
 }
+
+#mailHistory {
+  max-height: 220px;
+  overflow: auto;
+}
+.agenda-section-title [aria-pressed="true"] {
+  color: var(--accent);
+  text-decoration: underline;
+}
+#agendaLabel {
+  max-width: 240px;
+}

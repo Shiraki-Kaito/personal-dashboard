@@ -216,10 +216,11 @@ export async function homeView(
       priority: tasks.filter((task) => task.category === "priority").length,
       other: tasks.filter((task) => task.category === "other").length,
       done: tasks.filter((task) => task.category === "done").length,
-      drive: drive.unreadChanges.length,
+      drive: drive.unreadChanges.filter((file) => !file.personal).length,
     },
     drive: {
-      files: drive.unreadChanges,
+      files: drive.unreadChanges.filter((file) => !file.personal),
+      personalCount: drive.unreadChanges.filter((file) => file.personal).length,
       lastSuccess: drive.lastSuccess,
       lastAttempt: drive.lastAttempt,
       error: drive.error,

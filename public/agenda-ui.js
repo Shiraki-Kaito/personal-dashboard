@@ -8,6 +8,8 @@ let state = null,
   busy = false,
   current = null,
   preview = null;
+let mailFilter = "important";
+const accountName = (a) => (a.label ? a.label + " · " + a.email : a.email);
 function controls() {
   for (const id of [
     "agendaAccount",
@@ -15,13 +17,20 @@ function controls() {
     "agendaRefresh",
     "agendaManual",
     "agendaMore",
+    "agendaLabelSave",
+    "agendaLabel",
+    "agendaSync",
     "calendarRefresh",
     "appointmentPreview",
     "appointmentReconcile",
     "appointmentReview",
   ])
     el(id).disabled = busy;
-  el("agendaRefresh").disabled ||= !state?.accountId;
+  el("agendaRefresh").disabled ||= !state?.accountId || state?.mailJob?.active;
+  el("agendaMore").disabled ||= state?.mailJob?.active;
+  el("agendaSync").disabled ||=
+    !state?.accounts.length || state?.mailJob?.active;
+  el("agendaLabelSave").disabled ||= !state?.accountId;
   el("agendaManual").disabled ||= !state?.accountId;
   el("calendarRefresh").disabled ||= !state?.accounts.length;
   el("agendaMore").disabled ||= !state?.nextPageToken || state?.limited;
@@ -89,7 +98,7 @@ function openMessage(message) {
     ? "未処理に戻す"
     : "確認済み・対応不要にする";
   el("appointmentTarget").replaceChildren(
-    ...state.accounts.map((a) => option(a.id, a.email + " のメイン")),
+    ...state.accounts.map((a) => option(a.id, accountName(a) + " のメイン")),
   );
   el("appointmentTarget").value = state.accountId;
   for (const [id, key] of [
@@ -126,10 +135,28 @@ function render() {
   renderCalendar();
   el("agendaAccount").replaceChildren(
     ...state.accounts.map((a) =>
-      option(a.id, a.email + (a.connected ? "" : "（再接続が必要）")),
+      option(a.id, accountName(a) + (a.connected ? "" : "（再接続が必要）")),
     ),
   );
   el("agendaAccount").value = state.accountId || "";
+  el("agendaLabel").value =
+    state.accounts.find((a) => a.id === state.accountId)?.label || "";
+  el("mailScheduleStatus").textContent =
+    `${state.accounts.length}/5接続・毎時自動取得` +
+    (state.mailJob?.active ? " ／ 取得中・前の完全な一覧を表示" : "") +
+    (state.mailScheduler?.lastTriggeredAt
+      ? " ／ 前回Cron " + time(state.mailScheduler.lastTriggeredAt)
+      : " ／ Cron未記録");
+  el("mailHistory").replaceChildren(
+    ...(state.mailHistory || []).map((r) => {
+      const p = document.createElement("p");
+      p.textContent =
+        `${time(r.startedAt)} → ${time(r.finishedAt)} ／ ${{ cron: "自動", manual: "手動1ページ", "manual-batch": "手動・全接続" }[r.source] || r.source} ／ ${r.outcome === "success" ? "成功" : "失敗"} ／ 読取 ${r.fetchedCount ?? r.count}件・保存 ${r.count}件・${r.pages}ページ` +
+        (r.hasMore ? "・未取得あり" : "") +
+        (r.errorCode ? " ／ " + r.errorCode : "");
+      return p;
+    }),
+  );
   el("agendaConnect").hidden = !state.configured;
   const connection = state.accounts.find((a) => a.id === state.accountId);
   el("agendaConnectionStatus").textContent = connection
@@ -185,6 +212,9 @@ function render() {
   el("agendaStatus").textContent = !state.accounts.length
     ? "未接続です。追加認可を行ったアカウントだけを取得します。"
     : `取得済み ${state.messages.length}件 ／ 最終試行 ${time(state.lastAttempt)} ／ 最終成功 ${time(state.lastSuccess)}` +
+      (state.mailJob?.active
+        ? " ／ メールの自動・分割取得中（前回の成功分を表示）"
+        : "") +
       (state.error ? " ／ 取得失敗・保存済みの一覧：" + state.error : "") +
       (state.lastSuccess && Date.now() - Date.parse(state.lastSuccess) > 3600000
         ? " ／ 1時間以上前の保存情報です"
@@ -199,20 +229,46 @@ function render() {
               : " ／ 未取得の続きがあります"
             : " ／ この取得範囲の続きはありません");
   el("agendaMessages").replaceChildren(
-    ...state.messages.map((message) => {
-      const row = document.createElement("button");
-      row.className = "task-row";
-      row.type = "button";
-      const title = document.createElement("strong"),
-        meta = document.createElement("span");
-      title.textContent = message.subject || "件名なし";
-      meta.className = "task-meta";
-      meta.textContent = `${message.review ? "確認済み・対応不要" : message.operation?.phase || (typeof message.candidate.isCandidate === "boolean" ? message.candidate.status : "候補判定の更新待ち")} · ${time(message.receivedAt)} · ${message.from}`;
-      row.append(title, meta);
-      row.onclick = () => openMessage(message);
-      return row;
-    }),
+    ...state.messages
+      .filter(
+        (message) =>
+          mailFilter === "all" ||
+          (mailFilter === "important"
+            ? message.priority?.important
+            : !message.priority?.important),
+      )
+      .map((message) => {
+        const row = document.createElement("button");
+        row.className = "task-row";
+        row.type = "button";
+        const title = document.createElement("strong"),
+          meta = document.createElement("span");
+        title.textContent = message.subject || "件名なし";
+        title.title = message.priority?.reason || "判定待ち";
+        meta.className = "task-meta";
+        meta.textContent = `${message.review ? "確認済み・対応不要" : message.operation?.phase || (typeof message.candidate.isCandidate === "boolean" ? message.candidate.status : "候補判定の更新待ち")} · ${time(message.receivedAt)} · ${message.from}`;
+        row.append(title, meta);
+        row.onclick = () => openMessage(message);
+        return row;
+      }),
   );
+  el("mailFilterStatus").textContent =
+    `重要 ${state.messages.filter((m) => m.priority?.important).length}件 ／ その他 ${state.messages.filter((m) => !m.priority?.important).length}件（取得済み範囲）`;
+  for (const [id, filter] of [
+    ["mailImportant", "important"],
+    ["mailOther", "other"],
+    ["mailAll", "all"],
+  ])
+    el(id).setAttribute("aria-pressed", String(mailFilter === filter));
+  if (!el("agendaMessages").children.length) {
+    const p = document.createElement("p");
+    p.className = "empty-state";
+    p.textContent =
+      mailFilter === "important"
+        ? "取得済み範囲に重要な就活・学校メールはありません。「すべて」も確認できます。"
+        : "この分類に取得済みメールはありません";
+    el("agendaMessages").append(p);
+  }
   controls();
 }
 function renderCalendar() {
@@ -243,7 +299,7 @@ function renderCalendar() {
     ...calendar.accounts.map((account) => {
       const p = document.createElement("p");
       p.textContent =
-        `${account.email}：${account.count}件 ／ API取得 ${account.receivedCount ?? "未記録"}件・${account.pages ?? "未記録"}ページ ／ 試行 ${time(account.lastAttempt)} ／ 成功 ${time(account.lastSuccess)}` +
+        `${accountName(account)}：${account.count}件 ／ API取得 ${account.receivedCount ?? "未記録"}件・${account.pages ?? "未記録"}ページ ／ 試行 ${time(account.lastAttempt)} ／ 成功 ${time(account.lastSuccess)}` +
         (account.error ? " ／ 取得失敗：" + account.error : "") +
         (account.stale ? " ／ 保存済み情報は古いか未取得です" : "");
       if (account.rangeStart && (account.stale || account.error))
@@ -264,7 +320,7 @@ function renderCalendar() {
         ? `${event.start.date}〜${new Date(Date.parse(event.end.date) - 86400000).toISOString().slice(0, 10)}・終日（${event.timezone}）`
         : `${calendarTime(event.start.dateTime)}〜${calendarTime(event.end.dateTime)}`;
       source.textContent =
-        event.email +
+        accountName(event) +
         (event.location ? " ／ " + event.location : "") +
         (event.tentative ? " ／ 未確定" : "") +
         (event.transparent ? " ／ 空き時間として扱う" : "") +
@@ -331,6 +387,32 @@ function input() {
     },
   };
 }
+for (const [id, filter] of [
+  ["mailImportant", "important"],
+  ["mailOther", "other"],
+  ["mailAll", "all"],
+])
+  el(id).onclick = () => {
+    mailFilter = filter;
+    render();
+  };
+el("agendaLabelSave").onclick = () =>
+  run({
+    action: "label",
+    accountId: state.accountId,
+    label: el("agendaLabel").value,
+  });
+el("agendaSync").onclick = () =>
+  run({ action: "syncMail", accountId: state.accountId });
+setInterval(() => {
+  if (
+    document.body.dataset.view === "agenda" &&
+    !busy &&
+    document.activeElement !== el("agendaLabel") &&
+    !el("appointmentDialog").open
+  )
+    run();
+}, 30000);
 el("agendaRefresh").onclick = () =>
   run({ action: "refresh", accountId: state.accountId });
 el("calendarRefresh").onclick = () =>

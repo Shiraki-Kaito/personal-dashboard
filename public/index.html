@@ -270,21 +270,56 @@
             未接続です。接続したアカウントだけを取得します。
           </p>
           <details class="agenda-help">
-            <summary>メールの取得範囲と接続診断</summary>
+            <summary>アカウントの表示名・自動取得・接続診断</summary>
             <p id="agendaConnectionStatus"></p>
+            <p id="mailScheduleStatus"></p>
+            <label
+              >このアカウントの表示名
+              <input
+                id="agendaLabel"
+                maxlength="40"
+                placeholder="private・就活・カンファレンス"
+            /></label>
+            <button id="agendaLabelSave" class="button button-small">
+              表示名を保存
+            </button>
+            <button id="agendaSync" class="button button-small">
+              全接続のメールを取得
+            </button>
             <p>
-              メールは直近14日・最大100件。日本語の時刻・曜日を照合し、年省略・複数候補・曜日の不一致は確認待ちにします。判定はメール再取得時に更新します。添付ファイルは読みません。
+              メールは毎時、直近14日・各接続最大100件を取得します。重要判定は就活・学校の語句を使うルールで、誤判定があります。「すべて」から取得済みのメールを確認できます。表示名は分類ルールに影響しません。接続は5件まで。追加時は「アカウントを追加・再接続」から別のGoogleアカウントを選んでください。添付ファイルは読みません。
             </p>
           </details>
           <div class="agenda-columns">
             <section class="agenda-column" aria-label="メールと登録記録">
-              <h3 class="agenda-section-title">取得したメール</h3>
+              <div class="agenda-section-title">
+                <button
+                  id="mailImportant"
+                  class="text-button"
+                  aria-pressed="true"
+                >
+                  重要な就活・学校
+                </button>
+                ·
+                <button id="mailOther" class="text-button" aria-pressed="false">
+                  その他
+                </button>
+                ·
+                <button id="mailAll" class="text-button" aria-pressed="false">
+                  すべて
+                </button>
+                <p id="mailFilterStatus" class="task-meta"></p>
+              </div>
               <div
                 id="agendaMessages"
                 class="home-list scroll-area"
                 tabindex="0"
                 aria-label="取得したメール一覧"
               ></div>
+              <details class="agenda-help">
+                <summary>メール取得履歴（直近72回）</summary>
+                <div id="mailHistory"></div>
+              </details>
               <details class="agenda-help">
                 <summary>結果未確認の登録（メール一覧外も保持）</summary>
                 <div id="agendaPending"></div>
@@ -357,10 +392,16 @@
           </div>
           <div class="panel-toolbar">
             <div class="segmented" aria-label="ファイル表示">
-              <button id="driveAllTab" class="selected" aria-pressed="true">
-                更新順</button
-              ><button id="driveChangesTab" aria-pressed="false">
+              <button id="driveAllTab" aria-pressed="false">更新順</button
+              ><button
+                id="driveChangesTab"
+                class="selected"
+                aria-pressed="true"
+              >
                 未確認 <span id="changeTabCount">—</span>
+              </button>
+              <button id="drivePersonalTab" aria-pressed="false">
+                個人作業 <span id="personalTabCount">—</span>
               </button>
             </div>
             <label class="search"

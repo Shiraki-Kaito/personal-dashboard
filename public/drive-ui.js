@@ -6,7 +6,7 @@ const statePollMs = 60000,
 let busy = false,
   state = null,
   timer = null,
-  tab = "all",
+  tab = "changes",
   fileSignature = "",
   currentReview = null;
 const time = (value) =>
@@ -66,7 +66,12 @@ function renderFiles(force = false) {
   if (!state) return;
   const query = el("driveSearch").value.trim().toLocaleLowerCase();
   const changes = new Map(state.unreadChanges.map((file) => [file.id, file]));
-  const source = tab === "changes" ? state.unreadChanges : state.files;
+  const source =
+    tab === "changes"
+      ? state.unreadChanges.filter((file) => !file.personal)
+      : tab === "personal"
+        ? state.unreadChanges.filter((file) => file.personal)
+        : state.files;
   const files = source.filter((file) =>
     (file.name + " " + file.folder).toLocaleLowerCase().includes(query),
   );
@@ -295,13 +300,18 @@ function render() {
   el("metricFolders").textContent =
     state.folderCount !== null ? state.folderCount + "フォルダ" : "初回取得前";
   el("metricChanges").textContent = state.changesKnown
-    ? state.unreadChanges.length
+    ? state.unreadChanges.filter((file) => !file.personal).length
     : "—";
+  el("personalTabCount").textContent = state.unreadChanges.filter(
+    (file) => file.personal,
+  ).length;
   el("metricChangesNote").textContent = state.changesKnown
-    ? "確認するまで保持"
+    ? "個人作業 " +
+      state.unreadChanges.filter((file) => file.personal).length +
+      "件は別枠"
     : "次の取得で照合";
   el("changeTabCount").textContent = state.changesKnown
-    ? state.unreadChanges.length
+    ? state.unreadChanges.filter((file) => !file.personal).length
     : "—";
   el("driveDot").dataset.state =
     !state.connected || failure || needsReauthorization
@@ -316,7 +326,7 @@ function render() {
       : needsReauthorization
         ? "Drive 再認可待ち"
         : "Drive 接続済み";
-  el("driveReviewAll").hidden = tab !== "changes";
+  el("driveReviewAll").hidden = !["changes", "personal"].includes(tab);
   el("driveReviewAll").disabled = busy || !visibleUnread().length;
   renderFiles();
   document.dispatchEvent(
@@ -325,8 +335,11 @@ function render() {
 }
 function visibleUnread() {
   const query = el("driveSearch").value.trim().toLocaleLowerCase();
-  return (state?.unreadChanges || []).filter((file) =>
-    (file.name + " " + file.folder).toLocaleLowerCase().includes(query),
+  return (state?.unreadChanges || []).filter(
+    (file) =>
+      (tab === "all" ||
+        (tab === "personal" ? file.personal : !file.personal)) &&
+      (file.name + " " + file.folder).toLocaleLowerCase().includes(query),
   );
 }
 async function load(refresh = false, acknowledge = null) {
@@ -381,12 +394,14 @@ async function load(refresh = false, acknowledge = null) {
 for (const [id, value] of [
   ["driveAllTab", "all"],
   ["driveChangesTab", "changes"],
+  ["drivePersonalTab", "personal"],
 ]) {
   el(id).onclick = () => {
     tab = value;
     for (const [button, mode] of [
       ["driveAllTab", "all"],
       ["driveChangesTab", "changes"],
+      ["drivePersonalTab", "personal"],
     ]) {
       el(button).classList.toggle("selected", mode === tab);
       el(button).setAttribute("aria-pressed", String(mode === tab));

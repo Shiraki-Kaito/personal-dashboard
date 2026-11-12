@@ -1,3 +1,9 @@
+export const isPersonalWork = (file) =>
+  (file.folder || "")
+    .split(" / ")
+    .some((part) =>
+      ["個人作業", "個人作業用"].includes(part.trim().normalize("NFKC")),
+    );
 import { driveClient, DriveError } from "./drive-http.js";
 import { nextRecovery } from "./recovery.js";
 import {
@@ -222,9 +228,13 @@ export async function driveView(env, storage, now = Date.now()) {
     folderName: cache?.folderName || config?.label || null,
     inventoryCount: cache?.files.length ?? null,
     folderCount: cache?.folderCount ?? null,
-    files: orderedDriveFiles(cache?.files || []),
+    files: orderedDriveFiles(cache?.files || []).map((file) =>
+      isPersonalWork(file) ? { ...file, personal: true } : file,
+    ),
     changes: cache?.changes || [],
-    unreadChanges: unreadChanges(cache),
+    unreadChanges: unreadChanges(cache).map((file) =>
+      isPersonalWork(file) ? { ...file, personal: true } : file,
+    ),
     changesKnown: cache?.viewVersion === 3,
     nextScheduledAt: new Date(
       (Math.floor(now / driveRefreshIntervalMs) + 1) * driveRefreshIntervalMs,

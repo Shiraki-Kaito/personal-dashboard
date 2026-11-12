@@ -1,4 +1,5 @@
 import { agendaAccounts, agendaClient, AgendaError } from "./agenda-google.js";
+import { displayAccounts } from "./agenda-labels.js";
 
 const dayMs = 86400000,
   freshnessMs = 3600000,
@@ -77,7 +78,7 @@ export async function upcomingCalendarView(storage, now = Date.now()) {
   const accounts = [],
     events = [],
     range = calendarRange(now);
-  for (const account of await agendaAccounts(storage)) {
+  for (const account of await displayAccounts(storage)) {
     const cache = (await storage.get("agenda:calendar:" + account.id)) || {};
     const stale =
       !cache.lastSuccess ||
@@ -87,6 +88,7 @@ export async function upcomingCalendarView(storage, now = Date.now()) {
     accounts.push({
       accountId: account.id,
       email: account.email,
+      label: account.label,
       count: cache.events?.length || 0,
       lastAttempt: cache.lastAttempt || null,
       lastSuccess: cache.lastSuccess || null,
@@ -104,6 +106,7 @@ export async function upcomingCalendarView(storage, now = Date.now()) {
         ...event,
         accountId: account.id,
         email: account.email,
+        label: account.label,
         stale,
         cachedWithError: !!cache.error,
       })),

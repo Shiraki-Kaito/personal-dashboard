@@ -1,3 +1,6 @@
+import { readMailPage, recordMailRun } from "./agenda-mail.js";
+import { displayAccounts, saveAccountLabel } from "./agenda-labels.js";
+import { mailPriority } from "./agenda-priority.js";
 import { InputError } from "./sync.js";
 import {
   upcomingCalendarView,
@@ -11,10 +14,8 @@ import {
 } from "./agenda-google.js";
 import { googleConfigured } from "./drive-auth.js";
 import {
-  extractAppointment,
   validateAppointment,
   compareAppointments,
-  messageText,
   digest,
 } from "./agenda-rules.js";
 const pageSize = 20,
@@ -41,7 +42,7 @@ async function operationView(storage, accounts, key) {
   };
 }
 export async function agendaView(env, storage, id) {
-  const accounts = await agendaAccounts(storage),
+  const accounts = await displayAccounts(storage),
     account = accounts.find((a) => a.id === (id || accounts[0]?.id));
   if (id && !account) throw new InputError("接続アカウントが不正です");
   const cache = account
@@ -52,6 +53,13 @@ export async function agendaView(env, storage, id) {
     : {};
   return {
     configured: googleConfigured(env),
+    mailJob: (await storage.get("agenda:mailJob"))
+      ? { active: true, nextAt: (await storage.get("agenda:mailJob")).nextAt }
+      : { active: false },
+    mailHistory: account
+      ? (await storage.get("agenda:history:" + account.id)) || []
+      : [],
+    mailScheduler: (await storage.get("agenda:mailScheduler")) || null,
     calendar: await upcomingCalendarView(storage),
     accounts: await Promise.all(
       accounts.map(async (a) => ({
@@ -94,6 +102,7 @@ export async function agendaView(env, storage, id) {
     messages: await Promise.all(
       (cache.messages || []).map(async (message) => ({
         ...message,
+        priority: message.priority || mailPriority(message),
         review: reviews[message.id] || null,
         operation:
           (await operationView(
@@ -145,6 +154,8 @@ export async function refreshAgenda(
 ) {
   const account = await selected(storage, input.accountId),
     key = "agenda:cache:" + account.id;
+  if (await storage.get("agenda:mailJob"))
+    throw new InputError("メールの自動取得中です。完了後に再取得してください");
   const cache = (await storage.get(key)) || { messages: [], lastSuccess: null };
   if (cache.retryAt > now) return agendaView(env, storage, account.id);
   if (
@@ -160,45 +171,17 @@ export async function refreshAgenda(
     retryAt: now + minimumRefreshMs,
   };
   await storage.put(key, attempt);
+  let fetchedCount = 0;
   try {
-    const read = await agendaClient(env, storage, account, send);
-    const page = await read("gmail", "messages", {
-      q: "newer_than:14d -in:trash -in:spam",
-      maxResults: String(pageSize),
-      ...(input.more ? { pageToken: cache.nextPageToken } : {}),
-    });
-    if (page.messages !== undefined && !Array.isArray(page.messages))
-      throw new AgendaError("メール一覧の応答が不正です", "incomplete");
-    const messages = [];
-    for (const entry of page.messages || []) {
-      if (!/^[a-f0-9]{1,64}$/.test(entry.id))
-        throw new AgendaError("メールIDが不正です", "incomplete");
-      const mail = await read("gmail", "messages/" + entry.id, {
-        format: "full",
-        fields:
-          "id,threadId,internalDate,snippet,payload(mimeType,filename,headers,body,parts)",
-      });
-      if (mail.id !== entry.id || !mail.payload)
-        throw new AgendaError("メール本文の取得が未完了です", "incomplete");
-      const header = (name) =>
-        mail.payload.headers?.find((h) => h.name.toLowerCase() === name)
-          ?.value || "";
-      const subject = header("subject").slice(0, 300),
-        text = messageText(mail.payload);
-      messages.push({
-        id: mail.id,
-        subject,
-        from: header("from").slice(0, 300),
-        receivedAt: new Date(Number(mail.internalDate)).toISOString(),
-        excerpt: text.slice(0, 1600),
-        candidate: extractAppointment(subject, text),
-        url:
-          "https://mail.google.com/mail/u/" +
-          encodeURIComponent(account.email) +
-          "/#all/" +
-          mail.id,
-      });
-    }
+    const page = await readMailPage(
+      env,
+      storage,
+      account,
+      input.more ? cache.nextPageToken : null,
+      send,
+    );
+    const messages = page.messages;
+    fetchedCount = messages.length;
     const combined = input.more ? [...cache.messages, ...messages] : messages;
     const ids = new Set(combined.map((m) => m.id));
     if (ids.size !== combined.length)
@@ -230,7 +213,23 @@ export async function refreshAgenda(
       retryAt: Math.max(attempt.retryAt, safe.retryAt || 0),
     });
   }
+  const result = await storage.get(key);
+  await recordMailRun(storage, account.id, {
+    source: "manual",
+    startedAt: attempt.lastAttempt,
+    finishedAt: new Date().toISOString(),
+    outcome: result.error ? "failure" : "success",
+    errorCode: result.errorCode || null,
+    count: result.messages.length,
+    fetchedCount,
+    pages: result.error ? 0 : 1,
+    hasMore: !!result.nextPageToken,
+  });
   return agendaView(env, storage, account.id);
+}
+export async function renameAgendaAccount(env, storage, input) {
+  await saveAccountLabel(storage, input);
+  return agendaView(env, storage, input.accountId);
 }
 async function calendarEvents(env, storage, draft, send) {
   const events = [];

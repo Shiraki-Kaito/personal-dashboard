@@ -6,6 +6,30 @@ import { assertBackupEnvelope } from "../public/backup-format.js";
 import { reconcileAppointment } from "../src/agenda.js";
 
 const env = { PROJECT_CONFIG: JSON.stringify({ projects: [] }) };
+test("表示名と重要判定を復元し、既存の別名を上書きしない", async () => {
+  const { source, target, accounts } = await fixture();
+  await source.put("agenda:label:" + accounts[0].id, "就活");
+  const key = "agenda:cache:" + accounts[0].id,
+    cache = await source.get(key);
+  cache.messages[0].priority = {
+    category: "career",
+    important: true,
+    reason: "選考の連絡",
+  };
+  await source.put(key, cache);
+  const backup = await createBackup(env, source),
+    plan = await backupPlan(env, target, backup);
+  await restoreBackup(env, target, backup, plan.checksum);
+  assert.equal(await target.get("agenda:label:" + accounts[0].id), "就活");
+  assert.equal((await target.get(key)).messages[0].priority.important, true);
+  const fresh = memory();
+  await fresh.put("agenda:accounts", accounts);
+  await fresh.put("agenda:label:" + accounts[0].id, "private");
+  const conflict = await backupPlan(env, fresh, backup);
+  assert.ok(conflict.conflicts.length);
+  await assert.rejects(restoreBackup(env, fresh, backup, conflict.checksum));
+  assert.equal(await fresh.get("agenda:label:" + accounts[0].id), "private");
+});
 function memory() {
   const values = new Map();
   const s = {

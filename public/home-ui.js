@@ -212,14 +212,18 @@ function render() {
   el("homeAgendaCount").textContent = agenda.entries.length;
   el("homeAgendaStatus").textContent = !agenda.accounts.length
     ? "未接続"
-    : `${agenda.accounts.length}アカウント・予定候補 ${agenda.candidates}・結果不明 ${agenda.pending}` +
+    : `${agenda.accounts.length}アカウント・重要メール ${agenda.candidates}・結果不明 ${agenda.pending}` +
       (agenda.accounts.some((a) => a.hasMore) ? "・未取得の続きあり" : "");
   const agendaRows = agenda.entries.map((entry) => {
     const row = element("button", "home-task-open");
     row.type = "button";
     row.append(
       element("strong", "home-item-title", entry.title),
-      element("span", "home-item-meta", entry.reason + " · " + entry.email),
+      element(
+        "span",
+        "home-item-meta",
+        entry.reason + " · " + (entry.accountName || entry.email),
+      ),
     );
     row.onclick = () =>
       emit("dashboard:open-agenda", {
@@ -231,7 +235,7 @@ function render() {
   if (!agendaRows.length)
     agendaRows.push(
       empty(
-        "取得済みの範囲に未処理の予定候補はありません",
+        "取得済みの範囲に未処理の重要メールはありません",
         agenda.accounts.length
           ? agenda.complete
             ? "全メールと確認済みの項目はメール画面で確認できます。"
@@ -257,6 +261,10 @@ function render() {
     " Project・GitHub " +
     state.sources.reduce((sum, source) => sum + (source.total || 0), 0) +
     "件";
+  el("homeDriveTime").title =
+    "個人作業の未確認 " +
+    (state.drive.personalCount || 0) +
+    "件はDriveの個人作業で確認できます";
   el("homeDriveTime").textContent =
     (state.drive.stale ? "保存済み " : "取得 ") + time(state.drive.lastSuccess);
   if (document.body.dataset.view === "home") {
