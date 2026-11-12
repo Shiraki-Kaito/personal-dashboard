@@ -1,4 +1,4 @@
-import { confirmDiscard } from "./confirm.js";
+import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 const statePollMs = 60000,
   progressPollMs = 2500,
@@ -240,6 +240,11 @@ function render() {
           : state.errorCode === "permission"
             ? "対象フォルダの閲覧権限とDrive APIの有効化を確認してください。"
             : "";
+  el("driveAccountStatus").textContent = state.authorization?.accountVerified
+    ? "再接続時のアカウント照合：準備済み。同じアカウントなら一覧と未確認を保持します。"
+    : state.connected
+      ? "再接続前のアカウント照合が未完了です。接続が有効な間にDriveを更新してください。"
+      : "照合できる接続がありません。保存済みの情報があれば保持します。";
   el("driveScope").textContent =
     (state.folderName || "対象未設定") +
     (state.includeSubfolders ? " · サブフォルダを含む" : "");
@@ -397,8 +402,9 @@ el("driveConnect").onsubmit = async (event) => {
   if (button.disabled || busy) return;
   if (
     state?.unreadChanges?.length &&
-    !(await confirmDiscard(
-      "Googleへ再接続すると、アカウントを選び直すため取得一覧と未確認表示をリセットします。Driveのファイルは変更しません。未確認を破棄して再接続しますか？",
+    !(await confirmAction(
+      "Googleへの再認可に進みます。同じアカウントなら一覧と未確認を保持します。別アカウントや照合できない接続への切り替えは停止します。",
+      "再認可へ進む",
     ))
   )
     return;

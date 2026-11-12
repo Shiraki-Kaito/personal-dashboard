@@ -1,4 +1,4 @@
-import { DriveError, googleRequest } from "./drive-http.js";
+import { DriveError, googleRequest, driveClient } from "./drive-http.js";
 
 export const driveScope =
   "https://www.googleapis.com/auth/drive.metadata.readonly";
@@ -13,6 +13,7 @@ export function googleAuthorizationStatus(env, credential) {
     ? credential.grantedPublishingStatus || "testing"
     : null;
   return {
+    accountVerified: !!credential?.accountFingerprint,
     publishingStatus,
     grantedPublishingStatus,
     requiresReauthorization:
@@ -43,6 +44,47 @@ export function googleConfigured(env) {
       env.GOOGLE_CLIENT_ID || "",
     ) && !!env.GOOGLE_CLIENT_SECRET
   );
+}
+
+async function accountFingerprint(token, send) {
+  const about = await driveClient(token, send)("about", {
+    fields: "user(permissionId)",
+  });
+  const id = about.user?.permissionId;
+  if (typeof id !== "string" || !id.length || id.length > 256)
+    throw new DriveError(
+      "Googleアカウントを照合できません。既存の一覧を保持します",
+      "account",
+    );
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode("personal-dashboard-drive:" + id),
+  );
+  return [...new Uint8Array(digest)]
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// 旧接続の移行も有効な通常取得で行う。ID・メールアドレスやトークンを外へ返さない。
+export async function ensureDriveAccount(storage, token, send = fetch) {
+  const credential = await storage.get("drive:credential");
+  if (!credential || credential.token !== token)
+    throw new DriveError(
+      "Google接続が変更されています。再取得してください",
+      "account",
+    );
+  if (credential.accountFingerprint) return;
+  const fingerprint = await accountFingerprint(token, send);
+  const current = await storage.get("drive:credential");
+  if (current?.token !== token)
+    throw new DriveError(
+      "Google接続が変更されています。再取得してください",
+      "account",
+    );
+  await storage.put("drive:credential", {
+    ...current,
+    accountFingerprint: fingerprint,
+  });
 }
 const flowLifetimeMs = 10 * 60 * 1000;
 const tokenSafetyMs = 60 * 1000;
@@ -168,7 +210,19 @@ export async function googleConnect(
       throw new DriveError(
         "Driveメタデータの読み取りと継続接続の認可が必要です",
       );
-    // 接続し直すたびに新しいアカウントの一覧を基準から作り直す。
+    const fingerprint = await accountFingerprint(grant.access_token, send);
+    const previous = await storage.get("drive:credential");
+    const cache = await storage.get("drive:cache");
+    // 再認可で未確認を消さない。アカウント変更や未照合の既存データは自動で引き継がない。
+    if (
+      (previous?.accountFingerprint &&
+        previous.accountFingerprint !== fingerprint) ||
+      (cache && !previous?.accountFingerprint)
+    )
+      throw new DriveError(
+        "接続アカウントが異なるか、既存接続を照合できません。接続と未確認は変更していません。以前と同じアカウントを選択してください",
+        "account",
+      );
     await storage.transaction(async (tx) => {
       await tx.put("drive:credential", {
         token: grant.access_token,
@@ -177,10 +231,23 @@ export async function googleConnect(
         connectedAt: Date.now(),
         grantedPublishingStatus: flow.publishingStatus || "testing",
         refreshCount: 0,
+        accountFingerprint: fingerprint,
       });
-      await tx.delete("drive:cache");
+      if (cache)
+        await tx.put("drive:cache", {
+          ...cache,
+          error:
+            cache.errorCode === "rate"
+              ? cache.error
+              : "Google接続を再認可しました。保存済みの一覧を表示し、再取得を待っています",
+          errorCode: cache.errorCode === "rate" ? "rate" : "reauthorized",
+        });
       await tx.delete("drive:job");
-      await tx.delete("drive:recovery");
+      await tx.put("drive:recovery", {
+        attempt: 0,
+        nextAt: Math.max(Date.now() + 1000, cache?.retryAt || 0),
+        errorCode: "reauthorized",
+      });
     });
     return new Response(null, { status: 303, headers: { Location: "/" } });
   } catch (error) {

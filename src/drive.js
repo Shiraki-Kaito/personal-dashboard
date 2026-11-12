@@ -4,6 +4,7 @@ import {
   driveToken,
   googleConfigured,
   googleAuthorizationStatus,
+  ensureDriveAccount,
 } from "./drive-auth.js";
 import {
   unreadChanges,
@@ -277,6 +278,7 @@ export async function refreshDrive(
     await storage.put("drive:recovery", { ...scheduledRecovery, nextAt: null });
   try {
     const token = await driveToken(env, storage, send);
+    await ensureDriveAccount(storage, token, send);
     const read = driveClient(token, send);
     job ??= await startScan(config, read, now);
     const done = await advanceScan(config, job, read);

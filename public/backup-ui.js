@@ -1,4 +1,4 @@
-import { confirmDiscard } from "./confirm.js";
+import { confirmAction } from "./confirm.js";
 import { assertBackupEnvelope } from "./backup-format.js";
 const fileInput = document.getElementById("backupFile"),
   status = document.getElementById("backupStatus"),
@@ -49,8 +49,9 @@ fileInput.onchange = async () => {
 restore.onclick = async () => {
   if (!backup || restore.disabled) return;
   if (
-    !(await confirmDiscard(
+    !(await confirmAction(
       "バックアップを空の保存先へ復元します。復元した未同期操作はGitHubから再取得して照合するまで送信しません。",
+      "復元する",
     ))
   )
     return;

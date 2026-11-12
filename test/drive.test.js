@@ -48,6 +48,7 @@ test("40フォルダを超える一覧を永続化し、再開後に全件取得
     start = Date.now();
   await storage.put("drive:credential", {
     token: "fixture-token",
+    accountFingerprint: "fixture-account",
     refresh: "fixture-refresh",
     expires: start + 3600000,
   });
@@ -214,6 +215,7 @@ test("初回の古いファイルは追加扱いせず、次回の追加を検�
   const storage = memory();
   await storage.put("drive:credential", {
     token: "fixture-token",
+    accountFingerprint: "fixture-account",
     refresh: "fixture-refresh",
     expires: Date.now() + 3600000,
   });
@@ -310,13 +312,20 @@ test("OAuthのstateを本人セッションに結び付け、成功時も資格�
     () => assert.fail(),
   );
   assert.equal(bad.status, 403);
-  const good = await googleConnect(callback, env, storage, session, async () =>
-    Response.json({
-      access_token: "fixture-token",
-      refresh_token: "fixture-refresh",
-      expires_in: 3600,
-      scope: driveScope,
-    }),
+  const good = await googleConnect(
+    callback,
+    env,
+    storage,
+    session,
+    async (url) =>
+      new URL(url).pathname.endsWith("/about")
+        ? Response.json({ user: { permissionId: "fixture-account" } })
+        : Response.json({
+            access_token: "fixture-token",
+            refresh_token: "fixture-refresh",
+            expires_in: 3600,
+            scope: driveScope,
+          }),
   );
   assert.equal(good.status, 303);
   assert.equal(good.headers.get("Location"), "/");
@@ -347,6 +356,7 @@ test("未確認の変更は次回取得・取得失敗・保存状態の再読�
   const s = memory();
   await s.put("drive:credential", {
     token: "fixture",
+    accountFingerprint: "fixture-account",
     expires: Date.now() + 3600000,
   });
   let items = [file("first")],
@@ -428,13 +438,15 @@ test("新しい認可には開始時の公開設定を記録し、途中の設�
       callbackEnv,
       storage,
       session,
-      async () =>
-        Response.json({
-          access_token: "fixture",
-          refresh_token: "fixture-refresh",
-          expires_in: 3600,
-          scope: driveScope,
-        }),
+      async (url) =>
+        new URL(url).pathname.endsWith("/about")
+          ? Response.json({ user: { permissionId: "fixture-account" } })
+          : Response.json({
+              access_token: "fixture",
+              refresh_token: "fixture-refresh",
+              expires_in: 3600,
+              scope: driveScope,
+            }),
     );
     assert.equal(result.status, 303);
     const credential = await storage.get("drive:credential");

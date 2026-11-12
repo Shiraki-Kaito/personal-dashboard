@@ -62,7 +62,11 @@ test("再起動後も再取得予定と未確認を保持し、成功で障害�
   const unread = [
     { ...file, events: ["更新"], changeId: "v1", detectedAt: now },
   ];
-  await s.put("drive:credential", { token: "fixture", expires: now + 3600000 });
+  await s.put("drive:credential", {
+    token: "fixture",
+    accountFingerprint: "fixture-account",
+    expires: now + 3600000,
+  });
   await s.put("drive:cache", {
     scope: "root:true",
     files: [file],
