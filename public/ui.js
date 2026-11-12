@@ -142,6 +142,18 @@ function render(s) {
     new Option("未設定", ""),
     ...s.options.map((o) => new Option(o.name, o.id)),
   );
+  const selectedStatus = drafts.value("status", s.remote);
+  if (
+    selectedStatus &&
+    !s.options.some((option) => option.id === selectedStatus)
+  ) {
+    const missing = new Option(
+      "選択肢が削除・変更されています",
+      selectedStatus,
+    );
+    missing.disabled = true;
+    el("status").append(missing);
+  }
   el("status").value = drafts.value("status", s.remote) || "";
   el("due").value = drafts.value("due", s.remote) || "";
   el("changes").hidden = !s.pending;
@@ -149,7 +161,8 @@ function render(s) {
     const { field, value, base } = s.pending;
     const display = (v) =>
       field === "status"
-        ? s.options.find((o) => o.id === v)?.name || "未設定"
+        ? s.options.find((o) => o.id === v)?.name ||
+          (v ? "現在の選択肢にない状態" : "未設定")
         : v || "未設定";
     el("change").textContent =
       (field === "status" ? "状態" : "期限") +

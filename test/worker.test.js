@@ -5,6 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { ownerId, taskTitle } from "../src/github.js";
+import { settingsFixture } from "./project-fixture.js";
 
 test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確認", async () => {
   const persist = await mkdtemp(path.join(tmpdir(), "dashboard-test-"));
@@ -27,6 +28,8 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       return Response.json({ scope: "project", access_token: "fixture" });
     if (url.pathname === "/user") return Response.json({ node_id: viewer });
     const { query, variables } = await req.json();
+    if (variables.settingsProject)
+      return Response.json({ data: settingsFixture(cfg) });
     if (query.startsWith("mutation")) {
       if (rejectWrites) return Response.json({}, { status: 403 });
       writes++;
@@ -72,6 +75,8 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "drive-http",
       "scheduler",
       "home",
+      "recovery",
+      "backup",
     ].map((name) => ({
       type: "ESModule",
       path: "src/" + name + ".js",
@@ -133,6 +138,10 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     assert.equal((await request("/api/drive")).status, 401);
     assert.equal((await request("/api/home")).status, 401);
     assert.equal((await request("/home-ui.js")).status, 401);
+    for (const path of ["/api/backup", "/backup-ui.js", "/backup-format.js"])
+      assert.equal((await request(path)).status, 401);
+    assert.equal((await request("/api/backup", { restore: true })).status, 401);
+    assert.equal((await request("/api/abandon", {})).status, 401);
     assert.equal(
       (
         await request("/api/drive", {
@@ -170,6 +179,18 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       .split(";")[0];
     assert.equal(await (await request("/")).text(), "private dashboard");
     assert.equal((await request("/api/home")).status, 200);
+    const backup = await request("/api/backup");
+    assert.match(backup.headers.get("Content-Disposition"), /attachment/);
+    assert.equal((await backup.json()).version, 1);
+    assert.equal(
+      (await request("/api/backup", { restore: true }, "https://other.test"))
+        .status,
+      403,
+    );
+    assert.equal(
+      (await request("/api/abandon", {}, "https://other.test")).status,
+      403,
+    );
     assert.equal(
       (await request("/api/home", { refresh: true }, "https://other.test"))
         .status,

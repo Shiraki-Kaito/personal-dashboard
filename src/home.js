@@ -18,6 +18,12 @@ export function prioritizeTask(item, config, sync, source, now) {
       .map((option) => option.id);
   const completed = completedOptions.includes(item.status);
   const reasons = [];
+  if (
+    item.fieldsComplete &&
+    item.status &&
+    !config.options.some((option) => option.id === item.status)
+  )
+    reasons.push("状態の再確認が必要");
   if (item.outOfCatalog) reasons.push("一覧にないタスク");
   if (sync?.pending)
     reasons.push(
@@ -47,9 +53,10 @@ export function prioritizeTask(item, config, sync, source, now) {
     projectUrl: config.url,
     statusName: item.fieldsComplete
       ? config.options.find((option) => option.id === item.status)?.name ||
-        "状態未設定"
+        (item.status ? "現在の選択肢にない状態" : "状態未設定")
       : "状態未取得",
     pending: !!sync?.pending,
+    pendingId: sync?.pending?.id || null,
     reasons,
     category,
     score,
@@ -124,7 +131,15 @@ export async function homeView(
               fieldsComplete: true,
             }
           : item;
-      tasks.push(prioritizeTask(effective, config, sync, source, now));
+      tasks.push(
+        prioritizeTask(
+          effective,
+          { ...config, options: source.options || config.options },
+          sync,
+          source,
+          now,
+        ),
+      );
     }
     // 一覧から消えたタスクでも未同期操作の存在を隠さない。対象の復旧まで書き込みは提供しない。
     for (const [key, sync] of await storage.list({

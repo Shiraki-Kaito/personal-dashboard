@@ -25,12 +25,16 @@ export async function synchronize(action, input, config, api, storage) {
     const { field, value, base } = input;
     if (state.pending || !same(base, state.remote))
       throw new InputError("画面を再取得してください");
-    if (!(
-      (field === "status" &&
-        (config.options.some((o) => o.id === value) ||
-          (value === null && config.mode === "production"))) ||
-      (field === "due" && (value === null || validDate(value)))
-    ))
+    if (
+      !(
+        (field === "status" &&
+          ((state.remote?.options || config.options).some(
+            (o) => o.id === value,
+          ) ||
+            (value === null && config.mode === "production"))) ||
+        (field === "due" && (value === null || validDate(value)))
+      )
+    )
       throw new InputError("入力値が不正です");
     state.pending = {
       id: crypto.randomUUID(),
@@ -59,7 +63,11 @@ export async function synchronize(action, input, config, api, storage) {
   }
   if (action !== "state") {
     if (state.retryAt > Date.now())
-      return { ...state, options: config.options, projectUrl: config.url };
+      return {
+        ...state,
+        options: state.remote?.options || config.options,
+        projectUrl: config.url,
+      };
     state.retryAt = null;
     try {
       await read();
@@ -87,5 +95,9 @@ export async function synchronize(action, input, config, api, storage) {
     }
     await persist();
   }
-  return { ...state, options: config.options, projectUrl: config.url };
+  return {
+    ...state,
+    options: state.remote?.options || config.options,
+    projectUrl: config.url,
+  };
 }

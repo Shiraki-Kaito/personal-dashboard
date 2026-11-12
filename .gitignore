@@ -4,6 +4,7 @@ node_modules/
 .env*
 config.json
 state.json
+personal-dashboard-backup-*.json
 *_L.md
 *.log
 public/motion-ui.js

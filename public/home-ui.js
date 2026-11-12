@@ -1,3 +1,4 @@
+import { confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 const pollMs = 60000;
 let state = null,
@@ -88,6 +89,39 @@ function renderTasks() {
       ),
     );
     row.append(button, sourceLink(task.url || task.projectUrl));
+    if (task.outOfCatalog && task.pendingId) {
+      const discard = element("button", "button button-small", "変更を破棄");
+      discard.type = "button";
+      discard.onclick = async () => {
+        if (
+          busy ||
+          !(await confirmDiscard(
+            "一覧にないタスクの未同期操作を破棄します。GitHubには書き込みません。",
+          ))
+        )
+          return;
+        discard.disabled = true;
+        try {
+          const response = await fetch("/api/abandon", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              projectId: task.projectId,
+              itemId: task.id,
+              id: task.pendingId,
+            }),
+          });
+          if (!response.ok)
+            throw Error("変更を破棄できません。最新の状態を確認してください。");
+          await load(false);
+        } catch (error) {
+          emit("dashboard:home-error", error.message);
+        } finally {
+          discard.disabled = false;
+        }
+      };
+      row.append(discard);
+    }
     return row;
   });
   if (!rows.length)

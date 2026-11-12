@@ -1,4 +1,5 @@
 import { driveClient, DriveError } from "./drive-http.js";
+import { nextRecovery } from "./recovery.js";
 import {
   driveToken,
   googleConfigured,
@@ -226,6 +227,8 @@ export async function driveView(env, storage, now = Date.now()) {
     lastAttempt: cache?.lastAttempt || null,
     lastSuccess: cache?.lastSuccess || null,
     error: cache?.error || null,
+    errorCode: cache?.errorCode || null,
+    recovery: (await storage.get("drive:recovery")) || null,
     retryAt: cache?.scanVersion === scanVersion ? cache.retryAt || null : null,
     scanning: !!job,
     progress: job
@@ -244,7 +247,10 @@ export async function refreshDrive(
   now = Date.now(),
 ) {
   const config = driveConfig(env);
-  if (!config || !googleConfigured(env)) return driveView(env, storage, now);
+  if (!config || !googleConfigured(env)) {
+    await storage.delete("drive:recovery");
+    return driveView(env, storage, now);
+  }
   let cache = await storage.get("drive:cache");
   if (cache?.scope !== configKey(config))
     cache = {
@@ -266,6 +272,9 @@ export async function refreshDrive(
   cache.lastAttempt = new Date(now).toISOString();
   cache.retryAt = now + minimumRefreshMs;
   await storage.put("drive:cache", cache);
+  const scheduledRecovery = await storage.get("drive:recovery");
+  if (scheduledRecovery?.nextAt)
+    await storage.put("drive:recovery", { ...scheduledRecovery, nextAt: null });
   try {
     const token = await driveToken(env, storage, send);
     const read = driveClient(token, send);
@@ -313,8 +322,10 @@ export async function refreshDrive(
       viewVersion: 3,
       lastSuccess: new Date(now).toISOString(),
       error: null,
+      errorCode: null,
       retryAt: now + minimumRefreshMs,
     });
+    await storage.delete("drive:recovery");
   } catch (error) {
     if (!(error instanceof DriveError) && !(error instanceof DriveReviewError))
       throw error;
@@ -324,7 +335,15 @@ export async function refreshDrive(
         await storage.put("drive:credential", { ...credential, invalid: true });
     }
     cache.error = error.message;
+    cache.errorCode = error.code || "limit";
     cache.retryAt = Math.max(cache.retryAt, error.retryAt || 0);
+    const recovery = nextRecovery(
+      error,
+      await storage.get("drive:recovery"),
+      now,
+    );
+    if (recovery) await storage.put("drive:recovery", recovery);
+    else await storage.delete("drive:recovery");
   }
   await storage.transaction(async (tx) => {
     await tx.put("drive:cache", cache);

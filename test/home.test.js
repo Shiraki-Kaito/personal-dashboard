@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { homeView, prioritizeTask, todayInJapan } from "../src/home.js";
 import { ownerId } from "../src/github.js";
+import { settingsFixture } from "./project-fixture.js";
 const now = Date.parse("2026-11-11T15:30:00Z");
 const cfg = {
   project: "p",
@@ -188,27 +189,32 @@ test("ホームの更新でGitHub側の完了変更と全件数を取り込む",
   const view = await homeView(
     env,
     storage,
-    async () => ({
-      viewer: { id: ownerId },
-      node: {
-        id: cfg.project,
-        title: cfg.title,
-        url: cfg.url,
-        owner: { id: ownerId },
-        items: {
-          totalCount: 1,
-          pageInfo: { hasNextPage: false },
-          nodes: [{
-            id: "late",
-            content: { title: "Late" },
-            fieldValues: {
-              pageInfo: { hasNextPage: false },
-              nodes: [{ optionId: "done", field: { id: "s" } }],
+    async (_, variables) =>
+      variables.settingsProject
+        ? settingsFixture(cfg)
+        : {
+            viewer: { id: ownerId },
+            node: {
+              id: cfg.project,
+              title: cfg.title,
+              url: cfg.url,
+              owner: { id: ownerId },
+              items: {
+                totalCount: 1,
+                pageInfo: { hasNextPage: false },
+                nodes: [
+                  {
+                    id: "late",
+                    content: { title: "Late" },
+                    fieldValues: {
+                      pageInfo: { hasNextPage: false },
+                      nodes: [{ optionId: "done", field: { id: "s" } }],
+                    },
+                  },
+                ],
+              },
             },
-          }],
-        },
-      },
-    }),
+          },
     true,
     now,
   );

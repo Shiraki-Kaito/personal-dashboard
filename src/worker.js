@@ -2,11 +2,18 @@ import { DurableObject } from "cloudflare:workers";
 import { login, logout, authorized } from "./auth.js";
 import { github, transport } from "./github.js";
 import { synchronize, InputError } from "./sync.js";
-import { projectsFrom, catalog, selectTask, taskStorage } from "./catalog.js";
+import {
+  projectsFrom,
+  catalog,
+  selectTask,
+  taskStorage,
+  abandonPending,
+} from "./catalog.js";
 import { googleConnect } from "./drive-auth.js";
 import { driveView, refreshDrive, acknowledgeDrive } from "./drive.js";
 import { DriveReviewError } from "./drive-review.js";
 import { homeView } from "./home.js";
+import { createBackup, backupPlan, restoreBackup } from "./backup.js";
 import { scheduleAlarm, runHourlyDrive } from "./scheduler.js";
 
 export default {
@@ -30,6 +37,8 @@ export default {
 };
 const actions = new Set([
   "home",
+  "abandon",
+  "backup",
   "state",
   "refresh",
   "edit",
@@ -66,7 +75,11 @@ export class Dashboard extends DurableObject {
       });
       try {
         const job = await this.ctx.storage.get("drive:job");
-        if (job && job.nextBatchAt <= Date.now())
+        const recovery = await this.ctx.storage.get("drive:recovery");
+        if (
+          (job && job.nextBatchAt <= Date.now()) ||
+          (recovery?.nextAt && recovery.nextAt <= Date.now())
+        )
           await refreshDrive(this.env, this.ctx.storage);
       } finally {
         await scheduleAlarm(this.ctx.storage);
@@ -125,6 +138,8 @@ export class Dashboard extends DurableObject {
         "/task-drafts.js",
         "/confirm.js",
         "/home-ui.js",
+        "/backup-ui.js",
+        "/backup-format.js",
         "/style.css",
         "/drive-ui.js",
         "/motion-ui.js",
@@ -138,7 +153,7 @@ export class Dashboard extends DurableObject {
     if (!pathname.startsWith("/api/") || !actions.has(action))
       return new Response(null, { status: 404 });
     if (
-      ["drive", "home"].includes(action)
+      ["drive", "home", "backup"].includes(action)
         ? !["GET", "POST"].includes(request.method)
         : request.method !== (action === "state" ? "GET" : "POST")
     )
@@ -156,6 +171,31 @@ export class Dashboard extends DurableObject {
         return new Response(null, { status: 400 });
     }
     try {
+      if (action === "backup") {
+        if (request.method === "GET")
+          return Response.json(await createBackup(this.env, storage), {
+            headers: {
+              "Content-Disposition":
+                'attachment; filename="personal-dashboard-backup-' +
+                new Date().toISOString().slice(0, 10) +
+                '.json"',
+            },
+          });
+        if (input.preview === true)
+          return Response.json(
+            await backupPlan(this.env, storage, input.backup),
+          );
+        if (input.restore === true)
+          return Response.json(
+            await restoreBackup(
+              this.env,
+              storage,
+              input.backup,
+              input.checksum,
+            ),
+          );
+        throw new InputError("復元内容の確認が必要です");
+      }
       if (action === "home")
         return Response.json(
           await homeView(
@@ -183,6 +223,8 @@ export class Dashboard extends DurableObject {
             : await driveView(this.env, storage),
         );
       const projects = projectsFrom(this.env.PROJECT_CONFIG);
+      if (action === "abandon")
+        return Response.json(await abandonPending(projects, input, storage));
       if (action === "catalog") {
         const projectId =
           input.projectId ||

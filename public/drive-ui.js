@@ -229,6 +229,17 @@ function render() {
     (state.authorization?.refresh?.error
       ? " ／ " + state.authorization.refresh.error
       : "");
+  el("driveRecovery").textContent = state.recovery?.nextAt
+    ? "一時障害の再取得予定 " + time(state.recovery.nextAt) + "（最大3回）"
+    : state.scanning && state.recovery
+      ? "障害後の一覧を再取得しています。"
+      : state.recovery
+        ? "再取得の上限に達しました。次の毎時取得で再開します。"
+        : state.errorCode === "authentication"
+          ? "Googleへの再接続が必要です。保存済みの一覧と未確認は保持しています。"
+          : state.errorCode === "permission"
+            ? "対象フォルダの閲覧権限とDrive APIの有効化を確認してください。"
+            : "";
   el("driveScope").textContent =
     (state.folderName || "対象未設定") +
     (state.includeSubfolders ? " · サブフォルダを含む" : "");

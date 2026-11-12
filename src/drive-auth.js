@@ -180,6 +180,7 @@ export async function googleConnect(
       });
       await tx.delete("drive:cache");
       await tx.delete("drive:job");
+      await tx.delete("drive:recovery");
     });
     return new Response(null, { status: 303, headers: { Location: "/" } });
   } catch (error) {

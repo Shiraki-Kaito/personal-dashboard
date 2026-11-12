@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { catalog, selectTask, taskStorage } from "../src/catalog.js";
 import { ownerId } from "../src/github.js";
 import { synchronize } from "../src/sync.js";
+import { settingsFixture } from "./project-fixture.js";
 
 function memory() {
   const data = new Map();
@@ -80,6 +81,7 @@ test("一覧でも状態と期限を取り、フィールドの続きは全ペ�
     };
   let changeRevision = false;
   const request = async (_, variables) => {
+    if (variables.settingsProject) return settingsFixture(config);
     if (variables.project)
       return {
         viewer: { id: ownerId },

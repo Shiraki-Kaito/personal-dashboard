@@ -10,6 +10,7 @@
     <script type="module" src="/drive-ui.js"></script>
     <script type="module" src="/motion-ui.js"></script>
     <script type="module" src="/home-ui.js"></script>
+    <script type="module" src="/backup-ui.js"></script>
   </head>
   <body data-view="home">
     <a class="skip-link" href="#workspace">メインへ移動</a>
@@ -454,6 +455,7 @@
           </p>
           <p id="driveAuthorizationDue"></p>
           <p id="driveTokenRefresh"></p>
+          <p id="driveRecovery" role="status"></p>
           <form
             id="driveConnect"
             action="/auth/google/start"
@@ -479,6 +481,23 @@
           <p>
             画面表示中は1分ごとに取得します。変更はGitHubからの再取得で一致を確認してから反映済みと表示します。同時にGitHub側で行われる変更を完全に防ぐ保証はありません。
           </p>
+        </section>
+        <section class="settings-section">
+          <h3>バックアップと復元</h3>
+          <p>
+            未同期操作・Drive一覧・未確認を保存します。認証情報は含みません。ファイル名などの個人データを含むため、手元で保管してください。
+          </p>
+          <a class="button button-small" href="/api/backup" download
+            >バックアップを保存</a
+          >
+          <p><label for="backupFile">復元ファイルを選択</label></p>
+          <input id="backupFile" type="file" accept="application/json,.json" />
+          <p id="backupStatus" role="status">
+            復元は保存先が空の項目だけに対応します。既存データは上書きしません。
+          </p>
+          <button id="restoreBackup" class="button button-small" disabled>
+            空の保存先へ復元
+          </button>
         </section>
         <div class="unconnected-services">
           <span>未接続</span>メール・カレンダー・Slack・Obsidian

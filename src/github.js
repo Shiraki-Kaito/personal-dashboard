@@ -86,9 +86,64 @@ export function transport(token, send = fetch) {
   };
 }
 
+const settingsQuery = `query($settingsProject:ID!, $cursor:String) {
+ viewer { id }
+ node(id:$settingsProject) { ... on ProjectV2 {
+ id owner { ... on User { id } ... on Organization { id } }
+ fields(first:100, after:$cursor) {
+ pageInfo { hasNextPage endCursor }
+ nodes {
+ ... on ProjectV2Field { id name dataType }
+ ... on ProjectV2SingleSelectField { id name dataType options { id name } }
+ }}}}}`;
+
+// フィールド名で別の項目へ付け替えず、設定済みIDと型を毎回照合する。
+export async function projectSettings(config, request) {
+  if (!config.status_field && !config.due_field)
+    return { options: config.options };
+  const fields = [],
+    cursors = new Set();
+  let cursor = null;
+  do {
+    const data = await request(
+      settingsQuery,
+      { settingsProject: config.project, cursor },
+      true,
+    );
+    if (
+      data.viewer?.id !== ownerId ||
+      data.node?.id !== config.project ||
+      data.node?.owner?.id !== (config.owner_id || ownerId)
+    )
+      throw new RemoteError("Project消失またはアクセス不可");
+    const connection = data.node.fields;
+    if (!Array.isArray(connection?.nodes))
+      throw new RemoteError("Project設定を取得できません");
+    fields.push(...connection.nodes);
+    cursor = connection.pageInfo.hasNextPage
+      ? connection.pageInfo.endCursor
+      : null;
+    if (connection.pageInfo.hasNextPage && (!cursor || cursors.has(cursor)))
+      throw new RemoteError("Project設定のページ取得不整合");
+    cursors.add(cursor);
+  } while (cursor);
+  const status = fields.find((field) => field?.id === config.status_field);
+  const due = fields.find((field) => field?.id === config.due_field);
+  if (
+    status?.dataType !== "SINGLE_SELECT" ||
+    !Array.isArray(status.options) ||
+    due?.dataType !== "DATE"
+  )
+    throw new RemoteError(
+      "状態・期限フィールドが削除または変更されています。設定の再確認が必要です",
+    );
+  return { options: status.options };
+}
+
 export function github(config, request) {
   return {
     async read() {
+      const settings = await projectSettings(config, request);
       let cursor = null,
         snapshot;
       const cursors = new Set();
@@ -121,6 +176,7 @@ export function github(config, request) {
           due: null,
           revision: item.updatedAt,
           total: item.project.items.totalCount,
+          ...(settings.options ? { options: settings.options } : {}),
         };
         for (const field of item.fieldValues.nodes) {
           if (field?.field?.id === config.status_field)
@@ -136,6 +192,15 @@ export function github(config, request) {
       return snapshot;
     },
     async write(field, value) {
+      const settings = await projectSettings(config, request);
+      if (
+        field === "status" &&
+        value !== null &&
+        !settings.options?.some((option) => option.id === value)
+      )
+        throw new RemoteError(
+          "選択した状態が削除されています。未同期操作を破棄し、一覧を更新してください",
+        );
       const input = {
         projectId: config.project,
         itemId: config.item,

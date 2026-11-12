@@ -1,4 +1,4 @@
-import { ownerId, RemoteError, github } from "./github.js";
+import { ownerId, RemoteError, github, projectSettings } from "./github.js";
 import { InputError } from "./sync.js";
 
 const fieldPageSize = 20;
@@ -55,6 +55,7 @@ export async function catalog(config, request, storage, refresh) {
   saved.lastAttempt = new Date().toISOString();
   await storage.put(key, saved);
   try {
+    const settings = await projectSettings(config, request);
     let cursor = null,
       total,
       title,
@@ -137,6 +138,7 @@ export async function catalog(config, request, storage, refresh) {
       retryAt: null,
       lastSuccess: new Date().toISOString(),
       hasPriorityFields: !!config.status_field && !!config.due_field,
+      ...(settings.options ? { options: settings.options } : {}),
     });
   } catch (error) {
     if (!(error instanceof RemoteError)) throw error;
@@ -159,5 +161,35 @@ export async function selectTask(projects, projectId, itemId, storage) {
     !saved?.items.some((i) => i.id === itemId && i.editable)
   )
     throw new InputError("一覧を更新して対象タスクを選択してください");
-  return { ...project, item: itemId };
+  return {
+    ...project,
+    options: saved?.options || project.options,
+    item: itemId,
+  };
+}
+
+// 元サービスへ書かず、指定した版の未同期操作だけを破棄する。
+export async function abandonPending(projects, input, storage) {
+  const project = projects.find(
+    (p) =>
+      p.project === input.projectId &&
+      p.mode === "production" &&
+      p.kind !== "test",
+  );
+  if (
+    !project ||
+    typeof input.itemId !== "string" ||
+    typeof input.id !== "string"
+  )
+    throw new InputError("対象の未同期操作が不正です");
+  const target = taskStorage(storage, { ...project, item: input.itemId });
+  const state = await target.get();
+  if (!state?.pending || state.pending.id !== input.id)
+    throw new InputError("未同期操作が変更されています");
+  await target.put("sync", {
+    ...state,
+    pending: null,
+    phase: "ローカル変更を破棄・再取得待ち",
+  });
+  return { discarded: true };
 }

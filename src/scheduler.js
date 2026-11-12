@@ -2,14 +2,18 @@ import { refreshDrive } from "./drive.js";
 
 // 既存のセッション期限とDriveの分割取得を同じAlarmで調停する。
 export async function nextAlarmAt(storage, now = Date.now()) {
-  const [session, flow, job] = await Promise.all([
+  const [session, flow, job, recovery] = await Promise.all([
     storage.get("session"),
     storage.get("drive:flow"),
     storage.get("drive:job"),
+    storage.get("drive:recovery"),
   ]);
-  const candidates = [session?.expires, flow?.expires, job?.nextBatchAt].filter(
-    Number.isFinite,
-  );
+  const candidates = [
+    session?.expires,
+    flow?.expires,
+    job?.nextBatchAt,
+    recovery?.nextAt,
+  ].filter(Number.isFinite);
   return candidates.length
     ? Math.max(now + 100, Math.min(...candidates))
     : null;
@@ -26,6 +30,10 @@ export async function runHourlyDrive(
   send = fetch,
   now = Date.now(),
 ) {
+  // 毎時取得で新しい試行枠を開始する。Alarmの障害再試行ではリセットしない。
+  const recovery = await storage.get("drive:recovery");
+  if (!recovery?.nextAt || recovery.nextAt <= now)
+    await storage.delete("drive:recovery");
   await storage.put("drive:scheduler", {
     lastTriggeredAt: new Date(now).toISOString(),
     error: null,
