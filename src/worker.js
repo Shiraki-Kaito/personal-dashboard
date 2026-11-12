@@ -15,6 +15,14 @@ import { DriveReviewError } from "./drive-review.js";
 import { homeView } from "./home.js";
 import { createBackup, backupPlan, restoreBackup } from "./backup.js";
 import { scheduleAlarm, runHourlyDrive } from "./scheduler.js";
+import { agendaConnect, AgendaError } from "./agenda-google.js";
+import {
+  agendaView,
+  refreshAgenda,
+  previewAppointment,
+  registerAppointment,
+  reconcileAppointment,
+} from "./agenda.js";
 
 export default {
   async scheduled(_event, env, ctx) {
@@ -36,6 +44,7 @@ export default {
   },
 };
 const actions = new Set([
+  "agenda",
   "home",
   "abandon",
   "backup",
@@ -72,6 +81,9 @@ export class Dashboard extends DurableObject {
           await tx.delete("session");
         const flow = await tx.get("drive:flow");
         if (flow && flow.expires <= Date.now()) await tx.delete("drive:flow");
+        const agendaFlow = await tx.get("agenda:flow");
+        if (agendaFlow && agendaFlow.expires <= Date.now())
+          await tx.delete("agenda:flow");
       });
       try {
         const job = await this.ctx.storage.get("drive:job");
@@ -126,6 +138,13 @@ export class Dashboard extends DurableObject {
     if (request.method === "POST" && pathname === "/auth/logout")
       return logout(storage);
     if (
+      (request.method === "POST" && pathname === "/auth/agenda/start") ||
+      (request.method === "GET" &&
+        pathname === "/auth/google/callback" &&
+        (await storage.get("agenda:flow"))?.state === searchParams.get("state"))
+    )
+      return agendaConnect(request, this.env, storage, session);
+    if (
       (request.method === "POST" && pathname === "/auth/google/start") ||
       (request.method === "GET" && pathname === "/auth/google/callback")
     )
@@ -138,6 +157,7 @@ export class Dashboard extends DurableObject {
         "/task-drafts.js",
         "/confirm.js",
         "/home-ui.js",
+        "/agenda-ui.js",
         "/backup-ui.js",
         "/backup-format.js",
         "/style.css",
@@ -153,7 +173,7 @@ export class Dashboard extends DurableObject {
     if (!pathname.startsWith("/api/") || !actions.has(action))
       return new Response(null, { status: 404 });
     if (
-      ["drive", "home", "backup"].includes(action)
+      ["drive", "home", "backup", "agenda"].includes(action)
         ? !["GET", "POST"].includes(request.method)
         : request.method !== (action === "state" ? "GET" : "POST")
     )
@@ -171,6 +191,24 @@ export class Dashboard extends DurableObject {
         return new Response(null, { status: 400 });
     }
     try {
+      if (action === "agenda") {
+        if (request.method === "GET")
+          return Response.json(
+            await agendaView(this.env, storage, searchParams.get("accountId")),
+          );
+        const operations = {
+          refresh: refreshAgenda,
+          preview: previewAppointment,
+          register: registerAppointment,
+          reconcile: reconcileAppointment,
+        };
+        const operation = Object.hasOwn(operations, input.action)
+          ? operations[input.action]
+          : null;
+        if (!operation)
+          throw new InputError("メール・カレンダーの操作が不正です");
+        return Response.json(await operation(this.env, storage, input));
+      }
       if (action === "backup") {
         if (request.method === "GET")
           return Response.json(await createBackup(this.env, storage), {
@@ -276,8 +314,15 @@ export class Dashboard extends DurableObject {
       );
       return Response.json(result);
     } catch (e) {
-      if (e instanceof InputError || e instanceof DriveReviewError)
-        return Response.json({ error: e.message }, { status: 409 });
+      if (
+        e instanceof InputError ||
+        e instanceof DriveReviewError ||
+        e instanceof AgendaError
+      )
+        return Response.json(
+          { error: e.message, ...(e.code ? { code: e.code } : {}) },
+          { status: 409 },
+        );
       throw e;
     }
   }

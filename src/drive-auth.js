@@ -89,7 +89,7 @@ export async function ensureDriveAccount(storage, token, send = fetch) {
 }
 const flowLifetimeMs = 10 * 60 * 1000;
 const tokenSafetyMs = 60 * 1000;
-function random() {
+export function random() {
   return btoa(
     String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))),
   )
@@ -97,7 +97,7 @@ function random() {
     .replaceAll("/", "_")
     .replaceAll("=", "");
 }
-async function challenge(verifier) {
+export async function challenge(verifier) {
   return btoa(
     String.fromCharCode(
       ...new Uint8Array(
@@ -112,7 +112,7 @@ async function challenge(verifier) {
     .replaceAll("/", "_")
     .replaceAll("=", "");
 }
-async function exchange(parameters, send) {
+export async function exchange(parameters, send) {
   const response = await googleRequest(
     "https://oauth2.googleapis.com/token",
     {

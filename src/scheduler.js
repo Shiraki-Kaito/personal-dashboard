@@ -2,17 +2,19 @@ import { refreshDrive } from "./drive.js";
 
 // 既存のセッション期限とDriveの分割取得を同じAlarmで調停する。
 export async function nextAlarmAt(storage, now = Date.now()) {
-  const [session, flow, job, recovery] = await Promise.all([
+  const [session, flow, job, recovery, agendaFlow] = await Promise.all([
     storage.get("session"),
     storage.get("drive:flow"),
     storage.get("drive:job"),
     storage.get("drive:recovery"),
+    storage.get("agenda:flow"),
   ]);
   const candidates = [
     session?.expires,
     flow?.expires,
     job?.nextBatchAt,
     recovery?.nextAt,
+    agendaFlow?.expires,
   ].filter(Number.isFinite);
   return candidates.length
     ? Math.max(now + 100, Math.min(...candidates))

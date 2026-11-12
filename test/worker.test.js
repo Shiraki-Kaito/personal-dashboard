@@ -78,6 +78,9 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "home",
       "recovery",
       "backup",
+      "agenda",
+      "agenda-google",
+      "agenda-rules",
     ].map((name) => ({
       type: "ESModule",
       path: "src/" + name + ".js",
@@ -139,6 +142,14 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     assert.equal((await request("/api/drive")).status, 401);
     assert.equal((await request("/api/home")).status, 401);
     assert.equal((await request("/home-ui.js")).status, 401);
+    for (const route of ["/api/agenda", "/agenda-ui.js"])
+      assert.equal((await request(route)).status, 401);
+    assert.equal(
+      (await request("/api/agenda", { action: "register", confirmed: true }))
+        .status,
+      401,
+    );
+    assert.equal((await request("/auth/agenda/start", {})).status, 401);
     for (const path of ["/api/backup", "/backup-ui.js", "/backup-format.js"])
       assert.equal((await request(path)).status, 401);
     assert.equal((await request("/api/backup", { restore: true })).status, 401);
@@ -180,6 +191,24 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       .split(";")[0];
     assert.equal(await (await request("/")).text(), "private dashboard");
     assert.equal((await request("/api/home")).status, 200);
+    assert.deepEqual(
+      (await (await request("/api/agenda")).json()).accounts,
+      [],
+    );
+    assert.equal(
+      (
+        await request(
+          "/api/agenda",
+          { action: "refresh" },
+          "https://other.test",
+        )
+      ).status,
+      403,
+    );
+    assert.equal(
+      (await request("/auth/agenda/start", {}, "https://other.test")).status,
+      403,
+    );
     const backup = await request("/api/backup");
     assert.match(backup.headers.get("Content-Disposition"), /attachment/);
     assert.equal((await backup.json()).version, 1);
