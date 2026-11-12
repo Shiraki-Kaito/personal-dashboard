@@ -247,7 +247,7 @@
               <p>各アカウントのメインカレンダー・日本時間で確認</p>
             </div>
             <button id="agendaConnect" class="button button-secondary">
-              アカウントを追加・再接続
+              アカウント管理・追加
             </button>
           </div>
           <div class="panel-toolbar">
@@ -269,6 +269,12 @@
           <p id="agendaStatus" role="status">
             未接続です。接続したアカウントだけを取得します。
           </p>
+          <p
+            id="accountConnectionNotice"
+            class="agenda-help"
+            role="status"
+            hidden
+          ></p>
           <details class="agenda-help">
             <summary>アカウントの表示名・自動取得・接続診断</summary>
             <p id="agendaConnectionStatus"></p>
@@ -588,6 +594,114 @@
           確認済みにする
         </button>
       </div>
+    </dialog>
+    <dialog
+      id="accountManager"
+      class="settings-dialog"
+      aria-labelledby="accountManagerHeading"
+    >
+      <div class="dialog-body">
+        <div class="dialog-top">
+          <h2 id="accountManagerHeading">Googleアカウント管理</h2>
+          <button
+            type="button"
+            class="icon-button"
+            data-close
+            aria-label="アカウント管理を閉じる"
+          >
+            ×
+          </button>
+        </div>
+        <p>ここでアカウントを追加し、表示名をいつでも変更できます。</p>
+        <p id="accountCapacity"></p>
+        <button
+          id="accountManagerAdd"
+          type="button"
+          class="button button-primary"
+        >
+          Googleアカウントを追加・再接続
+        </button>
+        <div id="managedAccounts" class="managed-accounts"></div>
+        <p id="accountManagerStatus" role="status"></p>
+      </div>
+    </dialog>
+    <dialog
+      id="accountNameDialog"
+      class="settings-dialog"
+      aria-labelledby="accountNameHeading"
+    >
+      <form id="accountNameForm" class="dialog-body">
+        <div class="dialog-top">
+          <h2 id="accountNameHeading">表示名を変更</h2>
+          <button
+            type="button"
+            class="icon-button"
+            data-close
+            aria-label="表示名の設定を閉じる"
+          >
+            ×
+          </button>
+        </div>
+        <p id="accountNameEmail"></p>
+        <label for="accountNameInput">表示名</label
+        ><input
+          id="accountNameInput"
+          maxlength="40"
+          placeholder="private・就活・カンファレンス"
+          autocomplete="off"
+        />
+        <p>
+          空欄でメールアドレス表示に戻せます。接続先や重要メールの判定は変わりません。
+        </p>
+        <p id="accountNameStatus" role="status"></p>
+        <button
+          id="accountNameSave"
+          type="submit"
+          class="button button-primary"
+        >
+          保存する
+        </button>
+      </form>
+    </dialog>
+    <dialog
+      id="accountAddDialog"
+      class="settings-dialog"
+      aria-labelledby="accountAddHeading"
+    >
+      <form id="accountAddForm" class="dialog-body">
+        <div class="dialog-top">
+          <h2 id="accountAddHeading">Googleアカウントを追加</h2>
+          <button
+            type="button"
+            class="icon-button"
+            data-close
+            aria-label="追加画面を閉じる"
+          >
+            ×
+          </button>
+        </div>
+        <label for="accountAddLabel">表示名（任意）</label
+        ><input
+          id="accountAddLabel"
+          maxlength="40"
+          placeholder="private・就活・カンファレンス"
+          autocomplete="off"
+        />
+        <p>
+          次のGoogle画面で接続するアカウントを選びます。名前は認可完了後に保存し、後からも変更できます。接続済みアカウントの再認可では、既存の名前を保持します。
+        </p>
+        <p>
+          Gmailの読み取りと、本人所有カレンダーの予定の参照・作成・変更・削除を認可します。アプリからの予定登録は、内容を確認して操作した場合だけです。
+        </p>
+        <p id="accountAddStatus" role="status"></p>
+        <button
+          id="accountAuthorize"
+          type="submit"
+          class="button button-primary"
+        >
+          Googleの認可画面へ
+        </button>
+      </form>
     </dialog>
     <dialog id="appointmentDialog" class="settings-dialog">
       <div class="dialog-body">

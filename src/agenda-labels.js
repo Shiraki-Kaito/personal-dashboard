@@ -1,18 +1,13 @@
 import { InputError } from "./sync.js";
 import { agendaAccounts } from "./agenda-google.js";
+import { validAccountLabel } from "./agenda-account-rules.js";
+export { validAccountLabel } from "./agenda-account-rules.js";
 export async function displayAccounts(storage) {
   return Promise.all(
     (await agendaAccounts(storage)).map(async (account) => ({
       ...account,
       label: (await storage.get("agenda:label:" + account.id)) || "",
     })),
-  );
-}
-export function validAccountLabel(value) {
-  return (
-    typeof value === "string" &&
-    value.length <= 40 &&
-    !/[\u0000-\u001f\u007f]/.test(value)
   );
 }
 export async function saveAccountLabel(storage, input) {

@@ -1,4 +1,3 @@
-import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id),
   time = (value) =>
     value
@@ -8,6 +7,7 @@ let state = null,
   busy = false,
   current = null,
   preview = null;
+let editingAccountId = null;
 let mailFilter = "important";
 const accountName = (a) => (a.label ? a.label + " · " + a.email : a.email);
 function controls() {
@@ -20,12 +20,19 @@ function controls() {
     "agendaLabelSave",
     "agendaLabel",
     "agendaSync",
+    "accountManagerAdd",
+    "accountNameSave",
+    "accountNameInput",
+    "accountAddLabel",
+    "accountAuthorize",
     "calendarRefresh",
     "appointmentPreview",
     "appointmentReconcile",
     "appointmentReview",
   ])
     el(id).disabled = busy;
+  for (const button of el("managedAccounts").querySelectorAll("button"))
+    button.disabled = busy;
   el("agendaRefresh").disabled ||= !state?.accountId || state?.mailJob?.active;
   el("agendaMore").disabled ||= state?.mailJob?.active;
   el("agendaSync").disabled ||=
@@ -133,6 +140,7 @@ function openMessage(message) {
 function render() {
   if (!state) return;
   renderCalendar();
+  renderAccountManager();
   el("agendaAccount").replaceChildren(
     ...state.accounts.map((a) =>
       option(a.id, accountName(a) + (a.connected ? "" : "（再接続が必要）")),
@@ -142,7 +150,7 @@ function render() {
   el("agendaLabel").value =
     state.accounts.find((a) => a.id === state.accountId)?.label || "";
   el("mailScheduleStatus").textContent =
-    `${state.accounts.length}/5接続・毎時自動取得` +
+    `${state.accounts.length}/${state.accountLimit || 5}接続・毎時自動取得` +
     (state.mailJob?.active ? " ／ 取得中・前の完全な一覧を表示" : "") +
     (state.mailScheduler?.lastTriggeredAt
       ? " ／ 前回Cron " + time(state.mailScheduler.lastTriggeredAt)
@@ -409,7 +417,10 @@ setInterval(() => {
     document.body.dataset.view === "agenda" &&
     !busy &&
     document.activeElement !== el("agendaLabel") &&
-    !el("appointmentDialog").open
+    !el("appointmentDialog").open &&
+    !el("accountManager").open &&
+    !el("accountNameDialog").open &&
+    !el("accountAddDialog").open
   )
     run();
 }, 30000);
@@ -445,24 +456,101 @@ el("homeOpenAgenda").onclick = () =>
       detail: { panel: "agenda", focusId: "agendaHeading" },
     }),
   );
-el("agendaConnect").onclick = async () => {
-  if (
-    busy ||
-    !(await confirmAction(
-      "Gmailのメール本文の読み取りと、本人所有カレンダーの予定操作を追加認可します。最大5アカウントのメインカレンダーを扱います。接続後も予定の登録には内容確認が必要です。",
-      "Googleの認可画面へ",
-    ))
-  )
-    return;
+function renderAccountManager() {
+  el("accountCapacity").textContent =
+    `接続済み ${state.accounts.length}件 ／ 上限 ${state.accountLimit || 5}件` +
+    (state.accounts.length >= (state.accountLimit || 5)
+      ? "。現在は既存接続の再認可のみ可能です。"
+      : "。後からも追加できます。");
+  el("managedAccounts").replaceChildren(
+    ...state.accounts.map((account) => {
+      const row = document.createElement("div"),
+        description = document.createElement("div"),
+        name = document.createElement("strong"),
+        email = document.createElement("p"),
+        status = document.createElement("span"),
+        edit = document.createElement("button");
+      row.className = "managed-account";
+      name.textContent = account.label || "表示名未設定";
+      email.textContent = account.email;
+      status.textContent = account.connected ? "接続済み" : "再接続が必要";
+      edit.type = "button";
+      edit.className = "button button-small";
+      edit.textContent = "名前を変更";
+      edit.disabled = busy;
+      edit.onclick = () => {
+        if (!busy) openAccountName(account);
+      };
+      description.append(name, status, email);
+      row.append(description, edit);
+      return row;
+    }),
+  );
+  el("accountManagerAdd").disabled = busy || !state.configured;
+}
+function openAccountName(account) {
+  editingAccountId = account.id;
+  el("accountNameEmail").textContent = account.email;
+  el("accountNameInput").value = account.label || "";
+  el("accountNameStatus").textContent = "";
+  if (!el("accountNameDialog").open) el("accountNameDialog").showModal();
+  el("accountNameInput").focus();
+}
+el("agendaConnect").onclick = () => {
+  if (busy || !state) return;
+  renderAccountManager();
+  el("accountManagerStatus").textContent = "";
+  if (!el("accountManager").open) el("accountManager").showModal();
+};
+el("accountManagerAdd").onclick = () => {
+  if (busy) return;
+  el("accountAddLabel").value = "";
+  el("accountAddStatus").textContent = "";
+  if (!el("accountAddDialog").open) el("accountAddDialog").showModal();
+  el("accountAddLabel").focus();
+};
+el("accountNameForm").onsubmit = async (event) => {
+  event.preventDefault();
+  if (busy || !editingAccountId) return;
   busy = true;
   controls();
   try {
-    const response = await fetch("/auth/agenda/start", { method: "POST" });
-    const result = await response.json();
-    if (!response.ok) throw Error(result.error || "追加認可を開始できません");
+    state = await api({
+      action: "label",
+      accountId: editingAccountId,
+      label: el("accountNameInput").value,
+    });
+    render();
+    el("accountNameDialog").close();
+    el("accountManagerStatus").textContent = "表示名を保存しました。";
+  } catch (error) {
+    el("accountNameStatus").textContent = error.message;
+  } finally {
+    busy = false;
+    controls();
+    renderAccountManager();
+  }
+};
+el("accountAddForm").onsubmit = async (event) => {
+  event.preventDefault();
+  if (busy) return;
+  busy = true;
+  controls();
+  try {
+    const response = await fetch("/auth/agenda/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: el("accountAddLabel").value }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw Error(
+        result.error ||
+          "追加認可を開始できません。ログイン状態と表示名を確認してください",
+      );
     location.assign(result.authorizationUrl);
   } catch (error) {
-    el("agendaStatus").textContent = error.message;
+    el("accountAddStatus").textContent = error.message;
     busy = false;
     controls();
   }
@@ -563,4 +651,29 @@ document.addEventListener("dashboard:open-agenda", async (event) => {
 document.addEventListener("dashboard:view", (event) => {
   if (event.detail === "agenda") render();
 });
-run();
+async function initializeAgenda() {
+  const parameters = new URLSearchParams(location.search),
+    selected =
+      parameters.get("view") === "agenda" ? parameters.get("accountId") : null;
+  await run(null, selected || undefined);
+  if (parameters.get("view") === "agenda" && state) {
+    document.dispatchEvent(
+      new CustomEvent("dashboard:show-panel", {
+        detail: { panel: "agenda", focusId: "agendaHeading" },
+      }),
+    );
+    const account = state.accounts.find((a) => a.id === selected);
+    if (parameters.get("connected") === "1" && account?.connected) {
+      el("accountConnectionNotice").hidden = false;
+      el("accountConnectionNotice").textContent =
+        accountName(account) +
+        " を接続しました。メールを取得でき、名前はアカウント管理から変更できます。";
+      el("accountManager").showModal();
+      if (!account.label) openAccountName(account);
+    } else if (parameters.get("manage") === "1") {
+      el("accountManager").showModal();
+    }
+    history.replaceState(null, "", location.pathname);
+  }
+}
+initializeAgenda();

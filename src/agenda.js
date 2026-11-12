@@ -1,6 +1,7 @@
 import { readMailPage, recordMailRun } from "./agenda-mail.js";
 import { displayAccounts, saveAccountLabel } from "./agenda-labels.js";
 import { mailPriority } from "./agenda-priority.js";
+import { maximumAgendaAccounts } from "./agenda-account-rules.js";
 import { InputError } from "./sync.js";
 import {
   upcomingCalendarView,
@@ -53,6 +54,7 @@ export async function agendaView(env, storage, id) {
     : {};
   return {
     configured: googleConfigured(env),
+    accountLimit: maximumAgendaAccounts,
     mailJob: (await storage.get("agenda:mailJob"))
       ? { active: true, nextAt: (await storage.get("agenda:mailJob")).nextAt }
       : { active: false },

@@ -1812,3 +1812,49 @@ body[data-view="home"] .task-panel {
 #agendaLabel {
   max-width: 240px;
 }
+
+.managed-accounts {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+.managed-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+.managed-account > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.managed-account p {
+  margin: 6px 0;
+  color: var(--muted);
+}
+.managed-account span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.managed-account button {
+  flex-shrink: 0;
+}
+#accountNameInput,
+#accountAddLabel {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+@media (max-width: 520px) {
+  .managed-account {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.managed-account strong + span {
+  margin-left: 10px;
+}

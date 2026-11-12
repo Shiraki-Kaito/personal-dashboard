@@ -1,6 +1,10 @@
 import { googleRequest, DriveError } from "./drive-http.js";
 import { random, challenge, exchange, googleConfigured } from "./drive-auth.js";
 import { digest } from "./agenda-rules.js";
+import {
+  maximumAgendaAccounts,
+  validAccountLabel,
+} from "./agenda-account-rules.js";
 export const agendaScopes = [
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/calendar.events.owned",
@@ -213,6 +217,21 @@ export async function agendaToken(env, storage, account, send = fetch) {
     );
   }
 }
+function connectionFailure(message, status) {
+  const escaped = message.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        character
+      ],
+  );
+  return new Response(
+    '<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Google接続の確認</title><main><h1>Google接続を確認してください</h1><p>' +
+      escaped +
+      '</p><p><a href="/?view=agenda&amp;manage=1">アカウント管理へ戻ってやり直す</a></p></main></html>',
+    { status, headers: { "Content-Type": "text/html; charset=utf-8" } },
+  );
+}
 export async function agendaConnect(
   request,
   env,
@@ -221,10 +240,25 @@ export async function agendaConnect(
   send = fetch,
 ) {
   if (!googleConfigured(env))
-    return new Response("Google OAuth設定が必要です", { status: 503 });
+    return connectionFailure("Google OAuth設定が必要です", 503);
   const url = new URL(request.url),
     redirectUri = url.origin + "/auth/google/callback";
   if (url.pathname === "/auth/agenda/start") {
+    let label = "";
+    if (request.body) {
+      const input = await request.json().catch(() => null);
+      if (
+        !input ||
+        Array.isArray(input) ||
+        typeof input !== "object" ||
+        !validAccountLabel(input.label ?? "")
+      )
+        return Response.json(
+          { error: "表示名は40文字以内で入力してください" },
+          { status: 400 },
+        );
+      label = (input.label || "").trim();
+    }
     const state = random(),
       verifier = random();
     await storage.put("agenda:flow", {
@@ -232,6 +266,7 @@ export async function agendaConnect(
       verifier,
       sessionKey: session.key,
       expires: Date.now() + 600000,
+      label,
     });
     const auth = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     auth.search = new URLSearchParams({
@@ -254,12 +289,13 @@ export async function agendaConnect(
     flow.sessionKey !== session.key ||
     flow.state !== url.searchParams.get("state")
   )
-    return new Response("認可を最初からやり直してください", { status: 403 });
+    return connectionFailure("認可を最初からやり直してください", 403);
   await storage.delete("agenda:flow");
   if (url.searchParams.has("error") || !url.searchParams.get("code"))
-    return new Response("追加認可は完了していません。既存接続を保持しました", {
-      status: 400,
-    });
+    return connectionFailure(
+      "追加認可は完了していません。既存接続を保持しました",
+      400,
+    );
   try {
     const grant = await exchange(
       {
@@ -286,8 +322,11 @@ export async function agendaConnect(
       throw new AgendaError("接続アカウントを照合できません");
     const id = await digest(email),
       accounts = await agendaAccounts(storage);
-    if (!accounts.some((a) => a.id === id) && accounts.length >= 5)
-      throw new AgendaError("接続は5アカウントまでです");
+    if (
+      !accounts.some((a) => a.id === id) &&
+      accounts.length >= maximumAgendaAccounts
+    )
+      throw new AgendaError(`接続は${maximumAgendaAccounts}アカウントまでです`);
     const calendar = await read("calendar", "events", {
       maxResults: "1",
       fields: "accessRole",
@@ -305,11 +344,23 @@ export async function agendaConnect(
         ...accounts.filter((a) => a.id !== id),
         { id, email, calendar: "primary" },
       ]);
+      // 再接続で既存の名前を変えず、認可完了前にも表示名を保存しない。
+      if (flow.label && !(await tx.get("agenda:label:" + id)))
+        await tx.put("agenda:label:" + id, flow.label);
     });
-    return new Response(null, { status: 303, headers: { Location: "/" } });
+    const destination = new URL("/", url.origin);
+    destination.search = new URLSearchParams({
+      view: "agenda",
+      accountId: id,
+      connected: "1",
+    });
+    return new Response(null, {
+      status: 303,
+      headers: { Location: destination.pathname + destination.search },
+    });
   } catch (error) {
     if (error instanceof AgendaError || error instanceof DriveError)
-      return new Response(error.message, { status: 503 });
+      return connectionFailure(error.message, 503);
     throw error;
   }
 }
