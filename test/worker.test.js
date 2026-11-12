@@ -71,6 +71,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "catalog",
       "drive",
       "drive-review",
+      "drive-history",
       "drive-auth",
       "drive-http",
       "scheduler",

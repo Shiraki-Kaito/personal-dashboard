@@ -102,6 +102,13 @@ test("再起動後も再取得予定と未確認を保持し、成功で障害�
   assert.equal(recovered.error, null);
   assert.equal(recovered.recovery, null);
   assert.deepEqual(recovered.unreadChanges, unread);
+  assert.deepEqual(
+    recovered.runHistory.map((run) => [run.source, run.outcome, run.errorCode]),
+    [
+      ["recovery", "success", null],
+      ["manual", "failure", "rate"],
+    ],
+  );
 });
 
 const config = {

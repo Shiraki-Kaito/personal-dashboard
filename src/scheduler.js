@@ -39,7 +39,7 @@ export async function runHourlyDrive(
     error: null,
   });
   try {
-    const view = await refreshDrive(env, storage, send, now);
+    const view = await refreshDrive(env, storage, send, now, "cron");
     await storage.put("drive:scheduler", {
       lastTriggeredAt: new Date(now).toISOString(),
       error:

@@ -74,6 +74,8 @@ test("40フォルダを超える一覧を永続化し、再開後に全件取得
   assert.equal(result.scanning, true);
   assert.equal(result.lastSuccess, null);
   assert.equal(result.files.length, 0);
+  assert.equal(result.runHistory.length, 0);
+  assert.equal(result.activeRun.startedAt, new Date(start).toISOString());
   assert.ok(await storage.get("drive:job"));
   let rounds = 1;
   while (result.scanning && rounds < 10) {
@@ -87,6 +89,10 @@ test("40フォルダを超える一覧を永続化し、再開後に全件取得
   assert.equal(result.error, null);
   assert.equal(await storage.get("drive:job"), undefined);
   assert.equal(rounds, 3);
+  assert.equal(result.runHistory.length, 1);
+  assert.equal(result.runHistory[0].outcome, "success");
+  assert.equal(result.runHistory[0].startedAt, new Date(start).toISOString());
+  assert.equal(result.activeRun, null);
 });
 const now = Date.parse("2026-11-11T03:00:00Z");
 const config = { folderId: "root", includeSubfolders: true };

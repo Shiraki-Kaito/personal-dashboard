@@ -1,4 +1,5 @@
 import { DriveError, googleRequest, driveClient } from "./drive-http.js";
+import { finishDriveRun } from "./drive-history.js";
 
 export const driveScope =
   "https://www.googleapis.com/auth/drive.metadata.readonly";
@@ -224,6 +225,11 @@ export async function googleConnect(
         "account",
       );
     await storage.transaction(async (tx) => {
+      await finishDriveRun(
+        tx,
+        { files: [], ...cache, errorCode: "reauthorized" },
+        Date.now(),
+      );
       await tx.put("drive:credential", {
         token: grant.access_token,
         refresh: grant.refresh_token,

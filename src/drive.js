@@ -1,6 +1,11 @@
 import { driveClient, DriveError } from "./drive-http.js";
 import { nextRecovery } from "./recovery.js";
 import {
+  beginDriveRun,
+  finishDriveRun,
+  driveHistoryLimit,
+} from "./drive-history.js";
+import {
   driveToken,
   googleConfigured,
   googleAuthorizationStatus,
@@ -225,6 +230,9 @@ export async function driveView(env, storage, now = Date.now()) {
       (Math.floor(now / driveRefreshIntervalMs) + 1) * driveRefreshIntervalMs,
     ).toISOString(),
     automatic: (await storage.get("drive:scheduler")) || null,
+    runHistory: (await storage.get("drive:history")) || [],
+    activeRun: (await storage.get("drive:activeRun")) || null,
+    historyLimit: driveHistoryLimit,
     lastAttempt: cache?.lastAttempt || null,
     lastSuccess: cache?.lastSuccess || null,
     error: cache?.error || null,
@@ -246,6 +254,7 @@ export async function refreshDrive(
   storage,
   send = fetch,
   now = Date.now(),
+  source = "manual",
 ) {
   const config = driveConfig(env);
   if (!config || !googleConfigured(env)) {
@@ -274,6 +283,7 @@ export async function refreshDrive(
   cache.retryAt = now + minimumRefreshMs;
   await storage.put("drive:cache", cache);
   const scheduledRecovery = await storage.get("drive:recovery");
+  await beginDriveRun(storage, scheduledRecovery ? "recovery" : source, now);
   if (scheduledRecovery?.nextAt)
     await storage.put("drive:recovery", { ...scheduledRecovery, nextAt: null });
   try {
@@ -329,8 +339,16 @@ export async function refreshDrive(
     });
     await storage.delete("drive:recovery");
   } catch (error) {
-    if (!(error instanceof DriveError) && !(error instanceof DriveReviewError))
-      throw error;
+    if (
+      !(error instanceof DriveError) &&
+      !(error instanceof DriveReviewError)
+    ) {
+      // 想定外の失敗も古い成功表示に戻さない。例外の本文には秘密値が含まれ得る。
+      error = new DriveError(
+        "Driveの取得処理に失敗しました。保存済みの一覧を保持します",
+        "unexpected",
+      );
+    }
     if (error.code === "authentication") {
       const credential = await storage.get("drive:credential");
       if (credential)
@@ -350,6 +368,7 @@ export async function refreshDrive(
   await storage.transaction(async (tx) => {
     await tx.put("drive:cache", cache);
     await tx.delete("drive:job");
+    await finishDriveRun(tx, cache, now);
   });
   return driveView(env, storage, now);
 }

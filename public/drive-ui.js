@@ -245,6 +245,24 @@ function render() {
     : state.connected
       ? "再接続前のアカウント照合が未完了です。接続が有効な間にDriveを更新してください。"
       : "照合できる接続がありません。保存済みの情報があれば保持します。";
+  const history = state.runHistory || [];
+  el("driveHistorySummary").textContent =
+    `直近${state.historyLimit || 72}回まで保存します。導入前の履歴と未到達のCronは含みません。` +
+    (state.activeRun ? ` 取得中：${time(state.activeRun.startedAt)}` : "");
+  el("driveHistory").replaceChildren(
+    ...history.map((run) => {
+      const item = document.createElement("li");
+      const source =
+        { cron: "毎時", manual: "手動", recovery: "復旧" }[run.source] ||
+        "継続";
+      item.textContent =
+        `${time(run.startedAt)} → ${time(run.finishedAt)} ／ ${source} ／ ` +
+        (run.outcome === "success"
+          ? `成功・${run.fileCount}ファイル・${run.folderCount}フォルダ`
+          : `失敗（${run.errorCode}）・件数は保存済み`);
+      return item;
+    }),
+  );
   el("driveScope").textContent =
     (state.folderName || "対象未設定") +
     (state.includeSubfolders ? " · サブフォルダを含む" : "");
