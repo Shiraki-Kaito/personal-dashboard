@@ -163,6 +163,7 @@ function render() {
       button.onclick = () =>
         openMessage({
           id: operation.messageId,
+          manual: operation.sourceType === "manual",
           subject: operation.draft.title,
           from: "登録結果の照合",
           excerpt:
@@ -187,11 +188,13 @@ function render() {
         : "") +
       (!state.lastSuccess
         ? " ／ メール未取得です"
-        : state.nextPageToken
-          ? state.limited
-            ? " ／ 上限に達しました。残りはGmailで確認してください"
-            : " ／ 未取得の続きがあります"
-          : " ／ この取得範囲の続きはありません");
+        : state.errorCode === "restored" && state.limited
+          ? " ／ 未取得の続きがあります。先頭から再取得してください"
+          : state.nextPageToken
+            ? state.limited
+              ? " ／ 上限に達しました。残りはGmailで確認してください"
+              : " ／ 未取得の続きがあります"
+            : " ／ この取得範囲の続きはありません");
   el("agendaMessages").replaceChildren(
     ...state.messages.map((message) => {
       const row = document.createElement("button");

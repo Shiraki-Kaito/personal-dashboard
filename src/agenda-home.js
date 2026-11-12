@@ -27,7 +27,7 @@ export async function agendaHome(storage, now = Date.now()) {
       error: cache.error || null,
       stale,
       loaded: messages.length,
-      hasMore: !!cache.nextPageToken,
+      hasMore: !!cache.nextPageToken || !!cache.limited,
       unclassified,
     });
     if (!connection.connected || cache.error || stale || unclassified)

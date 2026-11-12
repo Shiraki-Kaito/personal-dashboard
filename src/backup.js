@@ -3,6 +3,7 @@ import { ownerId } from "./github.js";
 import { driveConfig } from "./drive.js";
 import { InputError } from "./sync.js";
 import { unreadChanges } from "./drive-review.js";
+import { createAgendaBackup, agendaRestoreEntries } from "./agenda-backup.js";
 
 const maximumBackupBytes = 8 * 1024 * 1024;
 const pick = (value, keys) =>
@@ -85,12 +86,13 @@ export async function createBackup(env, storage) {
         }
       : null;
   const backup = {
-    version: 1,
+    version: 2,
     ownerId,
     createdAt: new Date().toISOString(),
     scope: target,
     tasks,
     drive,
+    agenda: await createAgendaBackup(storage),
   };
   checkSize(backup);
   return backup;
@@ -115,10 +117,10 @@ function validRemote(remote) {
     validDate(remote.due)
   );
 }
-function restoreEntries(env, backup) {
+async function restoreEntries(env, storage, backup) {
   checkSize(backup);
   if (
-    backup?.version !== 1 ||
+    ![1, 2].includes(backup?.version) ||
     backup.ownerId !== ownerId ||
     JSON.stringify(backup.scope) !== JSON.stringify(scope(env)) ||
     !Array.isArray(backup.tasks)
@@ -204,11 +206,15 @@ function restoreEntries(env, backup) {
       retryAt: null,
     });
   }
-  return entries;
+  const agenda =
+    backup.version === 2
+      ? await agendaRestoreEntries(storage, backup.agenda)
+      : { entries: new Map(), conflicts: [] };
+  for (const [key, value] of agenda.entries) entries.set(key, value);
+  return { entries, conflicts: agenda.conflicts };
 }
 export async function backupPlan(env, storage, backup) {
-  const entries = restoreEntries(env, backup),
-    conflicts = [];
+  const { entries, conflicts } = await restoreEntries(env, storage, backup);
   for (const key of entries.keys())
     if ((await storage.get(key)) !== undefined) conflicts.push(key);
   for (const project of projectsFrom(env.PROJECT_CONFIG))
@@ -225,6 +231,15 @@ export async function backupPlan(env, storage, backup) {
   return {
     tasks: backup.tasks.length,
     driveFiles: backup.drive?.files.length || 0,
+    agendaAccounts: backup.agenda?.length || 0,
+    agendaMessages: (backup.agenda || []).reduce(
+      (n, a) => n + (a.cache?.messages.length || 0),
+      0,
+    ),
+    agendaOperations: (backup.agenda || []).reduce(
+      (n, a) => n + a.operations.length,
+      0,
+    ),
     entries: entries.size,
     conflicts,
     checksum: [...new Uint8Array(digest)]
@@ -239,7 +254,7 @@ export async function restoreBackup(env, storage, backup, checksum) {
       throw new InputError(
         "保存済みデータがあるか、確認したバックアップが変わっています。復元を停止しました",
       );
-    for (const [key, value] of restoreEntries(env, backup))
+    for (const [key, value] of (await restoreEntries(env, tx, backup)).entries)
       await tx.put(key, value);
     return { restored: plan.entries };
   });

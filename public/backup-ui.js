@@ -31,10 +31,16 @@ fileInput.onchange = async () => {
       plan.tasks +
       "件・Drive " +
       plan.driveFiles +
-      "件。" +
+      "件・メール " +
+      plan.agendaMessages +
+      "件・予定操作 " +
+      plan.agendaOperations +
+      "件（" +
+      plan.agendaAccounts +
+      "アカウント）。" +
       (plan.conflicts.length
         ? "保存先に既存データがあるため復元を停止します。"
-        : "空の保存先へ復元できます。GitHubへは自動送信しません。");
+        : "空の保存先へ復元できます。GitHub・Googleへは自動送信しません。");
     if (!plan.conflicts.length && plan.entries) {
       backup = candidate;
       checksum = plan.checksum;
@@ -50,7 +56,7 @@ restore.onclick = async () => {
   if (!backup || restore.disabled) return;
   if (
     !(await confirmAction(
-      "バックアップを空の保存先へ復元します。復元した未同期操作はGitHubから再取得して照合するまで送信しません。",
+      "バックアップを空の保存先へ復元します。GitHubの未同期操作と予定の登録記録は再照合待ちになります。予定をGoogleへ再送しません。",
       "復元する",
     ))
   )

@@ -78,6 +78,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "home",
       "recovery",
       "backup",
+      "agenda-backup",
       "agenda",
       "agenda-google",
       "agenda-rules",
@@ -212,7 +213,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     );
     const backup = await request("/api/backup");
     assert.match(backup.headers.get("Content-Disposition"), /attachment/);
-    assert.equal((await backup.json()).version, 1);
+    assert.equal((await backup.json()).version, 2);
     assert.equal(
       (await request("/api/backup", { restore: true }, "https://other.test"))
         .status,

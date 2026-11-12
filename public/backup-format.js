@@ -9,10 +9,11 @@ export function assertBackupEnvelope(value) {
     "scope",
     "tasks",
     "drive",
+    "agenda",
   ]);
   if (
     !value ||
-    value.version !== 1 ||
+    ![1, 2].includes(value.version) ||
     typeof value.ownerId !== "string" ||
     !value.scope ||
     !Array.isArray(value.tasks) ||
