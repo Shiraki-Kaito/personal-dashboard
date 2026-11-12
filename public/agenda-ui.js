@@ -1,3 +1,4 @@
+import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id),
   time = (value) =>
     value
@@ -33,8 +34,8 @@ function controls() {
     el(id).disabled = busy;
   for (const button of el("managedAccounts").querySelectorAll("button"))
     button.disabled = busy;
-  el("agendaRefresh").disabled ||= !state?.accountId || state?.mailJob?.active;
-  el("agendaMore").disabled ||= state?.mailJob?.active;
+  el("agendaRefresh").disabled ||= !state?.accountId || state?.mailJob?.active || state?.accounts.find(a => a.id === state.accountId)?.disconnectedAt;
+  el("agendaMore").disabled ||= state?.mailJob?.active || state?.accounts.find(a => a.id === state.accountId)?.disconnectedAt;
   el("agendaSync").disabled ||=
     !state?.accounts.length || state?.mailJob?.active;
   el("agendaLabelSave").disabled ||= !state?.accountId;
@@ -150,7 +151,7 @@ function render() {
   el("agendaLabel").value =
     state.accounts.find((a) => a.id === state.accountId)?.label || "";
   el("mailScheduleStatus").textContent =
-    `${state.accounts.length}/${state.accountLimit || 5}接続・毎時自動取得` +
+    `保存 ${state.accounts.length}/${state.accountLimit || 5}件・取得対象 ${state.accounts.filter(a => !a.disconnectedAt).length}件・毎時自動取得` +
     (state.mailJob?.active ? " ／ 取得中・前の完全な一覧を表示" : "") +
     (state.mailScheduler?.lastTriggeredAt
       ? " ／ 前回Cron " + time(state.mailScheduler.lastTriggeredAt)
@@ -220,6 +221,7 @@ function render() {
   el("agendaStatus").textContent = !state.accounts.length
     ? "未接続です。追加認可を行ったアカウントだけを取得します。"
     : `取得済み ${state.messages.length}件 ／ 最終試行 ${time(state.lastAttempt)} ／ 最終成功 ${time(state.lastSuccess)}` +
+      (connection?.disconnectedAt ? " ／ 接続停止中・保存情報です" : "") +
       (state.mailJob?.active
         ? " ／ メールの自動・分割取得中（前回の成功分を表示）"
         : "") +
@@ -458,7 +460,7 @@ el("homeOpenAgenda").onclick = () =>
   );
 function renderAccountManager() {
   el("accountCapacity").textContent =
-    `接続済み ${state.accounts.length}件 ／ 上限 ${state.accountLimit || 5}件` +
+    `保存済み ${state.accounts.length}件（停止 ${state.accounts.filter(a => a.disconnectedAt).length}件）／ 上限 ${state.accountLimit || 5}件` +
     (state.accounts.length >= (state.accountLimit || 5)
       ? "。現在は既存接続の再認可のみ可能です。"
       : "。後からも追加できます。");
@@ -473,7 +475,7 @@ function renderAccountManager() {
       row.className = "managed-account";
       name.textContent = account.label || "表示名未設定";
       email.textContent = account.email;
-      status.textContent = account.connected ? "接続済み" : "再接続が必要";
+      status.textContent = account.disconnectedAt ? "接続停止中" : account.connected ? "接続済み" : "再接続が必要";
       edit.type = "button";
       edit.className = "button button-small";
       edit.textContent = "名前を変更";
@@ -482,11 +484,52 @@ function renderAccountManager() {
         if (!busy) openAccountName(account);
       };
       description.append(name, status, email);
-      row.append(description, edit);
+      const actions = document.createElement("div");
+      actions.className = "managed-account-actions";
+      actions.append(edit);
+      for (const [action, label] of [["disconnect", "接続を停止"], ["clearCache", "キャッシュを整理"]]) {
+        if (action === "disconnect" && account.disconnectedAt) continue;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "button button-small";
+        button.textContent = label;
+        button.disabled = busy;
+        button.onclick = () => manageAccount(account, action);
+        actions.append(button);
+      }
+      row.append(description, actions);
       return row;
     }),
   );
   el("accountManagerAdd").disabled = busy || !state.configured;
+}
+async function manageAccount(account, action) {
+  if (busy) return;
+  busy = true;
+  controls();
+  const stopping = action === "disconnect";
+  try {
+    const approved = await confirmAction(
+      accountName(account) + "\n\n" + (stopping
+        ? "このサイトのメール・予定の接続資格情報を破棄し、手動・自動取得を停止します。表示名・保存情報・確認記録・予定登録記録は残ります。再開にはGoogleの再認可が必要です。停止中のアカウントとの予定照合はできず、新しい予定登録も停止します。Google側の認可取消ではありません。Drive接続は変更しません。"
+        : "このサイトに保存したメール一覧・直近予定一覧・取得履歴を整理します。確認記録・表示名・予定登録記録・結果不明の操作・接続は残します。元のメールやGoogleカレンダーの予定は削除しません。必要なら先に設定画面からバックアップしてください。"),
+      stopping ? "接続を停止する" : "キャッシュを整理する",
+    );
+    if (!approved) return;
+    state = await api({ action, accountId: account.id, confirm: true });
+    current = null;
+    preview = null;
+    render();
+    el("accountManagerStatus").textContent = stopping
+      ? accountName(account) + " の接続を停止しました。再開は「追加・再接続」から同じGoogleアカウントを認可してください。"
+      : accountName(account) + " のキャッシュを整理しました。確認・登録記録は保持しています。";
+    document.dispatchEvent(new CustomEvent("dashboard:agenda-changed"));
+  } catch (error) {
+    el("accountManagerStatus").textContent = error.message;
+  } finally {
+    busy = false;
+    controls();
+  }
 }
 function openAccountName(account) {
   editingAccountId = account.id;

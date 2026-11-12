@@ -175,7 +175,7 @@ export function googleAgendaClient(
 export async function agendaToken(env, storage, account, send = fetch) {
   const key = "agenda:credential:" + account.id;
   const credential = await storage.get(key);
-  if (!credential || credential.invalid)
+  if (account.disconnectedAt || !credential || credential.invalid)
     throw new AgendaError(
       account.email + " の再接続が必要です",
       "authentication",

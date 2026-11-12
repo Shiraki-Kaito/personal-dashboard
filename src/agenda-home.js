@@ -9,7 +9,7 @@ export async function agendaHome(storage, now = Date.now()) {
     alerts = [];
   for (const account of await displayAccounts(storage)) {
     const connection = agendaConnectionStatus(
-      await storage.get("agenda:credential:" + account.id),
+      account.disconnectedAt ? null : await storage.get("agenda:credential:" + account.id),
     );
     const cache = (await storage.get("agenda:cache:" + account.id)) || {};
     const reviews = (await storage.get("agenda:reviews:" + account.id)) || {};
@@ -32,7 +32,7 @@ export async function agendaHome(storage, now = Date.now()) {
       hasMore: !!cache.nextPageToken || !!cache.limited,
       unclassified,
     });
-    if (!connection.connected || cache.error || stale || unclassified)
+    if (!account.disconnectedAt && (!connection.connected || cache.error || stale || unclassified))
       alerts.push({
         service: "agenda",
         message:
@@ -64,6 +64,7 @@ export async function agendaHome(storage, now = Date.now()) {
           reason: operation.error || operation.phase,
         });
     }
+    if (account.disconnectedAt) continue;
     for (const message of messages) {
       if (
         !(message.priority || mailPriority(message)).important ||

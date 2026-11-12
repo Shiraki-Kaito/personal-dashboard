@@ -105,7 +105,7 @@ test("再接続では既存名・他の接続を保持し、空名だけ初期�
     email = "existing@example.test",
     id = await digest(email);
   await s.put("agenda:accounts", [
-    { id, email, calendar: "primary" },
+    { id, email, calendar: "primary", disconnectedAt: "2026-11-12T00:00:00Z" },
     { id: "other", email: "other@example.test" },
   ]);
   await s.put("agenda:label:" + id, "就活");
@@ -113,6 +113,8 @@ test("再接続では既存名・他の接続を保持し、空名だけ初期�
   await start(s, "private");
   assert.equal((await callback(s, email)).status, 303);
   assert.equal(await s.get("agenda:label:" + id), "就活");
+  assert.equal((await s.get("agenda:accounts")).find(a => a.id === id).disconnectedAt, undefined);
+  assert.ok(await s.get("agenda:credential:" + id));
   assert.equal((await s.get("agenda:credential:other")).token, "fixture-other");
   await s.put("agenda:label:" + id, "");
   await start(s, "private");

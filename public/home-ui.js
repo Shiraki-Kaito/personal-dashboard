@@ -341,6 +341,7 @@ document.addEventListener("dashboard:view", (event) => {
   if (event.detail === "home") load(true);
 });
 document.addEventListener("dashboard:drive-reviewed", () => load(false));
+document.addEventListener("dashboard:agenda-changed", () => load(false));
 document.addEventListener("dashboard:busy", (event) => {
   if (event.detail.service === "drive") {
     driveBusy = event.detail.busy;

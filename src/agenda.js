@@ -1,3 +1,4 @@
+import { disconnectAccount, clearAccountCache } from "./agenda-management.js";
 import { readMailPage, recordMailRun } from "./agenda-mail.js";
 import { displayAccounts, saveAccountLabel } from "./agenda-labels.js";
 import { mailPriority } from "./agenda-priority.js";
@@ -67,7 +68,7 @@ export async function agendaView(env, storage, id) {
       accounts.map(async (a) => ({
         ...a,
         ...agendaConnectionStatus(
-          await storage.get("agenda:credential:" + a.id),
+          a.disconnectedAt ? null : await storage.get("agenda:credential:" + a.id),
         ),
       })),
     ),
@@ -534,4 +535,13 @@ export async function reconcileAppointment(env, storage, input, send = fetch) {
     });
   }
   return agendaView(env, storage, account.id);
+}
+
+export async function disconnectAgendaAccount(env, storage, input) {
+  await disconnectAccount(storage, input);
+  return agendaView(env, storage, input.accountId);
+}
+export async function clearAgendaAccountCache(env, storage, input) {
+  await clearAccountCache(storage, input);
+  return agendaView(env, storage, input.accountId);
 }

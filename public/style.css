@@ -1858,3 +1858,5 @@ body[data-view="home"] .task-panel {
 .managed-account strong + span {
   margin-left: 10px;
 }
+
+.managed-account-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }

@@ -21,6 +21,8 @@ import {
   agendaView,
   refreshAgenda,
   renameAgendaAccount,
+  disconnectAgendaAccount,
+  clearAgendaAccountCache,
   refreshAgendaCalendar,
   previewAppointment,
   registerAppointment,
@@ -204,6 +206,8 @@ export class Dashboard extends DurableObject {
           );
         const operations = {
           label: renameAgendaAccount,
+          disconnect: disconnectAgendaAccount,
+          clearCache: clearAgendaAccountCache,
           syncMail: async (env, storage, input) => {
             await queueMailSync(storage, Date.now(), "manual-batch");
             return agendaView(env, storage, input.accountId);

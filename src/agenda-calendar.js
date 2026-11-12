@@ -81,6 +81,7 @@ export async function upcomingCalendarView(storage, now = Date.now()) {
   for (const account of await displayAccounts(storage)) {
     const cache = (await storage.get("agenda:calendar:" + account.id)) || {};
     const stale =
+      !!account.disconnectedAt ||
       !cache.lastSuccess ||
       now - Date.parse(cache.lastSuccess) > freshnessMs ||
       cache.rangeStart !== range.start ||
@@ -92,8 +93,8 @@ export async function upcomingCalendarView(storage, now = Date.now()) {
       count: cache.events?.length || 0,
       lastAttempt: cache.lastAttempt || null,
       lastSuccess: cache.lastSuccess || null,
-      error: cache.error || null,
-      errorCode: cache.errorCode || null,
+      error: account.disconnectedAt ? "接続停止中・保存情報です" : cache.error || null,
+      errorCode: account.disconnectedAt ? "disconnected" : cache.errorCode || null,
       retryAt: cache.retryAt || null,
       rangeStart: cache.rangeStart || null,
       rangeEnd: cache.rangeEnd || null,
@@ -108,7 +109,7 @@ export async function upcomingCalendarView(storage, now = Date.now()) {
         email: account.email,
         label: account.label,
         stale,
-        cachedWithError: !!cache.error,
+        cachedWithError: !!cache.error || !!account.disconnectedAt,
       })),
     );
   }
@@ -138,6 +139,7 @@ export async function refreshUpcomingCalendar(
   const range = calendarRange(now),
     budget = { remaining: 30 };
   for (const account of await agendaAccounts(storage)) {
+    if (account.disconnectedAt) continue;
     const key = "agenda:calendar:" + account.id,
       cache = (await storage.get(key)) || {};
     if (cache.retryAt > now) continue;

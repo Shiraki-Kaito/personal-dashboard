@@ -14,7 +14,7 @@ export async function queueMailSync(
       lastTriggeredAt: new Date(now).toISOString(),
     });
   if (await storage.get("agenda:mailJob")) return;
-  const accounts = await agendaAccounts(storage);
+  const accounts = (await agendaAccounts(storage)).filter(a => !a.disconnectedAt);
   if (!accounts.length) return;
   await storage.put("agenda:mailJob", {
     accountIds: accounts.map((a) => a.id),
@@ -54,7 +54,7 @@ export async function runMailBatch(
   const job = await storage.get("agenda:mailJob");
   if (!job || job.nextAt > now) return;
   const account = (await agendaAccounts(storage)).find(
-    (a) => a.id === job.accountIds[job.index],
+    (a) => a.id === job.accountIds[job.index] && !a.disconnectedAt,
   );
   if (!account) return advance(storage, job, now);
   const key = "agenda:cache:" + account.id,
