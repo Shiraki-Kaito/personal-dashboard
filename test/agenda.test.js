@@ -95,6 +95,45 @@ test("メールの続きページを明示取得し、件数と候補を保持�
   assert.equal(view.messages.length, 2);
   assert.equal(view.nextPageToken, null);
 });
+test("続きの最終ページが0件でも取得済みメールと確認記録を保持して終端にする", async () => {
+  const { storage } = await setup(),
+    now = Date.now();
+  const before = await storage.get("agenda:cache:a");
+  await storage.put("agenda:cache:a", {
+    ...before,
+    nextPageToken: "empty-final",
+    limited: false,
+  });
+  await storage.put("agenda:reviews:a", {
+    abc: { reviewedAt: new Date(now).toISOString() },
+  });
+  let reads = 0;
+  const view = await refreshAgenda(
+    env,
+    storage,
+    { accountId: "a", more: true },
+    async (url, init) => {
+      reads++;
+      assert.equal(init.method, "GET");
+      assert.equal(new URL(url).searchParams.get("pageToken"), "empty-final");
+      return Response.json({ messages: [] });
+    },
+    now,
+  );
+  assert.equal(reads, 1);
+  assert.deepEqual(
+    view.messages.map((m) => m.id),
+    ["abc"],
+  );
+  assert.ok(view.messages[0].review);
+  assert.equal(view.nextPageToken, null);
+  assert.equal(view.limited, false);
+  assert.equal(view.error, null);
+  assert.equal(view.mailHistory[0].fetchedCount, 0);
+  assert.equal(view.mailHistory[0].count, 1);
+  assert.equal(view.mailHistory[0].outcome, "success");
+});
+
 test("別アカウントを追加・再接続しても他の接続・Drive資格情報を変更しない", async () => {
   const { storage } = await setup();
   await storage.put("drive:credential", { token: "drive-private" });
