@@ -61,6 +61,18 @@ export async function agendaView(env, storage, id) {
     ),
     accountId: account?.id || null,
     ...cache,
+    manualRegistrations: account
+      ? await Promise.all(
+          ((await storage.get("agenda:manualHistory:" + account.id)) || []).map(
+            async (messageId) => ({
+              messageId,
+              ...(await storage.get(
+                "agenda:operation:" + account.id + ":" + messageId,
+              )),
+            }),
+          ),
+        )
+      : [],
     pendingRegistrations: account
       ? await Promise.all(
           ((await storage.get("agenda:pending:" + account.id)) || []).map(
@@ -238,7 +250,17 @@ async function operationContext(storage, input) {
   const source = await selected(storage, input.accountId),
     target = await selected(storage, input.targetAccountId);
   const cache = await storage.get("agenda:cache:" + source.id);
-  const message = cache?.messages.find((m) => m.id === input.messageId);
+  const manual = input.manual === true;
+  if (
+    manual &&
+    !/^manual-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+      input.messageId || "",
+    )
+  )
+    throw new InputError("手入力予定の識別子が不正です");
+  const message = manual
+    ? { id: input.messageId }
+    : cache?.messages.find((m) => m.id === input.messageId);
   if (!message) throw new InputError("保存済みのメールを選択してください");
   let draft;
   try {
@@ -294,6 +316,19 @@ function eventMatches(event, operation) {
     event?.extendedProperties?.private?.dashboardOperation === operation.eventId
   );
 }
+function calendarUrl(event) {
+  try {
+    const url = new URL(event.htmlLink);
+    if (
+      url.protocol === "https:" &&
+      (url.hostname === "calendar.google.com" ||
+        (url.hostname === "www.google.com" &&
+          url.pathname === "/calendar/event"))
+    )
+      return url.href;
+  } catch {}
+  return null;
+}
 export async function registerAppointment(env, storage, input, send = fetch) {
   if (input.confirmed !== true)
     throw new InputError("内容の本人確認が必要です");
@@ -326,6 +361,7 @@ export async function registerAppointment(env, storage, input, send = fetch) {
     phase: "登録結果未確認",
     lastAttempt: new Date().toISOString(),
     error: null,
+    sourceType: input.manual === true ? "manual" : "mail",
   };
   const read = await client(env, storage, target, send);
   const existing = await read("calendar", "events/" + eventId, {}, null, true);
@@ -344,6 +380,18 @@ export async function registerAppointment(env, storage, input, send = fetch) {
   await storage.transaction(async (tx) => {
     await tx.put(key, operation);
     await tx.put(pendingKey, [...pending, message.id]);
+    if (input.manual === true) {
+      const historyKey = "agenda:manualHistory:" + source.id;
+      await tx.put(
+        historyKey,
+        [
+          message.id,
+          ...((await tx.get(historyKey)) || []).filter(
+            (id) => id !== message.id,
+          ),
+        ].slice(0, 100),
+      );
+    }
   });
   try {
     await read(
@@ -370,6 +418,7 @@ export async function registerAppointment(env, storage, input, send = fetch) {
       ...operation,
       phase: "登録確認済み",
       lastSuccess: new Date().toISOString(),
+      calendarUrl: calendarUrl(event),
     };
   } catch (error) {
     operation = {
@@ -420,6 +469,7 @@ export async function reconcileAppointment(env, storage, input, send = fetch) {
       phase: "登録確認済み",
       error: null,
       lastSuccess: new Date().toISOString(),
+      calendarUrl: calendarUrl(event),
     });
     const pendingKey = "agenda:pending:" + account.id;
     await storage.put(

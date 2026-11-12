@@ -337,6 +337,40 @@ test("元メールが一覧から外れても、結果不明の操作を保持�
     "登録確認済み",
   );
 });
+
+test("手入力は実メールと区別し、登録確認と再読込後の記録を保持する", async () => {
+  const { storage, f } = await setup();
+  const input = {
+    ...base,
+    manual: true,
+    messageId: "manual-" + crypto.randomUUID(),
+  };
+  const p = await previewAppointment(env, storage, input, f.send);
+  const view = await registerAppointment(
+    env,
+    storage,
+    { ...input, checksum: p.checksum, confirmed: true },
+    f.send,
+  );
+  assert.equal(view.messages[0].operation, null);
+  assert.equal(view.manualRegistrations.length, 1);
+  assert.equal(view.manualRegistrations[0].sourceType, "manual");
+  assert.equal(view.manualRegistrations[0].phase, "登録確認済み");
+  const reloaded = await agendaView(env, memory(storage.values), "a");
+  assert.equal(
+    reloaded.manualRegistrations[0].eventId,
+    view.manualRegistrations[0].eventId,
+  );
+  assert.equal(f.writes, 1);
+  await assert.rejects(
+    previewAppointment(env, storage, { ...input, messageId: "abc" }, f.send),
+    /識別子/,
+  );
+  await assert.rejects(
+    previewAppointment(env, storage, { ...input, manual: false }, f.send),
+    /保存済み/,
+  );
+});
 test("結果不明の予定が見つからない場合は再送せず、外部編集も上書きしない", async () => {
   const { storage, f } = await setup(),
     p = await previewAppointment(env, storage, base, f.send);

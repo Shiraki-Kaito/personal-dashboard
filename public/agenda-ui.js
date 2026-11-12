@@ -13,12 +13,14 @@ function controls() {
     "agendaAccount",
     "agendaConnect",
     "agendaRefresh",
+    "agendaManual",
     "agendaMore",
     "appointmentPreview",
     "appointmentReconcile",
   ])
     el(id).disabled = busy;
   el("agendaRefresh").disabled ||= !state?.accountId;
+  el("agendaManual").disabled ||= !state?.accountId;
   el("agendaMore").disabled ||= !state?.nextPageToken || state?.limited;
   el("appointmentRegister").disabled =
     busy ||
@@ -77,6 +79,7 @@ function openMessage(message) {
       "抽出結果と原文を確認してください");
   el("appointmentExcerpt").textContent = message.excerpt;
   el("appointmentMailLink").href = message.url;
+  el("appointmentMailLink").hidden = !!message.manual;
   el("appointmentTarget").replaceChildren(
     ...state.accounts.map((a) => option(a.id, a.email + " のメイン")),
   );
@@ -90,6 +93,8 @@ function openMessage(message) {
     el(id).value = message.candidate[key] || "";
   invalidate();
   const op = message.operation;
+  el("appointmentCalendarLink").hidden = !op?.calendarUrl;
+  if (op?.calendarUrl) el("appointmentCalendarLink").href = op.calendarUrl;
   el("appointmentResult").textContent = op
     ? op.phase +
       " ／ " +
@@ -117,6 +122,28 @@ function render() {
   );
   el("agendaAccount").value = state.accountId || "";
   el("agendaConnect").hidden = !state.configured;
+  el("agendaManualHistory").replaceChildren(
+    ...(state.manualRegistrations || []).map((operation) => {
+      const button = document.createElement("button");
+      button.className = "task-row";
+      button.textContent = operation.draft.title + " ／ " + operation.phase;
+      button.onclick = () =>
+        openMessage({
+          id: operation.messageId,
+          manual: true,
+          subject: operation.draft.title,
+          from: "手入力",
+          excerpt: "実メールの処理記録とは別の予定です。",
+          candidate: {
+            status: "手入力の登録記録",
+            reasons: [],
+            title: operation.draft.title,
+          },
+          operation,
+        });
+      return button;
+    }),
+  );
   el("agendaPending").replaceChildren(
     ...(state.pendingRegistrations || []).map((operation) => {
       const button = document.createElement("button");
@@ -177,6 +204,12 @@ async function run(body = null, accountId) {
     state = await api(body, accountId);
     render();
     if (current) {
+      if (current.manual) {
+        const operation = state.manualRegistrations?.find(
+          (op) => op.messageId === current.id,
+        );
+        if (operation) openMessage({ ...current, operation });
+      }
       const updated = state.messages.find((m) => m.id === current.id);
       if (updated?.operation) openMessage(updated);
     }
@@ -193,6 +226,7 @@ async function run(body = null, accountId) {
 function input() {
   return {
     accountId: state.accountId,
+    manual: current.manual === true,
     messageId: current.id,
     targetAccountId: el("appointmentTarget").value,
     draft: {
@@ -205,6 +239,22 @@ function input() {
 }
 el("agendaRefresh").onclick = () =>
   run({ action: "refresh", accountId: state.accountId });
+el("agendaManual").onclick = () =>
+  openMessage({
+    id: "manual-" + crypto.randomUUID(),
+    manual: true,
+    subject: "手入力の予定",
+    from: "メールからの登録ではありません",
+    excerpt: "予定名・日時・場所・登録先を確認してから照合してください。",
+    candidate: {
+      title: "",
+      start: "",
+      end: "",
+      location: "",
+      status: "内容確認待ち",
+      reasons: [],
+    },
+  });
 el("agendaMore").onclick = () =>
   run({ action: "refresh", more: true, accountId: state.accountId });
 el("agendaAccount").onchange = () => {

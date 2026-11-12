@@ -237,6 +237,9 @@
             ><button id="agendaMore" class="button button-secondary" disabled>
               続きを取得
             </button>
+            <button id="agendaManual" class="button button-secondary">
+              予定を手入力
+            </button>
           </div>
           <p id="agendaStatus" role="status">
             未接続です。接続したアカウントだけを取得します。
@@ -253,6 +256,10 @@
           <details class="agenda-help">
             <summary>結果未確認の登録（メール一覧外も保持）</summary>
             <div id="agendaPending"></div>
+          </details>
+          <details class="agenda-help">
+            <summary>手入力の登録記録（直近100件）</summary>
+            <div id="agendaManualHistory"></div>
           </details>
         </section>
         <section
@@ -531,6 +538,9 @@
           </button>
         </form>
         <p id="appointmentResult" role="status"></p>
+        <a id="appointmentCalendarLink" target="_blank" rel="noreferrer" hidden
+          >Googleカレンダーで確認 ↗</a
+        >
         <ul id="appointmentMatches"></ul>
         <label id="appointmentConflictLabel" hidden
           ><input
