@@ -82,6 +82,8 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "agenda",
       "agenda-google",
       "agenda-rules",
+      "agenda-datetime",
+      "agenda-calendar",
       "agenda-home",
     ].map((name) => ({
       type: "ESModule",
@@ -152,6 +154,10 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       401,
     );
     assert.equal((await request("/auth/agenda/start", {})).status, 401);
+    assert.equal(
+      (await request("/api/agenda", { action: "calendar" })).status,
+      401,
+    );
     for (const path of ["/api/backup", "/backup-ui.js", "/backup-format.js"])
       assert.equal((await request(path)).status, 401);
     assert.equal((await request("/api/backup", { restore: true })).status, 401);
@@ -196,6 +202,19 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     assert.deepEqual(
       (await (await request("/api/agenda")).json()).accounts,
       [],
+    );
+    const emptyCalendar = await request("/api/agenda", { action: "calendar" });
+    assert.equal(emptyCalendar.status, 200);
+    assert.equal((await emptyCalendar.json()).calendar.complete, false);
+    assert.equal(
+      (
+        await request(
+          "/api/agenda",
+          { action: "calendar" },
+          "https://other.test",
+        )
+      ).status,
+      403,
     );
     assert.equal(
       (

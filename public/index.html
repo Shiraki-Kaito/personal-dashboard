@@ -243,7 +243,7 @@
         >
           <div class="panel-heading">
             <div>
-              <h2 id="agendaHeading" tabindex="-1">メールから予定へ</h2>
+              <h2 id="agendaHeading" tabindex="-1">メール・予定</h2>
               <p>各アカウントのメインカレンダー・日本時間で確認</p>
             </div>
             <button id="agendaConnect" class="button button-secondary">
@@ -269,24 +269,56 @@
           <p id="agendaStatus" role="status">
             未接続です。接続したアカウントだけを取得します。
           </p>
-          <p id="agendaConnectionStatus" class="agenda-help"></p>
-          <p class="agenda-help">
-            直近14日・1回20件、最大100件。すべての取得メールを表示します。本文はルールで解析し、年や日時が曖昧なら確認待ちにします。添付ファイルは読みません。
-          </p>
-          <div
-            id="agendaMessages"
-            class="home-list scroll-area"
-            tabindex="0"
-            aria-label="取得したメール一覧"
-          ></div>
           <details class="agenda-help">
-            <summary>結果未確認の登録（メール一覧外も保持）</summary>
-            <div id="agendaPending"></div>
+            <summary>メールの取得範囲と接続診断</summary>
+            <p id="agendaConnectionStatus"></p>
+            <p>
+              メールは直近14日・最大100件。日本語の時刻・曜日を照合し、年省略・複数候補・曜日の不一致は確認待ちにします。判定はメール再取得時に更新します。添付ファイルは読みません。
+            </p>
           </details>
-          <details class="agenda-help">
-            <summary>手入力の登録記録（直近100件）</summary>
-            <div id="agendaManualHistory"></div>
-          </details>
+          <div class="agenda-columns">
+            <section class="agenda-column" aria-label="メールと登録記録">
+              <h3 class="agenda-section-title">取得したメール</h3>
+              <div
+                id="agendaMessages"
+                class="home-list scroll-area"
+                tabindex="0"
+                aria-label="取得したメール一覧"
+              ></div>
+              <details class="agenda-help">
+                <summary>結果未確認の登録（メール一覧外も保持）</summary>
+                <div id="agendaPending"></div>
+              </details>
+              <details class="agenda-help">
+                <summary>手入力の登録記録（直近100件）</summary>
+                <div id="agendaManualHistory"></div>
+              </details>
+            </section>
+            <section class="agenda-column" aria-labelledby="calendarHeading">
+              <div class="calendar-heading">
+                <h3 id="calendarHeading">直近の予定</h3>
+                <button id="calendarRefresh" class="button button-secondary">
+                  予定を更新
+                </button>
+              </div>
+              <p id="calendarStatus" class="agenda-help" role="status">
+                予定は未取得です
+              </p>
+              <details class="agenda-help">
+                <summary>アカウント別の取得状況</summary>
+                <div id="calendarAccounts"></div>
+                <p>
+                  今日を含む7日間・全接続のメインカレンダーを手動で取得します。時刻付きは日本時間、終日は日付とカレンダーの時間帯で表示します。予定の作成・変更は行いません。
+                </p>
+              </details>
+              <div
+                id="calendarEvents"
+                class="home-list scroll-area"
+                tabindex="0"
+                aria-label="接続済み全アカウントの予定"
+              ></div>
+            </section>
+          </div>
         </section>
         <section
           class="panel surface drive-panel"

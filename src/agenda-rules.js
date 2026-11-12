@@ -1,3 +1,4 @@
+import { extractDateTime } from "./agenda-datetime.js";
 // 本文から確実に読める絶対日付・時間帯だけを候補にし、登録判断は本人に委ねる。
 export function japanInstant(value) {
   if (typeof value !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(value))
@@ -12,45 +13,11 @@ export function japanInstant(value) {
 }
 export function extractAppointment(subject, text) {
   const source = (subject + "\n" + text).normalize("NFKC");
-  const dates = [
-    ...source.matchAll(/(20\d{2})[年/.-](\d{1,2})[月/.-](\d{1,2})(?:日)?/g),
-  ].map((m) => `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`);
-  const unique = [...new Set(dates)];
-  const ranges = [
-    ...source.matchAll(
-      /(\d{1,2}):([0-5]\d)\s*[〜～~－–—-]\s*(\d{1,2}):([0-5]\d)/g,
-    ),
-  ];
+  const { start, end, reasons, hasDateTime } = extractDateTime(source);
   const isCandidate =
-    /面接|面談|説明会|打合せ|打ち合わせ|ミーティング|会議|登壇|勉強会|懇親会|日程調整|日時\s*[:：]|予定\s*[:：]/.test(
+    /面接|面談|説明会|打合せ|打ち合わせ|ミーティング|会議|登壇|勉強会|懇親会|日程調整|招待|日時\s*[:：]|予定\s*[:：]/.test(
       source,
-    ) ||
-    (dates.length > 0 && ranges.length > 0);
-  const reasons = [];
-  if (unique.length !== 1)
-    reasons.push(
-      unique.length ? "日付が複数あります" : "年を含む日付を確認してください",
-    );
-  if (ranges.length !== 1) reasons.push("開始・終了時刻を確認してください");
-  if (
-    /候補|調整中|未定|いずれか|キャンセル|中止|取消|変更前|旧日程|UTC|GMT|PST|EST|CET|[+-]\d\d:?\d\d/i.test(
-      source,
-    )
-  )
-    reasons.push("候補・変更・タイムゾーンなどの確認が必要です");
-  let start = "",
-    end = "";
-  if (unique.length === 1 && ranges.length === 1) {
-    const m = ranges[0];
-    start = unique[0] + "T" + m[1].padStart(2, "0") + ":" + m[2];
-    end = unique[0] + "T" + m[3].padStart(2, "0") + ":" + m[4];
-    try {
-      if (japanInstant(end) <= japanInstant(start)) throw Error();
-    } catch {
-      start = end = "";
-      reasons.push("日時の値を確認してください");
-    }
-  }
+    ) || hasDateTime;
   return {
     title: subject.slice(0, 300),
     start,

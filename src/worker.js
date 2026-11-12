@@ -19,6 +19,7 @@ import { agendaConnect, AgendaError } from "./agenda-google.js";
 import {
   agendaView,
   refreshAgenda,
+  refreshAgendaCalendar,
   previewAppointment,
   registerAppointment,
   reconcileAppointment,
@@ -198,6 +199,7 @@ export class Dashboard extends DurableObject {
             await agendaView(this.env, storage, searchParams.get("accountId")),
           );
         const operations = {
+          calendar: refreshAgendaCalendar,
           refresh: refreshAgenda,
           preview: previewAppointment,
           register: registerAppointment,

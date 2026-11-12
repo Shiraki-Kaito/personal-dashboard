@@ -1,8 +1,11 @@
 import { InputError } from "./sync.js";
 import {
+  upcomingCalendarView,
+  refreshUpcomingCalendar,
+} from "./agenda-calendar.js";
+import {
   agendaAccounts,
-  agendaToken,
-  googleAgendaClient,
+  agendaClient,
   AgendaError,
   agendaConnectionStatus,
 } from "./agenda-google.js";
@@ -22,26 +25,6 @@ async function selected(storage, id) {
   const account = accounts.find((a) => a.id === (id || accounts[0]?.id));
   if (!account) throw new InputError("接続アカウントを選択してください");
   return account;
-}
-async function client(env, storage, account, send, budget) {
-  const request = googleAgendaClient(
-    await agendaToken(env, storage, account, send),
-    send,
-    budget,
-  );
-  return async (...args) => {
-    try {
-      return await request(...args);
-    } catch (error) {
-      if (error instanceof AgendaError && error.code === "authentication") {
-        const key = "agenda:credential:" + account.id,
-          credential = await storage.get(key);
-        if (credential)
-          await storage.put(key, { ...credential, invalid: true });
-      }
-      throw error;
-    }
-  };
 }
 async function operationView(storage, accounts, key) {
   const operation = await storage.get(key);
@@ -69,6 +52,7 @@ export async function agendaView(env, storage, id) {
     : {};
   return {
     configured: googleConfigured(env),
+    calendar: await upcomingCalendarView(storage),
     accounts: await Promise.all(
       accounts.map(async (a) => ({
         ...a,
@@ -148,6 +132,10 @@ export async function reviewAgenda(env, storage, input) {
   await storage.put(key, reviews);
   return agendaView(env, storage, account.id);
 }
+export async function refreshAgendaCalendar(env, storage, input, send = fetch) {
+  await refreshUpcomingCalendar(env, storage, send);
+  return agendaView(env, storage, input.accountId);
+}
 export async function refreshAgenda(
   env,
   storage,
@@ -173,7 +161,7 @@ export async function refreshAgenda(
   };
   await storage.put(key, attempt);
   try {
-    const read = await client(env, storage, account, send);
+    const read = await agendaClient(env, storage, account, send);
     const page = await read("gmail", "messages", {
       q: "newer_than:14d -in:trash -in:spam",
       maxResults: String(pageSize),
@@ -249,7 +237,7 @@ async function calendarEvents(env, storage, draft, send) {
   // 5接続のトークン更新・登録後照合を含めても、1要求の通信数を抑える。
   const budget = { remaining: 30 };
   for (const account of await agendaAccounts(storage)) {
-    const read = await client(env, storage, account, send, budget);
+    const read = await agendaClient(env, storage, account, send, budget);
     let cursor = null;
     const cursors = new Set();
     for (let page = 0; ; page++) {
@@ -416,7 +404,7 @@ export async function registerAppointment(env, storage, input, send = fetch) {
     error: null,
     sourceType: input.manual === true ? "manual" : "mail",
   };
-  const read = await client(env, storage, target, send);
+  const read = await agendaClient(env, storage, target, send);
   const existing = await read("calendar", "events/" + eventId, {}, null, true);
   if (existing)
     throw new AgendaError(
@@ -500,7 +488,7 @@ export async function reconcileAppointment(env, storage, input, send = fetch) {
   operation.lastAttempt = new Date().toISOString();
   const target = await selected(storage, operation.targetAccountId);
   try {
-    const read = await client(env, storage, target, send),
+    const read = await agendaClient(env, storage, target, send),
       event = await read(
         "calendar",
         "events/" + operation.eventId,

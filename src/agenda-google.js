@@ -28,6 +28,32 @@ export function agendaConnectionStatus(credential) {
     },
   };
 }
+async function responseText(response, maximumBytes) {
+  const reader = response.body.getReader();
+  let size = 0;
+  const chunks = [];
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > maximumBytes)
+        throw new AgendaError("応答が取得上限を超えました", "limit");
+      chunks.push(value);
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(size);
+  let index = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, index);
+    index += chunk.length;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 export function googleAgendaClient(
   token,
   send = fetch,
@@ -92,11 +118,34 @@ export function googleAgendaClient(
               (Number(response.headers.get("retry-after")) || 60) * 1000,
             ),
         );
-      if (response.status === 403)
+      if (response.status === 403) {
+        const details = await responseText(response, 16 * 1024)
+          .then(JSON.parse)
+          .catch(() => ({}));
+        const reasons = Array.isArray(details.error?.errors)
+          ? details.error.errors.map((e) => e.reason)
+          : [];
+        if (
+          details.error?.status === "RESOURCE_EXHAUSTED" ||
+          reasons.some((reason) =>
+            [
+              "rateLimitExceeded",
+              "userRateLimitExceeded",
+              "dailyLimitExceeded",
+              "quotaExceeded",
+            ].includes(reason),
+          )
+        )
+          throw new AgendaError(
+            "Google APIの利用制限です",
+            "rate",
+            Date.now() + 60000,
+          );
         throw new AgendaError(
           "追加権限またはGmail・Calendar APIの有効化を確認してください",
           "permission",
         );
+      }
       if (response.status === 409)
         throw new AgendaError(
           "同じ登録IDが存在します。結果を照合してください",
@@ -108,30 +157,9 @@ export function googleAgendaClient(
       }
       if (!response.ok)
         throw new AgendaError("Google APIの取得・登録に失敗しました");
-      const reader = response.body.getReader();
-      let size = 0;
-      const chunks = [];
+      const text = await responseText(response, 2 * 1024 * 1024);
       try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          size += value.length;
-          if (size > 2 * 1024 * 1024)
-            throw new AgendaError("応答が取得上限を超えました", "limit");
-          chunks.push(value);
-        }
-      } finally {
-        await reader.cancel().catch(() => {});
-        reader.releaseLock();
-      }
-      const bytes = new Uint8Array(size);
-      let index = 0;
-      for (const chunk of chunks) {
-        bytes.set(chunk, index);
-        index += chunk.length;
-      }
-      try {
-        const result = JSON.parse(new TextDecoder().decode(bytes));
+        const result = JSON.parse(text);
         if (!result || result.error) throw Error();
         return result;
       } catch {
@@ -284,4 +312,25 @@ export async function agendaConnect(
       return new Response(error.message, { status: 503 });
     throw error;
   }
+}
+
+export async function agendaClient(env, storage, account, send, budget) {
+  const request = googleAgendaClient(
+    await agendaToken(env, storage, account, send),
+    send,
+    budget,
+  );
+  return async (...args) => {
+    try {
+      return await request(...args);
+    } catch (error) {
+      if (error instanceof AgendaError && error.code === "authentication") {
+        const key = "agenda:credential:" + account.id,
+          credential = await storage.get(key);
+        if (credential)
+          await storage.put(key, { ...credential, invalid: true });
+      }
+      throw error;
+    }
+  };
 }

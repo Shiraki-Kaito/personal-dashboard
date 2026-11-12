@@ -15,6 +15,7 @@ function controls() {
     "agendaRefresh",
     "agendaManual",
     "agendaMore",
+    "calendarRefresh",
     "appointmentPreview",
     "appointmentReconcile",
     "appointmentReview",
@@ -22,6 +23,7 @@ function controls() {
     el(id).disabled = busy;
   el("agendaRefresh").disabled ||= !state?.accountId;
   el("agendaManual").disabled ||= !state?.accountId;
+  el("calendarRefresh").disabled ||= !state?.accounts.length;
   el("agendaMore").disabled ||= !state?.nextPageToken || state?.limited;
   el("appointmentRegister").disabled =
     busy ||
@@ -121,6 +123,7 @@ function openMessage(message) {
 }
 function render() {
   if (!state) return;
+  renderCalendar();
   el("agendaAccount").replaceChildren(
     ...state.accounts.map((a) =>
       option(a.id, a.email + (a.connected ? "" : "（再接続が必要）")),
@@ -212,6 +215,81 @@ function render() {
   );
   controls();
 }
+function renderCalendar() {
+  const calendar = state.calendar;
+  if (!calendar) return;
+  const day = (value) =>
+    new Date(value).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" });
+  const calendarTime = (value) =>
+    new Date(value).toLocaleString("ja-JP", {
+      timeZone: "Asia/Tokyo",
+      month: "numeric",
+      day: "numeric",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  el("calendarStatus").textContent =
+    `${day(calendar.range.start)}〜${day(Date.parse(calendar.range.end) - 1)} ／ ${calendar.events.length}件` +
+    (calendar.complete
+      ? " ／ 全接続の取得完了"
+      : " ／ 未取得・古さ・失敗を確認してください") +
+    (calendar.accounts.some((a) => a.error)
+      ? " ／ 取得失敗 " +
+        calendar.accounts.filter((a) => a.error).length +
+        "接続（取得状況を確認）"
+      : "");
+  el("calendarAccounts").replaceChildren(
+    ...calendar.accounts.map((account) => {
+      const p = document.createElement("p");
+      p.textContent =
+        `${account.email}：${account.count}件 ／ API取得 ${account.receivedCount ?? "未記録"}件・${account.pages ?? "未記録"}ページ ／ 試行 ${time(account.lastAttempt)} ／ 成功 ${time(account.lastSuccess)}` +
+        (account.error ? " ／ 取得失敗：" + account.error : "") +
+        (account.stale ? " ／ 保存済み情報は古いか未取得です" : "");
+      if (account.rangeStart && (account.stale || account.error))
+        p.textContent += ` ／ 保存範囲 ${day(account.rangeStart)}〜${day(Date.parse(account.rangeEnd) - 1)}`;
+      return p;
+    }),
+  );
+  el("calendarEvents").replaceChildren(
+    ...calendar.events.map((event) => {
+      const row = document.createElement("div"),
+        title = document.createElement("strong"),
+        info = document.createElement("span"),
+        source = document.createElement("span");
+      row.className = "task-row calendar-event";
+      title.textContent = event.title;
+      info.className = source.className = "task-meta";
+      info.textContent = event.allDay
+        ? `${event.start.date}〜${new Date(Date.parse(event.end.date) - 86400000).toISOString().slice(0, 10)}・終日（${event.timezone}）`
+        : `${calendarTime(event.start.dateTime)}〜${calendarTime(event.end.dateTime)}`;
+      source.textContent =
+        event.email +
+        (event.location ? " ／ " + event.location : "") +
+        (event.tentative ? " ／ 未確定" : "") +
+        (event.transparent ? " ／ 空き時間として扱う" : "") +
+        (event.stale || event.cachedWithError ? " ／ 保存済み" : "");
+      row.append(title, info, source);
+      if (event.url) {
+        const link = document.createElement("a");
+        link.href = event.url;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.textContent = "Googleカレンダーで開く ↗";
+        row.append(link);
+      }
+      return row;
+    }),
+  );
+  if (!calendar.events.length) {
+    const p = document.createElement("p");
+    p.className = "empty-state";
+    p.textContent = calendar.complete
+      ? "取得した7日間に予定はありません"
+      : "予定は未取得、または取得状況に警告があります";
+    el("calendarEvents").append(p);
+  }
+}
 async function run(body = null, accountId) {
   if (busy) return;
   busy = true;
@@ -255,6 +333,8 @@ function input() {
 }
 el("agendaRefresh").onclick = () =>
   run({ action: "refresh", accountId: state.accountId });
+el("calendarRefresh").onclick = () =>
+  run({ action: "calendar", accountId: state.accountId });
 el("agendaManual").onclick = () =>
   openMessage({
     id: "manual-" + crypto.randomUUID(),
