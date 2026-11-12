@@ -4,6 +4,7 @@ import {
   agendaToken,
   googleAgendaClient,
   AgendaError,
+  agendaConnectionStatus,
 } from "./agenda-google.js";
 import { googleConfigured } from "./drive-auth.js";
 import {
@@ -63,14 +64,17 @@ export async function agendaView(env, storage, id) {
   const cache = account
     ? (await storage.get("agenda:cache:" + account.id)) || {}
     : {};
+  const reviews = account
+    ? (await storage.get("agenda:reviews:" + account.id)) || {}
+    : {};
   return {
     configured: googleConfigured(env),
     accounts: await Promise.all(
       accounts.map(async (a) => ({
         ...a,
-        connected:
-          !!(await storage.get("agenda:credential:" + a.id)) &&
-          !(await storage.get("agenda:credential:" + a.id))?.invalid,
+        ...agendaConnectionStatus(
+          await storage.get("agenda:credential:" + a.id),
+        ),
       })),
     ),
     accountId: account?.id || null,
@@ -106,6 +110,7 @@ export async function agendaView(env, storage, id) {
     messages: await Promise.all(
       (cache.messages || []).map(async (message) => ({
         ...message,
+        review: reviews[message.id] || null,
         operation:
           (await operationView(
             storage,
@@ -117,6 +122,31 @@ export async function agendaView(env, storage, id) {
     maxMessages,
     pageSize,
   };
+}
+export async function reviewAgenda(env, storage, input) {
+  const account = await selected(storage, input.accountId),
+    cache = await storage.get("agenda:cache:" + account.id);
+  if (
+    typeof input.reviewed !== "boolean" ||
+    !cache?.messages.some((message) => message.id === input.messageId)
+  )
+    throw new InputError("表示中のメールを選択してください");
+  const key = "agenda:reviews:" + account.id,
+    now = Date.now();
+  const reviews = Object.fromEntries(
+    Object.entries((await storage.get(key)) || {}).filter(
+      ([, value]) => now - Date.parse(value.reviewedAt) < 14 * 86400000,
+    ),
+  );
+  if (input.reviewed)
+    reviews[input.messageId] = { reviewedAt: new Date(now).toISOString() };
+  else delete reviews[input.messageId];
+  if (Object.keys(reviews).length > 5000)
+    throw new InputError(
+      "確認記録の上限です。古い記録の期限後に再試行してください",
+    );
+  await storage.put(key, reviews);
+  return agendaView(env, storage, account.id);
 }
 export async function refreshAgenda(
   env,
@@ -193,7 +223,7 @@ export async function refreshAgenda(
       messages: combined,
       nextPageToken: page.nextPageToken || null,
       limited: combined.length >= maxMessages && !!page.nextPageToken,
-      lastSuccess: new Date(now).toISOString(),
+      lastSuccess: new Date(Math.max(now, Date.now())).toISOString(),
       error: null,
       errorCode: null,
     });

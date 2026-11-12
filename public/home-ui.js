@@ -199,7 +199,47 @@ function render() {
       state.counts[key];
   }
   el("homeDriveCount").textContent = state.counts.drive;
-  el("navHomeCount").textContent = state.counts.priority + state.counts.drive;
+  el("navHomeCount").textContent =
+    state.counts.priority +
+    state.counts.drive +
+    (state.agenda?.entries.length || 0);
+  const agenda = state.agenda || {
+    accounts: [],
+    entries: [],
+    candidates: 0,
+    pending: 0,
+  };
+  el("homeAgendaCount").textContent = agenda.entries.length;
+  el("homeAgendaStatus").textContent = !agenda.accounts.length
+    ? "未接続"
+    : `${agenda.accounts.length}アカウント・予定候補 ${agenda.candidates}・結果不明 ${agenda.pending}` +
+      (agenda.accounts.some((a) => a.hasMore) ? "・未取得の続きあり" : "");
+  const agendaRows = agenda.entries.map((entry) => {
+    const row = element("button", "home-task-open");
+    row.type = "button";
+    row.append(
+      element("strong", "home-item-title", entry.title),
+      element("span", "home-item-meta", entry.reason + " · " + entry.email),
+    );
+    row.onclick = () =>
+      emit("dashboard:open-agenda", {
+        accountId: entry.accountId,
+        messageId: entry.messageId,
+      });
+    return row;
+  });
+  if (!agendaRows.length)
+    agendaRows.push(
+      empty(
+        "取得済みの範囲に未処理の予定候補はありません",
+        agenda.accounts.length
+          ? agenda.complete
+            ? "全メールと確認済みの項目はメール画面で確認できます。"
+            : "未取得・古さ・取得失敗の警告を確認してください。全メールはメール画面で確認できます。"
+          : "メール・予定画面から接続できます。",
+      ),
+    );
+  replaceList(el("homeAgendaEntries"), agendaRows);
   el("homeAlerts").hidden = !state.alerts.length;
   el("homeAlerts").replaceChildren(
     ...state.alerts.map((alert) => element("p", "", alert.message)),

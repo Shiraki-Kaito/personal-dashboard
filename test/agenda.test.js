@@ -41,6 +41,24 @@ const base = {
   draft: local,
 };
 
+test("メール取得の成功時刻は試行開始ではなく応答完了後に記録する", async () => {
+  const { storage } = await setup(),
+    startedAt = Date.now() - 1000;
+  let repliedAt;
+  const view = await refreshAgenda(
+    env,
+    storage,
+    { accountId: "a" },
+    async () => {
+      repliedAt = Date.now();
+      return Response.json({ messages: [] });
+    },
+    startedAt,
+  );
+  assert.equal(view.lastAttempt, new Date(startedAt).toISOString());
+  assert.ok(Date.parse(view.lastSuccess) >= repliedAt);
+});
+
 test("メールの続きページを明示取得し、件数と候補を保持する", async () => {
   const { storage } = await setup();
   const now = Date.now();

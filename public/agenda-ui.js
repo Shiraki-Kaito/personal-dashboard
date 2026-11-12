@@ -17,6 +17,7 @@ function controls() {
     "agendaMore",
     "appointmentPreview",
     "appointmentReconcile",
+    "appointmentReview",
   ])
     el(id).disabled = busy;
   el("agendaRefresh").disabled ||= !state?.accountId;
@@ -80,6 +81,11 @@ function openMessage(message) {
   el("appointmentExcerpt").textContent = message.excerpt;
   el("appointmentMailLink").href = message.url;
   el("appointmentMailLink").hidden = !!message.manual;
+  el("appointmentReview").hidden =
+    !!message.manual || !state.messages.some((m) => m.id === message.id);
+  el("appointmentReview").textContent = message.review
+    ? "未処理に戻す"
+    : "確認済み・対応不要にする";
   el("appointmentTarget").replaceChildren(
     ...state.accounts.map((a) => option(a.id, a.email + " のメイン")),
   );
@@ -122,6 +128,11 @@ function render() {
   );
   el("agendaAccount").value = state.accountId || "";
   el("agendaConnect").hidden = !state.configured;
+  const connection = state.accounts.find((a) => a.id === state.accountId);
+  el("agendaConnectionStatus").textContent = connection
+    ? `トークン更新：最終試行 ${time(connection.refresh?.lastAttempt)} ／ 最終成功 ${time(connection.refresh?.lastSuccess)} ／ 成功 ${connection.refresh?.count || 0}回 ／ 現在の期限 ${time(connection.accessTokenExpiresAt)}` +
+      (connection.refresh?.error ? " ／ " + connection.refresh.error : "")
+    : "";
   el("agendaManualHistory").replaceChildren(
     ...(state.manualRegistrations || []).map((operation) => {
       const button = document.createElement("button");
@@ -174,11 +185,13 @@ function render() {
       (state.lastSuccess && Date.now() - Date.parse(state.lastSuccess) > 3600000
         ? " ／ 1時間以上前の保存情報です"
         : "") +
-      (state.nextPageToken
-        ? state.limited
-          ? " ／ 上限に達しました。残りはGmailで確認してください"
-          : " ／ 未取得の続きがあります"
-        : " ／ この取得範囲の続きはありません");
+      (!state.lastSuccess
+        ? " ／ メール未取得です"
+        : state.nextPageToken
+          ? state.limited
+            ? " ／ 上限に達しました。残りはGmailで確認してください"
+            : " ／ 未取得の続きがあります"
+          : " ／ この取得範囲の続きはありません");
   el("agendaMessages").replaceChildren(
     ...state.messages.map((message) => {
       const row = document.createElement("button");
@@ -188,7 +201,7 @@ function render() {
         meta = document.createElement("span");
       title.textContent = message.subject || "件名なし";
       meta.className = "task-meta";
-      meta.textContent = `${message.operation?.phase || message.candidate.status} · ${time(message.receivedAt)} · ${message.from}`;
+      meta.textContent = `${message.review ? "確認済み・対応不要" : message.operation?.phase || (typeof message.candidate.isCandidate === "boolean" ? message.candidate.status : "候補判定の更新待ち")} · ${time(message.receivedAt)} · ${message.from}`;
       row.append(title, meta);
       row.onclick = () => openMessage(message);
       return row;
@@ -203,7 +216,7 @@ async function run(body = null, accountId) {
   try {
     state = await api(body, accountId);
     render();
-    if (current) {
+    if (current && el("appointmentDialog").open) {
       if (current.manual) {
         const operation = state.manualRegistrations?.find(
           (op) => op.messageId === current.id,
@@ -211,7 +224,7 @@ async function run(body = null, accountId) {
         if (operation) openMessage({ ...current, operation });
       }
       const updated = state.messages.find((m) => m.id === current.id);
-      if (updated?.operation) openMessage(updated);
+      if (updated) openMessage(updated);
     }
   } catch (error) {
     el("agendaStatus").textContent =
@@ -348,6 +361,40 @@ el("appointmentReconcile").onclick = () =>
     accountId: state.accountId,
     messageId: current.id,
   });
+el("appointmentReview").onclick = () =>
+  run({
+    action: "review",
+    accountId: state.accountId,
+    messageId: current.id,
+    reviewed: !current.review,
+  });
+document.addEventListener("dashboard:open-agenda", async (event) => {
+  if (busy) return;
+  const { accountId, messageId } = event.detail;
+  document.dispatchEvent(
+    new CustomEvent("dashboard:show-panel", { detail: { panel: "agenda" } }),
+  );
+  current = null;
+  await run(null, accountId);
+  const message = state?.messages.find((m) => m.id === messageId);
+  if (message) openMessage(message);
+  else {
+    const operation = state?.pendingRegistrations.find(
+      (op) => op.messageId === messageId,
+    );
+    if (operation)
+      openMessage({
+        id: messageId,
+        manual: operation.sourceType === "manual",
+        subject: operation.draft.title,
+        from: "登録結果の照合",
+        excerpt: "保存済み操作の結果を照合します。",
+        url: "https://mail.google.com/",
+        candidate: { status: operation.phase, reasons: [] },
+        operation,
+      });
+  }
+});
 document.addEventListener("dashboard:view", (event) => {
   if (event.detail === "agenda") render();
 });

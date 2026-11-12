@@ -22,6 +22,7 @@ import {
   previewAppointment,
   registerAppointment,
   reconcileAppointment,
+  reviewAgenda,
 } from "./agenda.js";
 
 export default {
@@ -201,6 +202,7 @@ export class Dashboard extends DurableObject {
           preview: previewAppointment,
           register: registerAppointment,
           reconcile: reconcileAppointment,
+          review: reviewAgenda,
         };
         const operation = Object.hasOwn(operations, input.action)
           ? operations[input.action]

@@ -207,10 +207,35 @@
           </div>
           <footer class="panel-footer">
             <span id="homeDriveTime">未取得</span
-            ><button id="homeOpenAgenda" class="home-source-link">
-              メール・予定を確認 ↗</button
             ><span>Slack・ノートは未接続</span>
           </footer>
+          <section
+            class="home-agenda-section"
+            aria-labelledby="homeAgendaHeading"
+          >
+            <div class="panel-heading">
+              <div>
+                <h3 id="homeAgendaHeading">
+                  メール・予定
+                  <span id="homeAgendaCount" class="home-total">—</span>
+                </h3>
+                <p id="homeAgendaStatus" class="eyebrow"></p>
+              </div>
+              <button
+                id="homeOpenAgenda"
+                class="icon-button"
+                aria-label="メール・予定の全件一覧へ移動"
+              >
+                ↗
+              </button>
+            </div>
+            <div
+              id="homeAgendaEntries"
+              class="home-list scroll-area"
+              aria-label="ホームのメール・予定一覧"
+              tabindex="0"
+            ></div>
+          </section>
         </section>
         <section
           class="panel surface agenda-panel"
@@ -244,6 +269,7 @@
           <p id="agendaStatus" role="status">
             未接続です。接続したアカウントだけを取得します。
           </p>
+          <p id="agendaConnectionStatus" class="agenda-help"></p>
           <p class="agenda-help">
             直近14日・1回20件、最大100件。すべての取得メールを表示します。本文はルールで解析し、年や日時が曖昧なら確認待ちにします。添付ファイルは読みません。
           </p>
@@ -538,6 +564,9 @@
           </button>
         </form>
         <p id="appointmentResult" role="status"></p>
+        <button id="appointmentReview" class="button button-secondary" hidden>
+          確認済み・対応不要にする
+        </button>
         <a id="appointmentCalendarLink" target="_blank" rel="noreferrer" hidden
           >Googleカレンダーで確認 ↗</a
         >

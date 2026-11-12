@@ -14,6 +14,20 @@ export class AgendaError extends Error {
 }
 export const agendaAccounts = async (storage) =>
   (await storage.get("agenda:accounts")) || [];
+export function agendaConnectionStatus(credential) {
+  return {
+    connected: !!credential && !credential.invalid,
+    accessTokenExpiresAt: Number.isFinite(credential?.expires)
+      ? new Date(credential.expires).toISOString()
+      : null,
+    refresh: {
+      lastAttempt: credential?.lastRefreshAttemptAt || null,
+      lastSuccess: credential?.lastRefreshedAt || null,
+      count: credential?.refreshCount || 0,
+      error: credential?.lastRefreshError || null,
+    },
+  };
+}
 export function googleAgendaClient(
   token,
   send = fetch,
@@ -135,6 +149,8 @@ export async function agendaToken(env, storage, account, send = fetch) {
       "authentication",
     );
   if (credential.expires > Date.now() + 60000) return credential.token;
+  credential.lastRefreshAttemptAt = new Date().toISOString();
+  await storage.put(key, credential);
   try {
     const grant = await exchange(
       {
@@ -150,11 +166,19 @@ export async function agendaToken(env, storage, account, send = fetch) {
       token: grant.access_token,
       refresh: grant.refresh_token || credential.refresh,
       expires: Date.now() + grant.expires_in * 1000,
+      lastRefreshedAt: new Date().toISOString(),
+      refreshCount: (credential.refreshCount || 0) + 1,
+      lastRefreshError: null,
     });
     return grant.access_token;
   } catch (error) {
-    if (error instanceof DriveError && error.code === "authentication")
-      await storage.put(key, { ...credential, invalid: true });
+    await storage.put(key, {
+      ...credential,
+      lastRefreshError: "メール・カレンダーのトークン更新に失敗しました",
+      ...(error instanceof DriveError && error.code === "authentication"
+        ? { invalid: true }
+        : {}),
+    });
     throw new AgendaError(
       "メール・カレンダーのトークン更新に失敗しました",
       error.code || "authentication",
@@ -247,6 +271,7 @@ export async function agendaConnect(
         token: grant.access_token,
         refresh: grant.refresh_token,
         expires: Date.now() + grant.expires_in * 1000,
+        refreshCount: 0,
       });
       await tx.put("agenda:accounts", [
         ...accounts.filter((a) => a.id !== id),

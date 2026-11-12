@@ -21,6 +21,11 @@ export function extractAppointment(subject, text) {
       /(\d{1,2}):([0-5]\d)\s*[〜～~－–—-]\s*(\d{1,2}):([0-5]\d)/g,
     ),
   ];
+  const isCandidate =
+    /面接|面談|説明会|打合せ|打ち合わせ|ミーティング|会議|登壇|勉強会|懇親会|日程調整|日時\s*[:：]|予定\s*[:：]/.test(
+      source,
+    ) ||
+    (dates.length > 0 && ranges.length > 0);
   const reasons = [];
   if (unique.length !== 1)
     reasons.push(
@@ -53,8 +58,13 @@ export function extractAppointment(subject, text) {
     location: (
       source.match(/(?:場所|会場)\s*[:：]\s*([^\n\r]{1,300})/)?.[1] || ""
     ).trim(),
-    reasons,
-    status: reasons.length ? "確認待ち" : "内容確認待ち",
+    reasons: isCandidate ? reasons : [],
+    isCandidate,
+    status: !isCandidate
+      ? "予定候補なし"
+      : reasons.length
+        ? "確認待ち"
+        : "内容確認待ち",
   };
 }
 export function validateAppointment(input) {

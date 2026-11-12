@@ -1,5 +1,6 @@
 import { catalog, projectsFrom, taskStorage } from "./catalog.js";
 import { driveView } from "./drive.js";
+import { agendaHome } from "./agenda-home.js";
 
 const githubFreshMs = 2 * 60 * 1000;
 const driveFreshMs = 90 * 60 * 1000;
@@ -171,6 +172,8 @@ export async function homeView(
       a.title.localeCompare(b.title, "ja"),
   );
   const drive = await driveView(env, storage, now);
+  const agenda = await agendaHome(storage, now);
+  alerts.push(...agenda.alerts);
   const driveStale =
     !!drive.error || isStale(drive.lastSuccess, driveFreshMs, now);
   if (
@@ -199,6 +202,7 @@ export async function homeView(
     tasks,
     sources,
     alerts,
+    agenda,
     complete:
       projects.length > 0 &&
       sources.every((source) => source.detailsReady && !source.stale) &&
@@ -206,7 +210,8 @@ export async function homeView(
       drive.configured &&
       !driveStale &&
       !drive.scanning &&
-      !drive.authorization.requiresReauthorization,
+      !drive.authorization.requiresReauthorization &&
+      agenda.complete,
     counts: {
       priority: tasks.filter((task) => task.category === "priority").length,
       other: tasks.filter((task) => task.category === "other").length,

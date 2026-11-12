@@ -81,6 +81,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "agenda",
       "agenda-google",
       "agenda-rules",
+      "agenda-home",
     ].map((name) => ({
       type: "ESModule",
       path: "src/" + name + ".js",
