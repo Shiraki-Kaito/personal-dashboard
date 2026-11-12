@@ -42,6 +42,20 @@ async function client(env, storage, account, send, budget) {
     }
   };
 }
+async function operationView(storage, accounts, key) {
+  const operation = await storage.get(key);
+  if (!operation) return null;
+  const target = accounts.find(
+    (account) => account.id === operation.targetAccountId,
+  );
+  return {
+    ...operation,
+    calendarUrl:
+      target && operation.calendarUrl
+        ? calendarUrl({ htmlLink: operation.calendarUrl }, target.email)
+        : null,
+  };
+}
 export async function agendaView(env, storage, id) {
   const accounts = await agendaAccounts(storage),
     account = accounts.find((a) => a.id === (id || accounts[0]?.id));
@@ -66,7 +80,9 @@ export async function agendaView(env, storage, id) {
           ((await storage.get("agenda:manualHistory:" + account.id)) || []).map(
             async (messageId) => ({
               messageId,
-              ...(await storage.get(
+              ...(await operationView(
+                storage,
+                accounts,
                 "agenda:operation:" + account.id + ":" + messageId,
               )),
             }),
@@ -78,7 +94,9 @@ export async function agendaView(env, storage, id) {
           ((await storage.get("agenda:pending:" + account.id)) || []).map(
             async (messageId) => ({
               messageId,
-              ...(await storage.get(
+              ...(await operationView(
+                storage,
+                accounts,
                 "agenda:operation:" + account.id + ":" + messageId,
               )),
             }),
@@ -89,7 +107,9 @@ export async function agendaView(env, storage, id) {
       (cache.messages || []).map(async (message) => ({
         ...message,
         operation:
-          (await storage.get(
+          (await operationView(
+            storage,
+            accounts,
             "agenda:operation:" + account.id + ":" + message.id,
           )) || null,
       })),
@@ -316,7 +336,7 @@ function eventMatches(event, operation) {
     event?.extendedProperties?.private?.dashboardOperation === operation.eventId
   );
 }
-function calendarUrl(event) {
+function calendarUrl(event, email) {
   try {
     const url = new URL(event.htmlLink);
     if (
@@ -324,8 +344,11 @@ function calendarUrl(event) {
       (url.hostname === "calendar.google.com" ||
         (url.hostname === "www.google.com" &&
           url.pathname === "/calendar/event"))
-    )
+    ) {
+      // 複数ログイン時も、登録先と異なる既定アカウントで開かないよう指定する。
+      url.searchParams.set("authuser", email);
       return url.href;
+    }
   } catch {}
   return null;
 }
@@ -418,7 +441,7 @@ export async function registerAppointment(env, storage, input, send = fetch) {
       ...operation,
       phase: "登録確認済み",
       lastSuccess: new Date().toISOString(),
-      calendarUrl: calendarUrl(event),
+      calendarUrl: calendarUrl(event, target.email),
     };
   } catch (error) {
     operation = {
@@ -444,6 +467,7 @@ export async function reconcileAppointment(env, storage, input, send = fetch) {
     key = "agenda:operation:" + account.id + ":" + input.messageId;
   const operation = await storage.get(key);
   if (!operation) throw new InputError("照合対象がありません");
+  operation.lastAttempt = new Date().toISOString();
   const target = await selected(storage, operation.targetAccountId);
   try {
     const read = await client(env, storage, target, send),
@@ -469,7 +493,7 @@ export async function reconcileAppointment(env, storage, input, send = fetch) {
       phase: "登録確認済み",
       error: null,
       lastSuccess: new Date().toISOString(),
-      calendarUrl: calendarUrl(event),
+      calendarUrl: calendarUrl(event, target.email),
     });
     const pendingKey = "agenda:pending:" + account.id;
     await storage.put(
@@ -481,6 +505,11 @@ export async function reconcileAppointment(env, storage, input, send = fetch) {
   } catch (error) {
     await storage.put(key, {
       ...operation,
+      phase:
+        error instanceof AgendaError &&
+        ["missing", "conflict"].includes(error.code)
+          ? "予定の変更・削除を検知"
+          : "登録状態の確認失敗",
       error:
         error instanceof AgendaError ? error.message : "結果を照合できません",
     });

@@ -159,7 +159,10 @@ async function setup() {
     if (u.pathname.endsWith("/events")) {
       if (options.method === "POST") {
         f.writes++;
-        f.inserted = JSON.parse(options.body);
+        f.inserted = {
+          ...JSON.parse(options.body),
+          htmlLink: "https://www.google.com/calendar/event?eid=fixture",
+        };
         if (f.failInsert) throw Error("private-error");
         return Response.json(f.inserted);
       }
@@ -283,7 +286,23 @@ test("内容確認後だけ登録し、読み直しで一致確認、二重操�
   assert.equal(view.messages[0].operation.phase, "登録確認済み");
   assert.equal(f.writes, 1);
   assert.equal(f.inserted.visibility, "private");
+  assert.equal(
+    new URL(view.messages[0].operation.calendarUrl).searchParams.get(
+      "authuser",
+    ),
+    "b@example.test",
+  );
   assert.equal(f.inserted.attendees, undefined);
+  await storage.put("agenda:operation:a:abc", {
+    ...view.messages[0].operation,
+    calendarUrl: "https://www.google.com/calendar/event?eid=fixture",
+  });
+  assert.equal(
+    new URL(
+      (await agendaView(env, storage, "a")).messages[0].operation.calendarUrl,
+    ).searchParams.get("authuser"),
+    "b@example.test",
+  );
   await assert.rejects(
     registerAppointment(
       env,
@@ -385,6 +404,7 @@ test("結果不明の予定が見つからない場合は再送せず、外部�
   f.inserted.summary = "外部変更";
   let result = await reconcileAppointment(env, storage, base, f.send);
   assert.match(result.messages[0].operation.error, /変更・削除/);
+  assert.equal(result.messages[0].operation.phase, "予定の変更・削除を検知");
   f.inserted = null;
   result = await reconcileAppointment(env, storage, base, f.send);
   assert.match(result.messages[0].operation.error, /再送していません/);
