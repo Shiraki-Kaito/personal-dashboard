@@ -2,7 +2,7 @@ import { queueCalendarSync } from "./calendar-scheduler.js";
 import { disconnectAccount, clearAccountCache, previewAccountDeletion, deleteAccount } from "./agenda-management.js";
 import { readMailPage, recordMailRun } from "./agenda-mail.js";
 import { displayAccounts, saveAccountLabel } from "./agenda-labels.js";
-import { currentMailPriority } from "./agenda-priority.js";
+import { priorityWithRules, priorityRulesView } from "./mail-priority-rules.js";
 import { maximumAgendaAccounts } from "./agenda-account-rules.js";
 import { InputError } from "./sync.js";
 import { upcomingCalendarView } from "./agenda-calendar.js";
@@ -48,10 +48,12 @@ export async function agendaView(env, storage, id) {
   const cache = account
     ? (await storage.get("agenda:cache:" + account.id)) || {}
     : {};
+  const priorityRules = account ? await priorityRulesView(storage, account.id) : null;
   const reviews = account
     ? (await storage.get("agenda:reviews:" + account.id)) || {}
     : {};
   return {
+    priorityRules,
     configured: googleConfigured(env),
     accountLimit: maximumAgendaAccounts,
     mailJob: (await storage.get("agenda:mailJob"))
@@ -103,7 +105,7 @@ export async function agendaView(env, storage, id) {
     messages: await Promise.all(
       (cache.messages || []).map(async (message) => ({
         ...message,
-        priority: currentMailPriority(message),
+        priority: priorityWithRules(message, priorityRules.rules),
         review: reviews[message.id] || null,
         operation:
           (await operationView(

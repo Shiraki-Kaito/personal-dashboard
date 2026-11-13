@@ -1,3 +1,4 @@
+import { previewPriorityRules, savePriorityRules } from "./mail-priority-rules.js";
 import { healthView } from "./health.js";
 import { notesView, configureNotes, refreshNotes, readNote, stopNotes } from "./notes.js";
 import { NotesError } from "./notes-http.js";
@@ -210,6 +211,7 @@ export class Dashboard extends DurableObject {
         "/health-ui.js",
         "/desktop-ui.js",
         "/app-install.js",
+        "/mail-rules-ui.js",
         "/slack-app-manifest.json",
         "/backup-ui.js",
         "/backup-format.js",
@@ -281,6 +283,11 @@ export class Dashboard extends DurableObject {
             await agendaView(this.env, storage, searchParams.get("accountId")),
           );
         const operations = {
+          previewPriorityRules: (_env, storage, input) => previewPriorityRules(storage, input),
+          savePriorityRules: async (env, storage, input) => {
+            await savePriorityRules(storage, input);
+            return agendaView(env, storage, input.accountId);
+          },
           label: renameAgendaAccount,
           disconnect: disconnectAgendaAccount,
           clearCache: clearAgendaAccountCache,

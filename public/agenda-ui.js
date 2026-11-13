@@ -437,7 +437,8 @@ setInterval(() => {
     !el("accountManager").open &&
     !el("accountNameDialog").open &&
     !el("accountAddDialog").open &&
-    !el("accountDeleteDialog").open
+    !el("accountDeleteDialog").open &&
+    !el("mailRulesDialog").open
   )
     run();
 }, 30000);
@@ -868,3 +869,5 @@ async function initializeAgenda() {
   }
 }
 initializeAgenda();
+
+document.addEventListener("dashboard:priority-rules-saved",()=>run());

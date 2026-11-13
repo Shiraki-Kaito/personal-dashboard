@@ -18,6 +18,7 @@
     <script type="module" src="/slack-ui.js"></script>
     <script type="module" src="/notes-ui.js"></script>
     <script type="module" src="/health-ui.js"></script>
+    <script type="module" src="/mail-rules-ui.js"></script>
     <script type="module" src="/desktop-ui.js"></script>
   </head>
   <body data-view="home">
@@ -272,6 +273,7 @@
             ><button id="agendaMore" class="button button-secondary" disabled>
               続きを取得
             </button>
+            <button id="mailRulesOpen" class="button button-secondary">重要メールの設定</button>
             <button id="agendaManual" class="button button-secondary">
               予定を手入力
             </button>
@@ -653,6 +655,25 @@
         <button id="fileReview" class="button button-secondary" hidden>
           確認済みにする
         </button>
+      </div>
+    </dialog>
+    <dialog id="mailRulesDialog" class="settings-dialog" aria-labelledby="mailRulesHeading">
+      <div class="dialog-body">
+        <div class="dialog-top"><h2 id="mailRulesHeading">重要メールの設定</h2><button id="mailRulesClose" class="icon-button" aria-label="重要メール設定を閉じる">×</button></div>
+        <label>対象アカウント<select id="mailRulesAccount"></select></label>
+        <p>アカウントごとに設定します。除外設定に一致したメールは優先設定よりも先に「その他」へ回します。全件一覧には残ります。確認済み記録や予定の登録結果不明は変更しません。</p>
+        <p>1行に1件、各欄20件まで。送信者はメールアドレス、または <code>@example.com</code> の形式です。ドメインは完全一致し、サブドメインは含みません。語句は件名と保存済み本文抜粋の部分一致（大文字小文字・全角半角は区別しない）です。正規表現は使いません。</p>
+        <div class="mail-rules-grid">
+          <label>優先する送信者<textarea id="prioritySenders" rows="4" maxlength="5100" spellcheck="false" placeholder="office@example.ac.jp"></textarea></label>
+          <label>その他へ回す送信者<textarea id="excludedSenders" rows="4" maxlength="5100" spellcheck="false" placeholder="newsletter@example.com"></textarea></label>
+          <label>優先する語句<textarea id="priorityKeywords" rows="4" maxlength="2020" placeholder="奨学金"></textarea></label>
+          <label>その他へ回す語句<textarea id="excludedKeywords" rows="4" maxlength="2020" placeholder="求人特集"></textarea></label>
+        </div>
+        <p>空欄で保存すると、その項目の追加設定を解除します。標準判定は残ります。差出人表記は偽装され得るため、送信者設定はメールの安全性や本人性を保証しません。</p>
+        <button id="mailRulesPreview" class="button">保存前に影響を確認</button><button id="mailRulesReload" class="button button-secondary">保存済み設定を再読込</button>
+        <p id="mailRulesStatus" role="status"></p><ul id="mailRulesResult"></ul>
+        <label><input type="checkbox" id="mailRulesConfirm" /> 取得済みメールへの影響を確認しました</label>
+        <button id="mailRulesSave" class="button" disabled>このアカウントの設定を保存</button>
       </div>
     </dialog>
     <dialog

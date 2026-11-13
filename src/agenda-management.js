@@ -71,7 +71,7 @@ async function removeAccountFromJob(storage, accountId, now, jobKey = "agenda:ma
 const deletionPlanLifetimeMs = 10 * 60 * 1000;
 const maximumDeletionOperations = 5000;
 const accountValueNamespaces = [
-  "credential", "label", "cache", "calendar", "history", "reviews", "pending", "manualHistory",
+  "credential", "label", "priorityRules", "cache", "calendar", "history", "reviews", "pending", "manualHistory",
 ];
 
 // 削除候補と参照を毎回調べ、確認画面と実行時で同じ内容か照合する。

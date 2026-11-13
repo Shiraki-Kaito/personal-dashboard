@@ -1,5 +1,5 @@
 import { agendaConnectionStatus } from "./agenda-google.js";
-import { currentMailPriority } from "./agenda-priority.js";
+import { priorityWithRules, priorityRulesView } from "./mail-priority-rules.js";
 import { displayAccounts } from "./agenda-labels.js";
 const mailFreshMs = 60 * 60 * 1000;
 // 保存済みのメール候補・確認記録・未確定操作を集約する。Googleへの通信は行わない。
@@ -15,6 +15,7 @@ export async function agendaHome(storage, now = Date.now()) {
     const reviews = (await storage.get("agenda:reviews:" + account.id)) || {};
     const pending = (await storage.get("agenda:pending:" + account.id)) || [];
     const messages = cache.messages || [];
+    const { rules } = await priorityRulesView(storage, account.id);
     const stale =
       !Number.isFinite(Date.parse(cache.lastSuccess)) ||
       now - Date.parse(cache.lastSuccess) > mailFreshMs;
@@ -67,7 +68,7 @@ export async function agendaHome(storage, now = Date.now()) {
     if (account.disconnectedAt) continue;
     for (const message of messages) {
       if (
-        !currentMailPriority(message).important ||
+        !priorityWithRules(message, rules).important ||
         reviews[message.id] ||
         pending.includes(message.id)
       )
@@ -87,7 +88,7 @@ export async function agendaHome(storage, now = Date.now()) {
         title: message.subject || "件名なし",
         reason:
           operation?.error ||
-          currentMailPriority(message).reason,
+          priorityWithRules(message, rules).reason,
         receivedAt: message.receivedAt,
       });
     }

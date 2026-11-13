@@ -1911,3 +1911,9 @@ body[data-view="slack"] .home-panel, body[data-view="slack"] .drive-panel, body[
 .health-row[data-state="error"] h4, .health-row[data-state="stale"] h4 { color:#efb583; }
 
 .offline-notice { position:fixed; inset:0 0 auto; z-index:1000; margin:0; padding:12px 20px; background:#55351f; color:#fff2d9; text-align:center; font-size:14px; }
+
+.mail-rules-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:16px 0; }
+.mail-rules-grid label { display:grid; gap:8px; }
+.mail-rules-grid textarea { width:100%; box-sizing:border-box; resize:vertical; color:inherit; background:#101720; border:1px solid #657082; border-radius:8px; padding:10px; font:inherit; }
+#mailRulesResult { overflow-wrap:anywhere; }
+@media(max-width:640px) { .mail-rules-grid { grid-template-columns:1fr; } }

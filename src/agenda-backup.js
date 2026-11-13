@@ -1,3 +1,4 @@
+import { normalizePriorityRules } from "./mail-priority-rules.js";
 import { mailPriorityVersion } from "./agenda-priority.js";
 import { InputError } from "./sync.js";
 import { digest } from "./agenda-rules.js";
@@ -49,6 +50,8 @@ export async function createAgendaBackup(storage) {
       );
     result.push({
       account: pick(account, ["id", "email", "calendar", "label"]),
+      priorityRules: (await storage.get("agenda:priorityRules:" + account.id))
+        ?.rules,
       cache: cache
         ? {
             ...pick(cache, cacheKeys),
@@ -137,6 +140,13 @@ export async function agendaRestoreEntries(storage, backup) {
     requireValid(
       account.label === undefined || validAccountLabel(account.label),
     );
+    if (item.priorityRules !== undefined) {
+      const rules = normalizePriorityRules(item.priorityRules);
+      entries.set("agenda:priorityRules:" + account.id, {
+        rules,
+        revision: crypto.randomUUID(),
+      });
+    }
     if (account.label) {
       const key = "agenda:label:" + account.id,
         existing = await storage.get(key);

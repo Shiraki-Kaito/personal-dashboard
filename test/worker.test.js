@@ -96,6 +96,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "agenda-home",
       "agenda-mail",
       "agenda-priority",
+      "mail-priority-rules",
       "agenda-labels",
       "agenda-account-rules",
       "agenda-management",
@@ -180,12 +181,12 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       401,
     );
     assert.equal((await request("/auth/agenda/start", {})).status, 401);
-    for (const route of ["/api/slack", "/slack-ui.js", "/auth/slack/callback", "/api/notes", "/notes-ui.js", "/api/health", "/health-ui.js"])
+    for (const route of ["/api/slack", "/slack-ui.js", "/auth/slack/callback", "/api/notes", "/notes-ui.js", "/api/health", "/health-ui.js", "/mail-rules-ui.js"])
       assert.equal((await request(route)).status, 401);
     for (const action of ["configure", "refresh", "addChannel", "review", "stop"])
       assert.equal((await request("/api/slack", {action})).status, 401);
     assert.equal((await request("/auth/slack/start", {})).status, 401);
-    for (const action of ["label", "syncMail", "disconnect", "clearCache", "previewDelete", "deleteAccount", "cleanupReferences"])
+    for (const action of ["previewPriorityRules", "savePriorityRules", "label", "syncMail", "disconnect", "clearCache", "previewDelete", "deleteAccount", "cleanupReferences"])
       assert.equal((await request("/api/agenda", { action })).status, 401);
     assert.equal(
       (await request("/api/agenda", { action: "calendar" })).status,
@@ -236,7 +237,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       (await (await request("/api/agenda")).json()).accounts,
       [],
     );
-    for (const action of ["label", "syncMail", "disconnect", "clearCache", "previewDelete", "deleteAccount", "cleanupReferences"])
+    for (const action of ["previewPriorityRules", "savePriorityRules", "label", "syncMail", "disconnect", "clearCache", "previewDelete", "deleteAccount", "cleanupReferences"])
       assert.equal(
         (await request("/api/agenda", { action }, "https://other.test")).status,
         403,
@@ -252,6 +253,13 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     assert.equal(configuredNotes.status,200);
     assert.deepEqual((await configuredNotes.json()).files.map(file=>file.path),["note.md"]);
     assert.equal((await request("/api/notes", {action:"read",path:"secret_L.md"})).status, 409);
+    for (const action of ["previewPriorityRules", "savePriorityRules"]) {
+      const reply = await request("/api/agenda", {action, accountId:"unknown", confirm:true, revision:null,
+        rules:{prioritySenders:[],excludedSenders:[],priorityKeywords:[],excludedKeywords:[]}});
+      assert.equal(reply.status,409);
+      assert.match((await reply.json()).error,/接続済みのアカウント/);
+    }
+    assert.equal((await request("/mail-rules-ui.js")).status,200);
     const emptySlack = await (await request("/api/slack")).json();
     assert.equal(emptySlack.configured, false);
     assert.deepEqual(emptySlack.workspaces, []);
