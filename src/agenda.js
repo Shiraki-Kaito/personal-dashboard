@@ -1,4 +1,4 @@
-import { disconnectAccount, clearAccountCache } from "./agenda-management.js";
+import { disconnectAccount, clearAccountCache, previewAccountDeletion, deleteAccount } from "./agenda-management.js";
 import { readMailPage, recordMailRun } from "./agenda-mail.js";
 import { displayAccounts, saveAccountLabel } from "./agenda-labels.js";
 import { mailPriority } from "./agenda-priority.js";
@@ -544,4 +544,12 @@ export async function disconnectAgendaAccount(env, storage, input) {
 export async function clearAgendaAccountCache(env, storage, input) {
   await clearAccountCache(storage, input);
   return agendaView(env, storage, input.accountId);
+}
+
+export async function previewAgendaAccountDeletion(_env, storage, input) {
+  return previewAccountDeletion(storage, input);
+}
+export async function deleteAgendaAccount(env, storage, input) {
+  await deleteAccount(storage, input);
+  return agendaView(env, storage);
 }

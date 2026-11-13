@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { disconnectAccount, clearAccountCache } from "../src/agenda-management.js";
+import { disconnectAccount, clearAccountCache, previewAccountDeletion, deleteAccount } from "../src/agenda-management.js";
 import { agendaToken } from "../src/agenda-google.js";
 import { queueMailSync, runMailBatch } from "../src/mail-scheduler.js";
 import { refreshUpcomingCalendar, upcomingCalendarView } from "../src/agenda-calendar.js";
@@ -107,4 +107,87 @@ test("未確認・不正対象・取得中の整理を拒否し、古いジョ�
   await s.put("agenda:mailJob",stale);
   await runMailBatch({},s,()=>assert.fail("停止接続へ通信した"),100000);
   assert.equal((await s.get("agenda:mailJob")).accountIds[(await s.get("agenda:mailJob")).index],other);
+});
+
+async function deletable() {
+  const fixture = await setup();
+  await fixture.s.put("agenda:operation:" + fixture.id + ":abc", {
+    phase: "登録確認済み", targetAccountId: fixture.other, draft: { title: "試験" },
+  });
+  await fixture.s.put("agenda:pending:" + fixture.id, []);
+  return fixture;
+}
+async function approved(s, id, now = Date.now()) {
+  const plan = await previewAccountDeletion(s, { accountId: id }, now);
+  return { accountId: id, confirm: true, checksum: plan.checksum, email: plan.account.email };
+}
+
+test("完全削除は保存枠と対象情報だけを除き、Drive・他接続・ジョブの途中ページを保持", async () => {
+  const {s,id,other} = await deletable();
+  await queueMailSync(s);
+  const job = { ...await s.get("agenda:mailJob"), accountIds: [other, id], messages: [{id:"stage"}], pages: 1 };
+  await s.put("agenda:mailJob",job);
+  const plan = await previewAccountDeletion(s,{accountId:id});
+  assert.equal(plan.counts.operations,1);
+  assert.equal(plan.counts.reviews,1);
+  assert.equal(JSON.stringify(plan).includes("fixture-drive"),false);
+  assert.equal(JSON.stringify(plan).includes('"token"'),false);
+  await deleteAccount(s,await approved(s,id));
+  assert.deepEqual((await s.get("agenda:accounts")).map(a=>a.id),[other]);
+  for (const namespace of ["credential","label","cache","calendar","history","reviews","pending","manualHistory","deletePlan"])
+    assert.equal(await s.get("agenda:"+namespace+":"+id),undefined);
+  for (const namespace of ["operation","preview"])
+    assert.equal((await s.list({prefix:"agenda:"+namespace+":"+id+":"})).size,0);
+  assert.equal((await s.get("drive:credential")).token,"fixture-drive");
+  assert.ok(await s.get("agenda:credential:"+other));
+  assert.equal(await s.get("agenda:flow"),undefined);
+  assert.deepEqual((await s.get("agenda:mailJob")).accountIds,[other]);
+  assert.deepEqual((await s.get("agenda:mailJob")).messages,job.messages);
+});
+
+test("結果未確認・復元待ち・別接続からの参照では削除せず、確認済み操作も孤立させない",async()=>{
+  for (const kind of ["pending","restored","foreign-confirmed","foreign-unknown"]) {
+    const {s,id,other}=await deletable();
+    if(kind==="pending") await s.put("agenda:pending:"+id,["abc"]);
+    else if(kind==="restored") await s.put("agenda:operation:"+id+":abc",{phase:"再照合待ち"});
+    else await s.put("agenda:operation:"+other+":def",{targetAccountId:id,phase:kind.endsWith("confirmed")?"登録確認済み":"登録結果未確認"});
+    const plan=await previewAccountDeletion(s,{accountId:id});
+    assert.equal(plan.checksum,null);
+    assert.ok(plan.blockers.length);
+    await assert.rejects(deleteAccount(s,{accountId:id,confirm:true,email:"one@example.test"}));
+    assert.equal((await s.get("agenda:accounts")).length,2);
+    assert.ok(await s.get("agenda:credential:"+id));
+  }
+});
+
+test("確認不足・期限切れ・確認後の変更・古い確認の使い回しで一部削除しない",async()=>{
+  for (const kind of ["confirm","email","checksum","expired","changed","new-plan"]) {
+    const {s,id}=await deletable();
+    const input=await approved(s,id,1000);
+    if(kind==="confirm")input.confirm=false;
+    if(kind==="email")input.email="two@example.test";
+    if(kind==="checksum")input.checksum="invalid";
+    if(kind==="changed")await s.put("agenda:reviews:"+id,{});
+    if(kind==="new-plan")await previewAccountDeletion(s,{accountId:id},1001);
+    await assert.rejects(deleteAccount(s,input,kind==="expired"?601000:1002));
+    assert.ok(await s.get("agenda:credential:"+id));
+    assert.equal((await s.get("agenda:accounts")).length,2);
+  }
+});
+
+test("最後の接続を削除し、二重実行と削除済み接続を古いジョブから取得しない",async()=>{
+  const {s,id,other}=await deletable();
+  await s.put("agenda:accounts",(await s.get("agenda:accounts")).filter(a=>a.id===id));
+  await s.delete("agenda:credential:"+other);
+  await queueMailSync(s,1000);
+  const stale=await s.get("agenda:mailJob"), input=await approved(s,id);
+  await deleteAccount(s,input);
+  assert.deepEqual(await s.get("agenda:accounts"),[]);
+  assert.equal(await s.get("agenda:mailJob"),undefined);
+  await assert.rejects(deleteAccount(s,input),/保存済み/);
+  await queueMailSync(s);
+  assert.equal(await s.get("agenda:mailJob"),undefined);
+  await s.put("agenda:mailJob",stale);
+  await runMailBatch({},s,()=>assert.fail("削除済み接続へ通信した"),100000);
+  assert.equal(await s.get("agenda:mailJob"),undefined);
 });

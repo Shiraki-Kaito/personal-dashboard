@@ -1,3 +1,4 @@
+import { previewAccountDeletion, deleteAccount } from "../src/agenda-management.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { agendaConnect, agendaScopes } from "../src/agenda-google.js";
@@ -12,6 +13,7 @@ function memory() {
     get: async (k) => structuredClone(values.get(k)),
     put: async (k, v) => values.set(k, structuredClone(v)),
     delete: async (k) => values.delete(k),
+    list: async ({prefix}) => new Map([...values].filter(([key])=>key.startsWith(prefix))),
     transaction: async (fn) => fn(s),
   };
   return s;
@@ -158,4 +160,23 @@ test("不正な名前・別セッション・接続上限をサーバーで拒�
     await s.get("agenda:label:" + (await digest("sixth@example.test"))),
     undefined,
   );
+});
+
+test("上限5件から完全削除で枠を空け、新しいGoogleアカウントを認可できる", async () => {
+  const s = memory();
+  const accounts = await Promise.all(Array.from({length:5},async(_,index)=>{
+    const email = `old${index}@example.test`;
+    return {id:await digest(email),email,calendar:"primary"};
+  }));
+  await s.put("agenda:accounts",accounts);
+  const account=accounts[0];
+  await s.put("agenda:label:"+account.id,"削除する表示名");
+  const plan=await previewAccountDeletion(s,{accountId:account.id});
+  await deleteAccount(s,{accountId:account.id,email:account.email,checksum:plan.checksum,confirm:true});
+  assert.equal((await s.get("agenda:accounts")).length,4);
+  await start(s,"新しい接続");
+  assert.equal((await callback(s,"replacement@example.test")).status,303);
+  assert.equal((await s.get("agenda:accounts")).length,5);
+  assert.equal((await s.get("agenda:accounts")).some(a=>a.id===account.id),false);
+  assert.equal(await s.get("agenda:label:"+account.id),undefined);
 });

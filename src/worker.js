@@ -23,6 +23,8 @@ import {
   renameAgendaAccount,
   disconnectAgendaAccount,
   clearAgendaAccountCache,
+  previewAgendaAccountDeletion,
+  deleteAgendaAccount,
   refreshAgendaCalendar,
   previewAppointment,
   registerAppointment,
@@ -208,6 +210,8 @@ export class Dashboard extends DurableObject {
           label: renameAgendaAccount,
           disconnect: disconnectAgendaAccount,
           clearCache: clearAgendaAccountCache,
+          previewDelete: previewAgendaAccountDeletion,
+          deleteAccount: deleteAgendaAccount,
           syncMail: async (env, storage, input) => {
             await queueMailSync(storage, Date.now(), "manual-batch");
             return agendaView(env, storage, input.accountId);

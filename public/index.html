@@ -613,7 +613,7 @@
           </button>
         </div>
         <p>アカウントの追加・命名・接続停止と、保存キャッシュの整理ができます。</p>
-        <p class="task-meta">停止しても保存枠は残ります。同じGoogleアカウントの再認可で再開します。停止中の接続は自動取得とホームの重要メール集約から除きます。停止中のカレンダーも含む照合ができない間は、新しい予定登録を止めます。</p>
+        <p class="task-meta">停止しても保存枠は残ります。枠を空けるには「このサイトから完全削除」を使います。同じGoogleアカウントの再認可で再開できます。停止中の接続は自動取得とホームの重要メール集約から除きます。停止中のカレンダーも含む照合ができない間は、新しい予定登録を止めます。</p>
         <p id="accountCapacity"></p>
         <button
           id="accountManagerAdd"
@@ -625,6 +625,24 @@
         <div id="managedAccounts" class="managed-accounts"></div>
         <p id="accountManagerStatus" role="status"></p>
       </div>
+    </dialog>
+    <dialog id="accountDeleteDialog" class="settings-dialog" aria-labelledby="accountDeleteHeading">
+      <form id="accountDeleteForm" class="dialog-body">
+        <div class="dialog-top">
+          <h2 id="accountDeleteHeading">このサイトからアカウントを完全削除</h2>
+          <button type="button" class="icon-button" data-close aria-label="完全削除の確認を閉じる">×</button>
+        </div>
+        <p id="accountDeleteTarget"></p>
+        <p>保存枠を1件空け、このサイトの接続資格情報・表示名・メール一覧・予定一覧・取得履歴・確認済み記録・予定登録記録を削除します。Google上のメール・予定とDrive接続は変更しません。Google側の認可取消ではありません。</p>
+        <p>この操作は元に戻せません。必要な保存情報は先に「接続と設定」からバックアップしてください。再接続にはGoogleでの認可が必要です。削除前に作成したバックアップやダウンロード済みファイルは残ります。Cloudflareの復旧用履歴を即時消去する操作ではありません。</p>
+        <p id="accountDeleteCounts"></p>
+        <p id="accountDeleteStatus" role="status"></p>
+        <button id="accountDeleteRecheck" type="button" class="button">削除内容を再確認</button>
+        <label for="accountDeleteEmail">確認のため対象メールアドレスを入力</label>
+        <input id="accountDeleteEmail" type="email" autocomplete="off" spellcheck="false" required />
+        <label><input id="accountDeleteAcknowledged" type="checkbox" required /> このサイトの保存情報が削除されることを確認しました</label>
+        <button id="accountDeleteSubmit" type="submit" class="button button-danger" disabled>このサイトから完全削除する</button>
+      </form>
     </dialog>
     <dialog
       id="accountNameDialog"

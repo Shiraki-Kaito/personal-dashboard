@@ -160,7 +160,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       401,
     );
     assert.equal((await request("/auth/agenda/start", {})).status, 401);
-    for (const action of ["label", "syncMail", "disconnect", "clearCache"])
+    for (const action of ["label", "syncMail", "disconnect", "clearCache", "previewDelete", "deleteAccount"])
       assert.equal((await request("/api/agenda", { action })).status, 401);
     assert.equal(
       (await request("/api/agenda", { action: "calendar" })).status,
@@ -211,7 +211,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       (await (await request("/api/agenda")).json()).accounts,
       [],
     );
-    for (const action of ["label", "syncMail", "disconnect", "clearCache"])
+    for (const action of ["label", "syncMail", "disconnect", "clearCache", "previewDelete", "deleteAccount"])
       assert.equal(
         (await request("/api/agenda", { action }, "https://other.test")).status,
         403,

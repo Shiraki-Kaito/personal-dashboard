@@ -9,6 +9,7 @@ let state = null,
   current = null,
   preview = null;
 let editingAccountId = null;
+let deletionPlan = null, deletingAccountId = null;
 let mailFilter = "important";
 const accountName = (a) => (a.label ? a.label + " · " + a.email : a.email);
 function controls() {
@@ -26,6 +27,9 @@ function controls() {
     "accountNameInput",
     "accountAddLabel",
     "accountAuthorize",
+    "accountDeleteRecheck",
+    "accountDeleteEmail",
+    "accountDeleteAcknowledged",
     "calendarRefresh",
     "appointmentPreview",
     "appointmentReconcile",
@@ -34,6 +38,9 @@ function controls() {
     el(id).disabled = busy;
   for (const button of el("managedAccounts").querySelectorAll("button"))
     button.disabled = busy;
+  el("accountDeleteSubmit").disabled = busy || !deletionPlan?.checksum ||
+    !el("accountDeleteAcknowledged").checked ||
+    el("accountDeleteEmail").value !== deletionPlan.account.email;
   el("agendaRefresh").disabled ||= !state?.accountId || state?.mailJob?.active || state?.accounts.find(a => a.id === state.accountId)?.disconnectedAt;
   el("agendaMore").disabled ||= state?.mailJob?.active || state?.accounts.find(a => a.id === state.accountId)?.disconnectedAt;
   el("agendaSync").disabled ||=
@@ -422,7 +429,8 @@ setInterval(() => {
     !el("appointmentDialog").open &&
     !el("accountManager").open &&
     !el("accountNameDialog").open &&
-    !el("accountAddDialog").open
+    !el("accountAddDialog").open &&
+    !el("accountDeleteDialog").open
   )
     run();
 }, 30000);
@@ -487,7 +495,7 @@ function renderAccountManager() {
       const actions = document.createElement("div");
       actions.className = "managed-account-actions";
       actions.append(edit);
-      for (const [action, label] of [["disconnect", "接続を停止"], ["clearCache", "キャッシュを整理"]]) {
+      for (const [action, label] of [["disconnect", "接続を停止"], ["clearCache", "キャッシュを整理"], ["deleteAccount", "このサイトから完全削除"]]) {
         if (action === "disconnect" && account.disconnectedAt) continue;
         const button = document.createElement("button");
         button.type = "button";
@@ -505,6 +513,10 @@ function renderAccountManager() {
 }
 async function manageAccount(account, action) {
   if (busy) return;
+  if (action === "deleteAccount") {
+    await openAccountDeletion(account);
+    return;
+  }
   busy = true;
   controls();
   const stopping = action === "disconnect";
@@ -531,6 +543,63 @@ async function manageAccount(account, action) {
     controls();
   }
 }
+async function openAccountDeletion(account) {
+  if (busy) return;
+  deletingAccountId = account.id;
+  deletionPlan = null;
+  el("accountDeleteTarget").textContent = accountName(account);
+  el("accountDeleteCounts").textContent = "";
+  el("accountDeleteEmail").value = "";
+  el("accountDeleteAcknowledged").checked = false;
+  el("accountDeleteStatus").textContent = "削除範囲と関連する予定登録を確認しています…";
+  if (!el("accountDeleteDialog").open) el("accountDeleteDialog").showModal();
+  busy = true;
+  controls();
+  try {
+    deletionPlan = await api({ action: "previewDelete", accountId: account.id });
+    const counts = deletionPlan.counts;
+    el("accountDeleteCounts").textContent =
+      `削除対象：メール ${counts.messages}件・直近予定 ${counts.calendarEvents}件・確認記録 ${counts.reviews}件・予定登録記録 ${counts.operations}件・取得履歴 ${counts.mailHistory}件`;
+    el("accountDeleteStatus").textContent = deletionPlan.blockers.length
+      ? deletionPlan.blockers.join(" ")
+      : "削除内容の確認は10分間有効です。保存情報が変わった場合は再確認が必要です。";
+  } catch (error) {
+    el("accountDeleteStatus").textContent = error.message;
+  } finally {
+    busy = false;
+    controls();
+  }
+}
+el("accountDeleteForm").oninput = controls;
+el("accountDeleteRecheck").onclick = () => {
+  const account = state?.accounts.find(account => account.id === deletingAccountId);
+  if (account) openAccountDeletion(account);
+};
+el("accountDeleteForm").onsubmit = async (event) => {
+  event.preventDefault();
+  if (busy || !deletionPlan?.checksum || !el("accountDeleteAcknowledged").checked ||
+      el("accountDeleteEmail").value !== deletionPlan.account.email) return;
+  busy = true;
+  controls();
+  try {
+    const email = deletionPlan.account.email;
+    state = await api({ action: "deleteAccount", accountId: deletionPlan.account.id,
+      checksum: deletionPlan.checksum, email, confirm: true });
+    deletionPlan = null;
+    current = null;
+    preview = null;
+    render();
+    el("accountDeleteDialog").close();
+    el("accountManagerStatus").textContent = email + " をこのサイトから完全削除し、保存枠を1件空けました。Google上のメール・予定は変更していません。";
+    document.dispatchEvent(new CustomEvent("dashboard:agenda-changed"));
+  } catch (error) {
+    deletionPlan = null;
+    el("accountDeleteStatus").textContent = error.message + "。自動再送はしていません。一覧を再読み込みするか、削除内容を再確認してください。";
+  } finally {
+    busy = false;
+    controls();
+  }
+};
 function openAccountName(account) {
   editingAccountId = account.id;
   el("accountNameEmail").textContent = account.email;

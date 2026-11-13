@@ -1860,3 +1860,9 @@ body[data-view="home"] .task-panel {
 }
 
 .managed-account-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
+.button-danger { border-color: #d98282; color: #ffd1d1; background: #702f3a; }
+.button-danger:hover:not(:disabled) { background: #863b48; }
+#accountDeleteForm { display: grid; gap: 12px; }
+#accountDeleteEmail { width: 100%; padding: 12px; color: inherit; background: #101720; border: 1px solid #657082; border-radius: 10px; }
+#accountDeleteTarget { overflow-wrap: anywhere; font-weight: 600; }
