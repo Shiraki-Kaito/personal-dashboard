@@ -1,3 +1,4 @@
+import { cleanupAccountReferences } from "./agenda-references.js";
 import { DurableObject } from "cloudflare:workers";
 import { login, logout, authorized } from "./auth.js";
 import { github, transport } from "./github.js";
@@ -217,6 +218,7 @@ export class Dashboard extends DurableObject {
           label: renameAgendaAccount,
           disconnect: disconnectAgendaAccount,
           clearCache: clearAgendaAccountCache,
+          cleanupReferences: (_env, storage, input) => cleanupAccountReferences(storage, input),
           previewDelete: previewAgendaAccountDeletion,
           deleteAccount: deleteAgendaAccount,
           syncMail: async (env, storage, input) => {

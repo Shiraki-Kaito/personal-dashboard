@@ -38,6 +38,11 @@ function controls() {
     el(id).disabled = busy;
   for (const button of el("managedAccounts").querySelectorAll("button"))
     button.disabled = busy;
+  for (const checkbox of el("accountReferences").querySelectorAll("input"))
+    checkbox.disabled = busy || checkbox.dataset.eligible !== "true";
+  for (const button of el("accountReferences").querySelectorAll("button")) button.disabled = busy;
+  el("accountReferenceCleanup").disabled = busy || !deletionPlan?.referenceChecksum ||
+    !el("accountReferences").querySelector("input:checked");
   el("accountDeleteSubmit").disabled = busy || !deletionPlan?.checksum ||
     !el("accountDeleteAcknowledged").checked ||
     el("accountDeleteEmail").value !== deletionPlan.account.email;
@@ -551,6 +556,7 @@ async function openAccountDeletion(account) {
   deletionPlan = null;
   el("accountDeleteTarget").textContent = accountName(account);
   el("accountDeleteCounts").textContent = "";
+  renderAccountReferences();
   el("accountDeleteEmail").value = "";
   el("accountDeleteAcknowledged").checked = false;
   el("accountDeleteStatus").textContent = "削除範囲と関連する予定登録を確認しています…";
@@ -559,6 +565,7 @@ async function openAccountDeletion(account) {
   controls();
   try {
     deletionPlan = await api({ action: "previewDelete", accountId: account.id });
+    renderAccountReferences();
     const counts = deletionPlan.counts;
     el("accountDeleteCounts").textContent =
       `削除対象：メール ${counts.messages}件・直近予定 ${counts.calendarEvents}件・確認記録 ${counts.reviews}件・予定登録記録 ${counts.operations}件・取得履歴 ${counts.mailHistory}件`;
@@ -572,6 +579,76 @@ async function openAccountDeletion(account) {
     controls();
   }
 }
+function renderAccountReferences() {
+  const references = deletionPlan?.references || [];
+  el("accountReferenceSection").hidden = !references.length;
+  el("accountReferences").replaceChildren(...references.map(reference => {
+    const row = document.createElement("div"), label = document.createElement("label"),
+      checkbox = document.createElement("input"), description = document.createElement("span");
+    row.className = "reference-record";
+    checkbox.type = "checkbox";
+    checkbox.value = reference.id;
+    checkbox.dataset.eligible = String(reference.eligible);
+    checkbox.disabled = !reference.eligible;
+    description.textContent = `${reference.sourceLabel ? reference.sourceLabel + " · " : ""}${reference.sourceEmail} → ${reference.title} ／ ${time(reference.start)}〜${time(reference.end)} ／ ${reference.phase} ／ 最終確認 ${time(reference.lastSuccess)}`;
+    label.append(checkbox, description);
+    row.append(label);
+    if (reference.sourceAccountId) {
+      const reconcile = document.createElement("button");
+      reconcile.type = "button";
+      reconcile.className = "button button-small";
+      reconcile.textContent = "結果を照合";
+      reconcile.onclick = () => reconcileReference(reference);
+      row.append(reconcile);
+    }
+    return row;
+  }));
+}
+async function reconcileReference(reference) {
+  if (busy) return;
+  busy = true;
+  controls();
+  try {
+    await api({ action: "reconcile", accountId: reference.sourceAccountId, messageId: reference.messageId });
+    busy = false;
+    const account = state.accounts.find(account => account.id === deletingAccountId);
+    await openAccountDeletion(account);
+  } catch (error) {
+    deletionPlan = null;
+    el("accountDeleteStatus").textContent = error.message + "。削除内容を再確認してください。";
+  } finally {
+    busy = false;
+    controls();
+  }
+}
+el("accountReferenceCleanup").onclick = async () => {
+  if (busy || !deletionPlan?.referenceChecksum) return;
+  const selected = [...el("accountReferences").querySelectorAll("input:checked")].map(input => input.value);
+  if (!selected.length) return;
+  busy = true;
+  controls();
+  try {
+    const summaries = deletionPlan.references.filter(reference => selected.includes(reference.id))
+      .map(reference => reference.sourceEmail + " → " + reference.title);
+    if (!await confirmAction(
+      summaries.join("\n") + "\n\n選んだ " + selected.length + " 件の予定登録記録と手入力履歴を、このサイトから整理します。元には戻せません。Google上の予定やメール、メールの確認済み記録、接続は変更しません。必要なら先にバックアップしてください。アカウント削除は別途確認します。",
+      "選択した記録を整理する",
+    )) return;
+    const result = await api({ action: "cleanupReferences", accountId: deletionPlan.account.id,
+      checksum: deletionPlan.referenceChecksum, selected, confirm: true });
+    busy = false;
+    const account = state.accounts.find(account => account.id === deletingAccountId);
+    await openAccountDeletion(account);
+    el("accountDeleteStatus").textContent = result.removed + "件の参照記録を整理しました。" + el("accountDeleteStatus").textContent;
+    document.dispatchEvent(new CustomEvent("dashboard:agenda-changed"));
+  } catch (error) {
+    deletionPlan = null;
+    el("accountDeleteStatus").textContent = error.message + "。自動再送はしていません。削除内容を再確認してください。";
+  } finally {
+    busy = false;
+    controls();
+  }
+};
 el("accountDeleteForm").oninput = controls;
 el("accountDeleteRecheck").onclick = () => {
   const account = state?.accounts.find(account => account.id === deletingAccountId);

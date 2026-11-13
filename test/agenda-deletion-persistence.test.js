@@ -10,6 +10,7 @@ import path from "node:path";
 const fixtureSource = `
 import { DurableObject } from "cloudflare:workers";
 import { previewAccountDeletion, deleteAccount } from "./src/agenda-management.js";
+import { cleanupAccountReferences } from "./src/agenda-references.js";
 export class DeletionFixture extends DurableObject {
   seed(entries) { return this.ctx.storage.put(Object.fromEntries(entries)); }
   async read(key) { return JSON.stringify(await this.ctx.storage.get(key)) ?? null; }
@@ -28,7 +29,8 @@ export class DeletionFixture extends DurableObject {
       },
     }))) };
     try {
-      await deleteAccount(wrapped, input);
+      if (input.action === "cleanupReferences") await cleanupAccountReferences(wrapped, input);
+      else await deleteAccount(wrapped, input);
       return { removed: true };
     } catch (error) {
       return { error: error.message };
@@ -85,6 +87,24 @@ test("SQLiteで削除途中失敗のロールバック、並行削除、再起�
     assert.equal(await read("agenda:credential:selected"),undefined);
     assert.equal(await read("agenda:cache:selected"),undefined);
     assert.deepEqual(await read("drive:cache"),{files:[{id:"keep"}]});
+    await stub.seed([
+      ["agenda:accounts",[{id:"source",email:"source@example.test"},{id:"target",email:"target@example.test"}]],
+      ["agenda:operation:source:abc",{targetAccountId:"target",phase:"登録確認済み",draft:{title:"fixture reference"}}],
+      ["agenda:manualHistory:source",["abc","keep"]],
+    ]);
+    const referencePlan = await stub.plan({accountId:"target"});
+    const cleanup = {action:"cleanupReferences",accountId:"target",checksum:referencePlan.referenceChecksum,selected:["source:abc"],confirm:true};
+    assert.match((await stub.remove(cleanup,true)).error,/fixture rollback/);
+    assert.ok(await read("agenda:operation:source:abc"));
+    assert.deepEqual(await read("agenda:manualHistory:source"),["abc","keep"]);
+    assert.equal((await stub.remove(cleanup)).removed,true);
+    await app.dispose();
+    app = boot();
+    stub = await stubFor();
+    assert.equal(await read("agenda:operation:source:abc"),undefined);
+    assert.deepEqual(await read("agenda:manualHistory:source"),["keep"]);
+    assert.equal((await read("agenda:accounts")).length,2);
+
   } finally {
     await app.dispose();
     await rm(persist,{recursive:true,force:true});

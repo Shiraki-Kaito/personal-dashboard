@@ -637,6 +637,13 @@
         <p>この操作は元に戻せません。必要な保存情報は先に「接続と設定」からバックアップしてください。再接続にはGoogleでの認可が必要です。削除前に作成したバックアップやダウンロード済みファイルは残ります。Cloudflareの復旧用履歴を即時消去する操作ではありません。</p>
         <p id="accountDeleteCounts"></p>
         <p id="accountDeleteStatus" role="status"></p>
+        <section id="accountReferenceSection" hidden aria-labelledby="accountReferenceHeading">
+          <h3 id="accountReferenceHeading">他アカウントの参照記録</h3>
+          <p>登録元・予定名・確認状態を確認してください。選んだ登録確認済み記録と手入力履歴だけをこのサイトから整理します。Google上の予定・元メール・接続・メールの確認済み記録は残ります。必要な記録は先にバックアップしてください。</p>
+          <p>結果未確認の記録は先に「結果を照合」してください。整理後もアカウント削除は自動実行しません。</p>
+          <div id="accountReferences"></div>
+          <button id="accountReferenceCleanup" type="button" class="button" disabled>選択した確認済み記録を整理</button>
+        </section>
         <button id="accountDeleteRecheck" type="button" class="button">削除内容を再確認</button>
         <label for="accountDeleteEmail">確認のため対象メールアドレスを入力</label>
         <input id="accountDeleteEmail" type="email" autocomplete="off" spellcheck="false" required />

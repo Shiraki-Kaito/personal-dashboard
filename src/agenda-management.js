@@ -1,3 +1,4 @@
+import { prepareReferenceCleanup } from "./agenda-references.js";
 import { agendaAccounts } from "./agenda-google.js";
 import { digest } from "./agenda-rules.js";
 import { InputError } from "./sync.js";
@@ -106,7 +107,7 @@ async function deletionSnapshot(storage, input) {
   if (foreignReferences.length)
     blockers.push("他アカウントの予定登録記録が、このアカウントを登録先として参照しています。関連記録を保護するため削除できません。");
   return {
-    account, entries, blockers,
+    account, entries, blockers, foreignReferences,
     counts: {
       messages: entries.get("agenda:cache:" + account.id)?.messages?.length || 0,
       calendarEvents: entries.get("agenda:calendar:" + account.id)?.events?.length || 0,
@@ -137,6 +138,7 @@ export async function previewAccountDeletion(storage, input, now = Date.now()) {
     return {
       account: { id: snapshot.account.id, email: snapshot.account.email, label: snapshot.entries.get("agenda:label:" + snapshot.account.id) || "" },
       counts: snapshot.counts, blockers: snapshot.blockers, checksum, expires,
+      ...await prepareReferenceCleanup(tx, snapshot.account.id, snapshot.foreignReferences, now),
     };
   });
 }
@@ -155,6 +157,7 @@ export async function deleteAccount(storage, input, now = Date.now()) {
     for (const key of snapshot.entries.keys()) await tx.delete(key);
     await tx.put("agenda:accounts", (await agendaAccounts(tx)).filter(saved => saved.id !== account.id));
     await tx.delete(planKey);
+    await tx.delete("agenda:referencePlan:" + account.id);
     await tx.delete("agenda:flow");
     await removeAccountFromJob(tx, account.id, now);
     await removeAccountFromJob(tx, account.id, now, "agenda:calendarJob");
