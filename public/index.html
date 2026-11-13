@@ -18,7 +18,7 @@
     <script type="module" src="/slack-ui.js"></script>
     <script type="module" src="/notes-ui.js"></script>
     <script type="module" src="/health-ui.js"></script>
-    <script type="module" src="/mail-rules-ui.js"></script>
+    <script type="module" src="/mail-rules-ui.js?v=3"></script>
     <script type="module" src="/desktop-ui.js"></script>
   </head>
   <body data-view="home">
@@ -273,7 +273,7 @@
             ><button id="agendaMore" class="button button-secondary" disabled>
               続きを取得
             </button>
-            <button id="mailRulesOpen" class="button button-secondary">重要メールの設定</button>
+            <button id="mailRulesOpen" class="button button-secondary" disabled>重要メールの設定</button>
             <button id="agendaManual" class="button button-secondary">
               予定を手入力
             </button>
@@ -316,7 +316,7 @@
                   class="text-button"
                   aria-pressed="true"
                 >
-                  重要な就活・学校
+                  重要メール
                 </button>
                 ·
                 <button id="mailOther" class="text-button" aria-pressed="false">
@@ -959,7 +959,7 @@
         <section class="settings-section">
           <h3>バックアップと復元</h3>
           <p>
-            未同期操作・Drive一覧・未確認・取得済みメールの抜粋・確認記録・予定登録記録を保存します。認証情報は含みません。私的なメール情報を含むため、手元で安全に保管してください。Googleの元メール・予定そのものを複製する機能ではありません。
+            未同期操作・Drive一覧・未確認・取得済みメールの抜粋・確認記録・予定登録記録・重要メール設定を保存します。認証情報は含みません。私的なメール情報を含むため、手元で安全に保管してください。Googleの元メール・予定そのものを複製する機能ではありません。
           </p>
           <a class="button button-small" href="/api/backup" download
             >バックアップを保存</a

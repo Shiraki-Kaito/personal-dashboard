@@ -158,6 +158,7 @@ el("mailRulesPreview").onclick = async () => {
       }),
     );
     previewKey = signature();
+    el("mailRulesConfirm").checked = false;
   } catch (error) {
     previewKey = null;
     el("mailRulesStatus").textContent = error.message;
@@ -220,3 +221,6 @@ window.addEventListener("beforeunload", (event) => {
     event.returnValue = "";
   }
 });
+
+// 初期表示直後に、スクリプト準備前のボタンだけが押されることを防ぐ。
+el("mailRulesOpen").disabled = false;

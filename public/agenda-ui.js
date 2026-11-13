@@ -287,7 +287,7 @@ function render() {
     p.className = "empty-state";
     p.textContent =
       mailFilter === "important"
-        ? "取得済み範囲に重要な就活・学校メールはありません。「すべて」も確認できます。"
+        ? "取得済み範囲に重要メールはありません。「すべて」も確認できます。"
         : "この分類に取得済みメールはありません";
     el("agendaMessages").append(p);
   }
