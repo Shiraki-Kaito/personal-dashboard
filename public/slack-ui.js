@@ -1,3 +1,4 @@
+import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 const time = (value) =>
@@ -19,10 +20,7 @@ async function api(body, teamId = state?.teamId) {
         }
       : {},
   );
-  if (response.status === 401) {
-    location.replace("/");
-    throw Error("本人のログインが必要です");
-  }
+
   const result = await response.json();
   if (!response.ok) throw Error(result.error || "Slackの処理に失敗しました");
   return result;

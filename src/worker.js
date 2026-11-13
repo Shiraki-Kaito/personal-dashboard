@@ -62,6 +62,7 @@ export default {
   },
 };
 const actions = new Set([
+  "session",
   "notes",
   "health",
   "slack",
@@ -211,6 +212,8 @@ export class Dashboard extends DurableObject {
         "/health-ui.js",
         "/desktop-ui.js",
         "/app-install.js",
+        "/session-connection.js",
+        "/session-ui.js",
         "/mail-rules-ui.js",
         "/slack-app-manifest.json",
         "/backup-ui.js",
@@ -230,7 +233,7 @@ export class Dashboard extends DurableObject {
     if (
       ["drive", "home", "backup", "agenda", "slack", "notes"].includes(action)
         ? !["GET", "POST"].includes(request.method)
-        : request.method !== (["state", "health"].includes(action) ? "GET" : "POST")
+        : request.method !== (["state", "health", "session"].includes(action) ? "GET" : "POST")
     )
       return new Response(null, { status: 405 });
     let input = {};
@@ -246,6 +249,7 @@ export class Dashboard extends DurableObject {
         return new Response(null, { status: 400 });
     }
     try {
+      if (action === "session") return Response.json({expiresAt:session.expires});
       if (action === "health") return Response.json(await healthView(this.env, storage));
       if (action === "notes") {
         if (request.method === "GET") return Response.json(await notesView(storage));

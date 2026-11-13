@@ -1,3 +1,4 @@
+import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 const statePollMs = 60000,
@@ -361,10 +362,7 @@ async function load(refresh = false, acknowledge = null) {
           }
         : {},
     );
-    if (response.status === 401) {
-      location.replace("/");
-      return;
-    }
+
     if (!response.ok) throw Error("Driveの状態を取得できません");
     state = await response.json();
     success = true;
@@ -447,10 +445,7 @@ el("driveConnect").onsubmit = async (event) => {
       method: "POST",
       headers: { Accept: "application/json" },
     });
-    if (response.status === 401) {
-      location.replace("/");
-      return;
-    }
+
     if (!response.ok)
       throw Error(
         "Google接続を開始できません。設定とログイン状態を確認してください",

@@ -1,3 +1,4 @@
+import { sessionFetch as fetch } from "./session-connection.js";
 const el = (id) => document.getElementById(id);
 const labels = {
   ok: "取得成功",

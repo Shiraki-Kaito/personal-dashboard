@@ -1,3 +1,4 @@
+import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmDiscard } from "./confirm.js";
 import { TaskDrafts } from "./task-drafts.js";
 const drafts = new TaskDrafts();
@@ -210,10 +211,7 @@ async function call(action, body = {}) {
             body: JSON.stringify({ ...body, projectId, itemId }),
           },
     );
-    if (response.status === 401) {
-      location.replace("/");
-      return;
-    }
+
     const result = await response.json();
     if (!response.ok) throw Error(result.error || "再取得してください");
     requestError = null;
@@ -295,10 +293,7 @@ async function loadCatalog(refresh, autoSelect = true) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectId, refresh }),
     });
-    if (response.status === 401) {
-      location.replace("/");
-      return;
-    }
+
     const data = await response.json();
     if (!response.ok) throw Error(data.error || "一覧取得失敗");
     catalogError = null;

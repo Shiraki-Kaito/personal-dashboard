@@ -1,3 +1,4 @@
+import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id),
   time = (value) =>
@@ -76,10 +77,7 @@ async function api(body = null, accountId = state?.accountId) {
         }
       : {},
   );
-  if (response.status === 401) {
-    location.replace("/");
-    throw Error("本人のログインが必要です");
-  }
+
   const data = await response.json();
   if (!response.ok)
     throw Error(data.error || "メール・予定の処理に失敗しました");

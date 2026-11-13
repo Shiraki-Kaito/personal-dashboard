@@ -181,7 +181,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       401,
     );
     assert.equal((await request("/auth/agenda/start", {})).status, 401);
-    for (const route of ["/api/slack", "/slack-ui.js", "/auth/slack/callback", "/api/notes", "/notes-ui.js", "/api/health", "/health-ui.js", "/mail-rules-ui.js"])
+    for (const route of ["/api/slack", "/slack-ui.js", "/auth/slack/callback", "/api/notes", "/notes-ui.js", "/api/health", "/health-ui.js", "/mail-rules-ui.js", "/api/session", "/session-ui.js", "/session-connection.js"])
       assert.equal((await request(route)).status, 401);
     for (const action of ["configure", "refresh", "addChannel", "review", "stop"])
       assert.equal((await request("/api/slack", {action})).status, 401);
@@ -260,6 +260,10 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       assert.match((await reply.json()).error,/接続済みのアカウント/);
     }
     assert.equal((await request("/mail-rules-ui.js")).status,200);
+    const sessionInfo=await (await request("/api/session")).json();
+    assert.deepEqual(Object.keys(sessionInfo),["expiresAt"]);
+    assert.ok(sessionInfo.expiresAt>Date.now());
+    assert.equal((await request("/api/session",{})).status,405);
     const emptySlack = await (await request("/api/slack")).json();
     assert.equal(emptySlack.configured, false);
     assert.deepEqual(emptySlack.workspaces, []);

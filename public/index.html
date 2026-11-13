@@ -9,6 +9,7 @@
     <link rel="icon" href="/icons/dashboard-192.png" type="image/png" />
     <title>ワークスペース | Personal Dashboard</title>
     <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/session-ui.js"></script>
     <script type="module" src="/ui.js"></script>
     <script type="module" src="/drive-ui.js"></script>
     <script type="module" src="/motion-ui.js"></script>
@@ -92,6 +93,7 @@
       </div>
     </aside>
     <main class="workspace" id="workspace">
+      <div id="sessionNotice" class="session-notice" role="status" hidden><span id="sessionNoticeText"></span><button id="sessionNoticeClose" aria-label="ログイン再確認の案内を閉じる">×</button></div>
       <header class="topbar" data-enter>
         <div>
           <p class="eyebrow" id="dateLabel"></p>
@@ -976,6 +978,16 @@
         <div class="unconnected-services">
           <span>今後の連携</span>端末アプリ
         </div>
+      </div>
+    </dialog>
+    <dialog id="sessionDialog" class="settings-dialog" aria-labelledby="sessionHeading">
+      <div class="dialog-body"><h2 id="sessionHeading">ログインし直してください</h2>
+        <p id="sessionStatus" role="status"></p>
+        <p>別タブでGitHubへログインし直し、このウィンドウに戻って接続を確認してください。元のウィンドウを閉じると未送信の入力は失われます。サーバーに保存済みの未同期操作は保持されます。</p>
+        <a class="button" href="/auth/login" target="_blank" rel="noopener noreferrer">別タブでログイン</a>
+        <button id="sessionCheck" class="button">ログイン後に接続を確認</button>
+        <p>保存・予定登録は自動再送しません。</p>
+        <a href="/">入力を破棄してログイン画面へ戻る</a>
       </div>
     </dialog>
     <dialog id="confirmDialog" class="detail-dialog">

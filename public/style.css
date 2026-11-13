@@ -1917,3 +1917,5 @@ body[data-view="slack"] .home-panel, body[data-view="slack"] .drive-panel, body[
 .mail-rules-grid textarea { width:100%; box-sizing:border-box; resize:vertical; color:inherit; background:#101720; border:1px solid #657082; border-radius:8px; padding:10px; font:inherit; }
 #mailRulesResult { overflow-wrap:anywhere; }
 @media(max-width:640px) { .mail-rules-grid { grid-template-columns:1fr; } }
+
+.session-notice { display:flex; align-items:center; justify-content:space-between; gap:12px; flex:none; margin:0; padding:10px 16px; border:1px solid #738e85; color:#bce8d9; background:#15231f; border-radius:8px; }

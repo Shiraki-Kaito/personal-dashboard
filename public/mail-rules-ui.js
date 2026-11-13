@@ -1,3 +1,4 @@
+import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 const fields = [

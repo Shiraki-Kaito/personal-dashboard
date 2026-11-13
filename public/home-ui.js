@@ -1,3 +1,4 @@
+import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 const pollMs = 60000;
@@ -297,10 +298,7 @@ async function load(refresh = false) {
           }
         : {},
     );
-    if (response.status === 401) {
-      location.replace("/");
-      return;
-    }
+
     if (!response.ok) throw Error("ホームの取得に失敗しました");
     state = await response.json();
     el("homeNotice").hidden = true;
