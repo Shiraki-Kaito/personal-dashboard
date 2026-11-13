@@ -4,6 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#10151d" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/dashboard-192.png" type="image/png" />
     <title>ワークスペース | Personal Dashboard</title>
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/ui.js"></script>
@@ -15,8 +18,10 @@
     <script type="module" src="/slack-ui.js"></script>
     <script type="module" src="/notes-ui.js"></script>
     <script type="module" src="/health-ui.js"></script>
+    <script type="module" src="/desktop-ui.js"></script>
   </head>
   <body data-view="home">
+    <p id="offlineNotice" class="offline-notice" role="status" hidden>オフラインです。表示中の情報は最新とは限りません。接続が戻るまで変更を保存できません。</p>
     <a class="skip-link" href="#workspace">メインへ移動</a>
     <aside class="sidebar">
       <div class="brand">
@@ -871,6 +876,12 @@
             ×
           </button>
         </div>
+        <section class="settings-section">
+          <h3>Windowsの独立ウィンドウ</h3>
+          <p id="installStatus" role="status"></p><button id="installApp" class="button button-small" disabled>Windowsアプリとして追加</button>
+          <p>追加後はWindowsのスタートから起動できます。本人ログインは引き続き必要です。更新はサーバー側へ反映され、開き直すと最新版を読み込みます。インターネット接続が必要です。</p>
+          <p>通常ウィンドウとして動作します。壁紙風の背面表示・最前面固定・自動起動・オフライン編集は含みません。削除するときはブラウザーのアプリ管理からアンインストールしてください。サーバーの保存データやGoogle・GitHub側の情報は削除しません。</p>
+        </section>
         <section class="settings-section">
           <h3>全接続の診断・復旧</h3><button id="healthRefresh" class="button button-small">保存状態を確認</button>
           <p id="healthSummary" role="status">設定を開くと保存状況を確認します。</p><div id="healthSources"></div>

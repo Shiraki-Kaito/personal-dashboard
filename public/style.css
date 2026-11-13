@@ -1909,3 +1909,5 @@ body[data-view="slack"] .home-panel, body[data-view="slack"] .drive-panel, body[
 .health-row h4 { margin:4px 0; }
 .health-row p { font-size:13px; line-height:1.7; overflow-wrap:anywhere; }
 .health-row[data-state="error"] h4, .health-row[data-state="stale"] h4 { color:#efb583; }
+
+.offline-notice { position:fixed; inset:0 0 auto; z-index:1000; margin:0; padding:12px 20px; background:#55351f; color:#fff2d9; text-align:center; font-size:14px; }

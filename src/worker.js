@@ -147,6 +147,9 @@ export class Dashboard extends DurableObject {
   async handle(request) {
     const { pathname, origin, searchParams } = new URL(request.url);
     const storage = this.ctx.storage;
+    // 公開するのは一般的なアプリ名・アイコンだけ。個人データや実行用JSは本人認可の後。
+    if (request.method === "GET" && ["/manifest.webmanifest", "/icons/dashboard-192.png", "/icons/dashboard-512.png", "/icons/dashboard.svg"].includes(pathname))
+      return this.env.ASSETS.fetch(request);
     if (pathname === "/privacy" && request.method === "GET") {
       // Assets自身が拡張子なしURLを解決する。.htmlへ変換すると正規URLへ再転送される。
       return this.env.ASSETS.fetch(request);
@@ -160,7 +163,7 @@ export class Dashboard extends DurableObject {
     if (!session) {
       if (pathname === "/" && request.method === "GET")
         return new Response(
-          '<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>個人ダッシュボード</title><main><h1>personal-dashboard</h1><p>GitHub ProjectsとGoogle Driveの情報を確認する、管理者本人専用のダッシュボードです。</p><p><a href="/auth/login">GitHubでログイン</a></p><p><a href="/privacy">プライバシーポリシー</a></p></main></html>',
+          '<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icons/dashboard-192.png"><meta name="theme-color" content="#10151d"><title>個人ダッシュボード</title><main><h1>personal-dashboard</h1><p>GitHub ProjectsとGoogle Driveの情報を確認する、管理者本人専用のダッシュボードです。</p><p><a href="/auth/login">GitHubでログイン</a></p><p><a href="/privacy">プライバシーポリシー</a></p></main></html>',
           { headers: { "Content-Type": "text/html; charset=utf-8" } },
         );
       return Response.json(
@@ -205,6 +208,8 @@ export class Dashboard extends DurableObject {
         "/slack-ui.js",
         "/notes-ui.js",
         "/health-ui.js",
+        "/desktop-ui.js",
+        "/app-install.js",
         "/slack-app-manifest.json",
         "/backup-ui.js",
         "/backup-format.js",
