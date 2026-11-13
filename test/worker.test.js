@@ -91,6 +91,10 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "agenda-account-rules",
       "agenda-management",
       "agenda-references",
+      "slack-http",
+      "slack-auth",
+      "slack-store",
+      "slack",
       "mail-scheduler",
       "calendar-scheduler",
     ].map((name) => ({
@@ -162,6 +166,11 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       401,
     );
     assert.equal((await request("/auth/agenda/start", {})).status, 401);
+    for (const route of ["/api/slack", "/slack-ui.js", "/auth/slack/callback"])
+      assert.equal((await request(route)).status, 401);
+    for (const action of ["configure", "refresh", "addChannel", "review", "stop"])
+      assert.equal((await request("/api/slack", {action})).status, 401);
+    assert.equal((await request("/auth/slack/start", {})).status, 401);
     for (const action of ["label", "syncMail", "disconnect", "clearCache", "previewDelete", "deleteAccount", "cleanupReferences"])
       assert.equal((await request("/api/agenda", { action })).status, 401);
     assert.equal(
@@ -218,6 +227,12 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
         (await request("/api/agenda", { action }, "https://other.test")).status,
         403,
       );
+    const emptySlack = await (await request("/api/slack")).json();
+    assert.equal(emptySlack.configured, false);
+    assert.deepEqual(emptySlack.workspaces, []);
+    for (const action of ["configure", "refresh", "addChannel", "review", "stop"])
+      assert.equal((await request("/api/slack", {action}, "https://other.test")).status, 403);
+    assert.equal((await request("/auth/slack/start", {}, "https://other.test")).status, 403);
     const emptyCalendar = await request("/api/agenda", { action: "calendar" });
     assert.equal(emptyCalendar.status, 200);
     assert.equal((await emptyCalendar.json()).calendar.complete, false);

@@ -12,6 +12,7 @@
     <script type="module" src="/home-ui.js"></script>
     <script type="module" src="/backup-ui.js"></script>
     <script type="module" src="/agenda-ui.js"></script>
+    <script type="module" src="/slack-ui.js"></script>
   </head>
   <body data-view="home">
     <a class="skip-link" href="#workspace">メインへ移動</a>
@@ -49,6 +50,7 @@
           ><span class="nav-label">タスク</span
           ><span class="nav-count" id="navTaskCount">—</span>
         </button>
+        <button class="nav-button" data-panel="slack" data-focus="slackHeading"><span class="nav-symbol" aria-hidden="true">#</span><span class="nav-label">Slack</span></button>
       </nav>
       <div class="sidebar-bottom">
         <div class="service-small">
@@ -207,7 +209,7 @@
           </div>
           <footer class="panel-footer">
             <span id="homeDriveTime">未取得</span
-            ><span>Slack・ノートは未接続</span>
+            ><span><span id="homeSlackStatus">Slack・ノートは未接続</span></span>
           </footer>
           <section
             class="home-agenda-section"
@@ -349,7 +351,7 @@
                 <summary>アカウント別の取得状況</summary>
                 <div id="calendarAccounts"></div>
                 <p>
-                  今日を含む7日間・全接続のメインカレンダーを手動で取得します。時刻付きは日本時間、終日は日付とカレンダーの時間帯で表示します。予定の作成・変更は行いません。
+                  今日を含む7日間・全接続のメインカレンダーを毎時取得します。「予定を更新」でも取得できます。時刻付きは日本時間、終日は日付とカレンダーの時間帯で表示します。予定の作成・変更は行いません。
                 </p>
               </details>
               <div
@@ -443,6 +445,35 @@
           </footer>
           <p id="driveReviewStatus" class="review-status" role="status"></p>
           <p class="inline-notice" id="driveNotice" hidden></p>
+        </section>
+        <section class="panel surface slack-panel" aria-labelledby="slackHeading">
+          <div class="panel-heading"><h2 id="slackHeading" tabindex="-1">Slack</h2><button id="slackRefresh" class="button">投稿を更新</button></div>
+          <p id="slackStatus" class="agenda-help" role="status">未接続です</p>
+          <label class="agenda-help">表示ワークスペース <select id="slackWorkspace"></select></label><p id="slackScopes" class="agenda-help"></p>
+          <details class="agenda-help" open><summary>接続先・権限・チャンネルの設定</summary>
+            <details><summary>初回だけ：専用Slackアプリを設定</summary>
+              <p>Slackの管理画面で自分の対象ワークスペースに専用アプリを作成します。アプリの作成・インストールは管理者の許可が必要な場合があります。インストール先のワークスペースと、要求権限をご本人で確認してください。</p>
+              <p><a href="https://api.slack.com/apps" target="_blank" rel="noreferrer">Slackアプリ管理を開く ↗</a> ／ <a href="/slack-app-manifest.json" download>公開チャンネル用マニフェストを保存</a></p>
+              <p>「From a manifest」で保存したJSONを読み込みます。Redirect URLは <code>https://personal-dashboard.kait0.workers.dev/auth/slack/callback</code> です。非公開チャンネルを使う場合だけBot Scopesにgroups:read・groups:historyを追加します。公開配布・課金・PKCEの設定は自動で変更しません。</p>
+              <p>Basic InformationのApp Credentialsにある値を入力します。Client Secretは非表示入力で、登録後は再表示しません。ワークスペースURL・チャンネルURLの <code>/client/T…/C…</code> からIDを確認できます。</p>
+              <label>Client ID <input id="slackClientId" autocomplete="off" /></label>
+              <label>Client Secret <input id="slackClientSecret" type="password" autocomplete="new-password" /></label>
+              <label><input id="slackAppConfirm" type="checkbox" /> この専用アプリの資格情報をサーバーへ保存します</label>
+              <button id="slackAppSave" class="button" type="button">専用アプリ設定を登録</button>
+            </details>
+            <p>本人専用のSlackアプリを使用します。ChatGPTの接続やローカル認証情報は転用しません。Slackへの投稿・既読変更・招待は行いません。</p>
+            <p>公開チャンネル：channels:read・channels:history。非公開を選ぶ場合：groups:read・groups:historyも必要です。専用Botが参加し、ここで指定したチャンネルだけを取得します。</p>
+            <label>任意：追加・再接続先のID（空欄ならSlack認可画面で選択）<input id="slackTeamInput" autocomplete="off" /></label>
+            <label><input type="checkbox" id="slackPrivateInput" /> 非公開チャンネルも読み取る</label>
+            <button id="slackConnect" class="button">Slackを接続・再接続</button>
+            <button id="slackStop" class="button">Slack接続を停止</button>
+            <p>接続後、Slackの対象チャンネルで専用アプリを追加してください。本人が参加させるまで自動でチャンネルへ入りません。</p>
+            <label>取得チャンネルID（CまたはGから始まるID）<input id="slackChannelInput" autocomplete="off" /></label>
+            <button id="slackAddChannel" class="button">このチャンネルを追加</button>
+          </details>
+          <p class="agenda-help">直近7日・各チャンネル最大150件の投稿を毎時取得します。全件表示から、確認済みの投稿も確認できます。初期版はスレッド返信全文・添付本文・過去の親投稿への新しい返信の追跡・GitHub登録は未対応です。元のSlackへのリンクを使って確認してください。Slackの保存情報は現行の手動バックアップ対象外です。Slack側で複数ワークスペースへのインストール許可が必要な場合は、その設定・管理者承認も必要です。</p>
+          <div class="panel-toolbar"><label><input id="slackShowReviewed" type="checkbox" /> アプリで確認済みの投稿も表示</label></div>
+          <div id="slackChannels" class="slack-content"></div>
         </section>
         <section
           class="panel surface task-panel"
@@ -882,7 +913,7 @@
           </button>
         </section>
         <div class="unconnected-services">
-          <span>今後の連携</span>Slack・Obsidian
+          <span>今後の連携</span>Obsidian・端末アプリ
         </div>
       </div>
     </dialog>

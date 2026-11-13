@@ -10,3 +10,5 @@ personal-dashboard-backup-*.json
 public/motion-ui.js
 public/fonts/
 public/third-party-licenses.txt
+
+public/slack-app-manifest.json

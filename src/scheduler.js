@@ -1,8 +1,9 @@
+import { nextSlackAlarmAt } from "./slack.js";
 import { refreshDrive } from "./drive.js";
 
 // 既存のセッション期限とDriveの分割取得を同じAlarmで調停する。
 export async function nextAlarmAt(storage, now = Date.now()) {
-  const [session, flow, job, recovery, agendaFlow, mailJob, calendarJob] = await Promise.all(
+  const [session, flow, job, recovery, agendaFlow, mailJob, calendarJob, slackJob, slackFlow] = await Promise.all(
     [
       storage.get("session"),
       storage.get("drive:flow"),
@@ -11,6 +12,8 @@ export async function nextAlarmAt(storage, now = Date.now()) {
       storage.get("agenda:flow"),
       storage.get("agenda:mailJob"),
       storage.get("agenda:calendarJob"),
+      nextSlackAlarmAt(storage),
+      storage.get("slack:flow"),
     ],
   );
   const candidates = [
@@ -21,6 +24,8 @@ export async function nextAlarmAt(storage, now = Date.now()) {
     agendaFlow?.expires,
     mailJob?.nextAt,
     calendarJob?.nextAt,
+    slackJob,
+    slackFlow?.expires,
   ].filter(Number.isFinite);
   return candidates.length
     ? Math.max(now + 100, Math.min(...candidates))

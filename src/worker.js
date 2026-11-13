@@ -1,3 +1,7 @@
+import { selectedSlackStore } from "./slack-store.js";
+import { slackConnect, configureSlackApplication } from "./slack-auth.js";
+import { SlackError } from "./slack-http.js";
+import { slackMessagesView, addSlackChannel, queueSlackSync, runSlackBatch, reviewSlackMessage, stopSlack, dashboardSlackView, queueAllSlackSync, runNextSlackBatch } from "./slack.js";
 import { cleanupAccountReferences } from "./agenda-references.js";
 import { DurableObject } from "cloudflare:workers";
 import { login, logout, authorized } from "./auth.js";
@@ -54,6 +58,7 @@ export default {
   },
 };
 const actions = new Set([
+  "slack",
   "agenda",
   "home",
   "abandon",
@@ -79,6 +84,7 @@ export class Dashboard extends DurableObject {
       try {
         await queueMailSync(this.ctx.storage);
         await queueCalendarSync(this.ctx.storage);
+        await queueAllSlackSync(this.ctx.storage);
         await runHourlyDrive(this.env, this.ctx.storage);
       } finally {
         await scheduleAlarm(this.ctx.storage);
@@ -93,6 +99,8 @@ export class Dashboard extends DurableObject {
           await tx.delete("session");
         const flow = await tx.get("drive:flow");
         if (flow && flow.expires <= Date.now()) await tx.delete("drive:flow");
+        const slackFlow = await tx.get("slack:flow");
+        if (slackFlow && slackFlow.expires <= Date.now()) await tx.delete("slack:flow");
         const agendaFlow = await tx.get("agenda:flow");
         if (agendaFlow && agendaFlow.expires <= Date.now())
           await tx.delete("agenda:flow");
@@ -109,7 +117,11 @@ export class Dashboard extends DurableObject {
           const mailJob = await this.ctx.storage.get("agenda:mailJob");
           if (mailJob && mailJob.nextAt <= Date.now())
             await runMailBatch(this.env, this.ctx.storage);
-          else await runCalendarBatch(this.env, this.ctx.storage);
+          else {
+            const calendarJob = await this.ctx.storage.get("agenda:calendarJob");
+            if (calendarJob && calendarJob.nextAt <= Date.now()) await runCalendarBatch(this.env, this.ctx.storage);
+            else await runNextSlackBatch(this.env, this.ctx.storage);
+          }
         }
       } finally {
         await scheduleAlarm(this.ctx.storage);
@@ -153,6 +165,15 @@ export class Dashboard extends DurableObject {
     }
     if (request.method === "POST" && request.headers.get("Origin") !== origin)
       return Response.json({ error: "送信元が異なります" }, { status: 403 });
+    if ((request.method === "POST" && pathname === "/auth/slack/start") ||
+        (request.method === "GET" && pathname === "/auth/slack/callback")) {
+      try { return await slackConnect(request, this.env, storage, session); }
+      catch (error) {
+        if (error instanceof InputError || error instanceof SlackError)
+          return Response.json({error:error.message},{status:409});
+        throw error;
+      }
+    }
     if (request.method === "POST" && pathname === "/auth/logout")
       return logout(storage);
     if (
@@ -176,6 +197,8 @@ export class Dashboard extends DurableObject {
         "/confirm.js",
         "/home-ui.js",
         "/agenda-ui.js",
+        "/slack-ui.js",
+        "/slack-app-manifest.json",
         "/backup-ui.js",
         "/backup-format.js",
         "/style.css",
@@ -191,7 +214,7 @@ export class Dashboard extends DurableObject {
     if (!pathname.startsWith("/api/") || !actions.has(action))
       return new Response(null, { status: 404 });
     if (
-      ["drive", "home", "backup", "agenda"].includes(action)
+      ["drive", "home", "backup", "agenda", "slack"].includes(action)
         ? !["GET", "POST"].includes(request.method)
         : request.method !== (action === "state" ? "GET" : "POST")
     )
@@ -209,6 +232,28 @@ export class Dashboard extends DurableObject {
         return new Response(null, { status: 400 });
     }
     try {
+      if (action === "slack") {
+        if (request.method === "GET") return Response.json(await dashboardSlackView(this.env, storage, searchParams.get("teamId")));
+        if (input.action === "configure") {
+          await configureSlackApplication(this.env, storage, input);
+          return Response.json(await dashboardSlackView(this.env, storage));
+        }
+        const scoped = await selectedSlackStore(storage, input.teamId);
+        const operations = {
+          addChannel: addSlackChannel,
+          refresh: async (env, storage) => {
+            await queueSlackSync(storage, Date.now(), "manual");
+            return slackMessagesView(env, storage);
+          },
+          review: reviewSlackMessage,
+          stop: stopSlack,
+        };
+        const operation = Object.hasOwn(operations, input.action) ? operations[input.action] : null;
+        if (!operation) throw new InputError("Slackの操作が不正です");
+        await operation(this.env, scoped, input);
+        if (input.action === "stop") await storage.delete("slack:flow");
+        return Response.json(await dashboardSlackView(this.env, storage, input.teamId));
+      }
       if (action === "agenda") {
         if (request.method === "GET")
           return Response.json(
@@ -347,6 +392,7 @@ export class Dashboard extends DurableObject {
       if (
         e instanceof InputError ||
         e instanceof DriveReviewError ||
+        e instanceof SlackError ||
         e instanceof AgendaError
       )
         return Response.json(

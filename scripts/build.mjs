@@ -37,3 +37,5 @@ await build({
   target: ["es2022"],
   legalComments: "eof",
 });
+
+await copyFile("slack-app-manifest.json", "public/slack-app-manifest.json");
