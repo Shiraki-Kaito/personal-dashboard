@@ -26,6 +26,17 @@ const env = {
   GOOGLE_CLIENT_SECRET: "fixture",
   GOOGLE_OAUTH_PUBLISHING_STATUS: "published",
 };
+
+test("番号・氏名付き個人作業の変更をホームから分離し、未確認記録は消さない", async () => {
+  const storage = await setup();
+  const cache = await storage.get("drive:cache");
+  const personal = {...cache.unreadChanges[0], id:"personal",folder:"Root / 900_白木_個人作業 / notes"};
+  await storage.put("drive:cache", {...cache,unreadChanges:[...cache.unreadChanges,personal]});
+  const view = await homeView(env,storage,()=>assert.fail(),false,now);
+  assert.deepEqual(view.drive.files.map(file=>file.id),["file"]);
+  assert.equal(view.drive.personalCount,1);
+  assert.equal((await storage.get("drive:cache")).unreadChanges.length,2);
+});
 function memory() {
   const data = new Map();
   return {

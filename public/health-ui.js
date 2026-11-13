@@ -6,6 +6,9 @@ const labels = {
   never: "未取得",
   disconnected: "未接続・停止",
   running: "取得中",
+  queued: "順番待ち",
+  retrying: "再試行待ち",
+  interrupted: "取得未完了",
 };
 const time = (value) =>
   value ? new Date(value).toLocaleString("ja-JP") : "記録なし";

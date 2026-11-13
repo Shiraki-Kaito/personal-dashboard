@@ -1,3 +1,4 @@
+import { mailPriorityVersion } from "./agenda-priority.js";
 import { InputError } from "./sync.js";
 import { digest } from "./agenda-rules.js";
 import { displayAccounts, validAccountLabel } from "./agenda-labels.js";
@@ -57,6 +58,7 @@ export async function createAgendaBackup(storage) {
               ...(message.priority
                 ? {
                     priority: pick(message.priority, [
+                      "version",
                       "category",
                       "important",
                       "reason",
@@ -253,6 +255,10 @@ export async function agendaRestoreEntries(storage, backup) {
               message.priority?.category,
             ) &&
               typeof message.priority.important === "boolean" &&
+              (message.priority.version === undefined ||
+                (Number.isInteger(message.priority.version) &&
+                  message.priority.version > 0 &&
+                  message.priority.version <= mailPriorityVersion)) &&
               text(message.priority.reason, 200)),
         );
         seen.add(message.id);
@@ -261,6 +267,7 @@ export async function agendaRestoreEntries(storage, backup) {
           ...(message.priority
             ? {
                 priority: pick(message.priority, [
+                  "version",
                   "category",
                   "important",
                   "reason",

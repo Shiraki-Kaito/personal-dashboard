@@ -2,7 +2,7 @@ export const isPersonalWork = (file) =>
   (file.folder || "")
     .split(" / ")
     .some((part) =>
-      ["個人作業", "個人作業用"].includes(part.trim().normalize("NFKC")),
+      /(?:^|[_\s-])個人作業(?:用)?$/.test(part.trim().normalize("NFKC")),
     );
 import { driveClient, DriveError } from "./drive-http.js";
 import { nextRecovery } from "./recovery.js";

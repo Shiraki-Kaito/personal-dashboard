@@ -2,7 +2,7 @@ import { queueCalendarSync } from "./calendar-scheduler.js";
 import { disconnectAccount, clearAccountCache, previewAccountDeletion, deleteAccount } from "./agenda-management.js";
 import { readMailPage, recordMailRun } from "./agenda-mail.js";
 import { displayAccounts, saveAccountLabel } from "./agenda-labels.js";
-import { mailPriority } from "./agenda-priority.js";
+import { currentMailPriority } from "./agenda-priority.js";
 import { maximumAgendaAccounts } from "./agenda-account-rules.js";
 import { InputError } from "./sync.js";
 import { upcomingCalendarView } from "./agenda-calendar.js";
@@ -103,7 +103,7 @@ export async function agendaView(env, storage, id) {
     messages: await Promise.all(
       (cache.messages || []).map(async (message) => ({
         ...message,
-        priority: message.priority || mailPriority(message),
+        priority: currentMailPriority(message),
         review: reviews[message.id] || null,
         operation:
           (await operationView(

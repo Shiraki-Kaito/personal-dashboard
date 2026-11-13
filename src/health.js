@@ -9,6 +9,19 @@ const githubFreshnessMs = 2 * 60 * 1000;
 const maximumTaskStates = 1000;
 const delayedJobMs = 5 * 60 * 1000;
 
+const sourceGuidance = {
+  disconnected: "接続設定から再接続してください",
+  queued:
+    "この接続の取得は順番待ちです。表示中の件数と成功時刻は前回の記録です",
+  retrying: "取得失敗後の再試行待ちです。前回成功の一覧を保持しています",
+  interrupted: "最終試行の完了を確認できません。対象の画面で再取得してください",
+  error: "元の画面でエラーを確認し、権限・待機時刻を確認して再取得してください",
+  running: "取得中です。前回成功の情報は取得完了まで保持します",
+  never: "まだ取得に成功していません",
+  stale: "保存情報が古くなっています。元の画面で更新してください",
+  ok: "取得成功を記録しています",
+};
+
 // 本文・秘密値・保存されたエラーの生文字列を応答へ含めず、復旧の行き先を示す。
 function sourceStatus({
   service,
@@ -17,6 +30,7 @@ function sourceStatus({
   cache = {},
   connected = true,
   active = false,
+  activity = null,
   count = null,
   freshnessMs = hourlyFreshnessMs,
   now,
@@ -26,17 +40,17 @@ function sourceStatus({
 }) {
   const success = Date.parse(cache.lastSuccess);
   const old = stale || !Number.isFinite(success) || now - success > freshnessMs;
-  const state = !connected
-    ? "disconnected"
-    : cache.error
-      ? "error"
-      : active
-        ? "running"
-        : !Number.isFinite(success)
-          ? "never"
-          : old
-            ? "stale"
-            : "ok";
+  const progress = activity || (active ? "running" : null);
+  const incomplete =
+    Number.isFinite(Date.parse(cache.lastAttempt)) &&
+    (!Number.isFinite(success) || Date.parse(cache.lastAttempt) > success);
+  let state;
+  if (!connected) state = "disconnected";
+  else if (cache.error) state = progress === "running" ? "retrying" : "error";
+  else if (progress) state = progress;
+  else if (incomplete) state = "interrupted";
+  else if (!Number.isFinite(success)) state = "never";
+  else state = old ? "stale" : "ok";
   return {
     service,
     test,
@@ -49,18 +63,7 @@ function sourceStatus({
     errorCode: cache.errorCode || (cache.error ? "fetch_failed" : null),
     retryAt: cache.retryAt || null,
     cron,
-    guidance:
-      state === "disconnected"
-        ? "接続設定から再接続してください"
-        : state === "error"
-          ? "元の画面でエラーを確認し、権限・待機時刻を確認して再取得してください"
-          : state === "running"
-            ? "取得中です。前回成功の情報は取得完了まで保持します"
-            : state === "never"
-              ? "まだ取得に成功していません"
-              : state === "stale"
-                ? "保存情報が古くなっています。元の画面で更新してください"
-                : "取得成功を記録しています",
+    guidance: sourceGuidance[state],
   };
 }
 
@@ -121,6 +124,8 @@ export async function healthView(env, storage, now = Date.now()) {
       now,
     }),
   );
+  const mailJob = await storage.get("agenda:mailJob");
+  const calendarJob = await storage.get("agenda:calendarJob");
   const accounts = await displayAccounts(storage);
   const calendars = (await upcomingCalendarView(storage, now)).accounts;
   const mailCron =
@@ -136,6 +141,7 @@ export async function healthView(env, storage, now = Date.now()) {
     sources.push(
       sourceStatus({
         service: "mail",
+        activity: jobActivity(mailJob, account.id, "accountIds"),
         label: label + " · メール",
         panel: "agenda",
         cache: mail,
@@ -149,6 +155,7 @@ export async function healthView(env, storage, now = Date.now()) {
     sources.push(
       sourceStatus({
         service: "calendar",
+        activity: jobActivity(calendarJob, account.id, "accountIds"),
         label: label + " · 予定",
         panel: "agenda",
         cache: calendar,
@@ -200,11 +207,13 @@ export async function healthView(env, storage, now = Date.now()) {
   for (const workspace of workspaces) {
     const scoped = slackWorkspaceStore(storage, workspace.teamId);
     const credential = await scoped.get("slack:credential");
+    const job = await scoped.get("slack:job");
     for (const channel of (await scoped.get("slack:channels")) || []) {
       const cache = (await scoped.get("slack:cache:" + channel.id)) || {};
       sources.push(
         sourceStatus({
           service: "slack",
+          activity: jobActivity(job, channel.id, "channelIds"),
           label: (workspace.teamName || "Slack") + " · " + channel.name,
           panel: "slack",
           cache,
@@ -229,8 +238,9 @@ export async function healthView(env, storage, now = Date.now()) {
     pending,
     jobs,
     attentionCount:
-      sources.filter((s) => !s.test && !["ok", "running"].includes(s.state))
-        .length +
+      sources.filter(
+        (s) => !s.test && !["ok", "running", "queued"].includes(s.state),
+      ).length +
       pending.length +
       jobs.filter((j) => j.delayed).length,
   };
@@ -243,4 +253,12 @@ function addJob(jobs, label, job, now) {
     nextAt,
     delayed: Number.isFinite(nextAt) && now - nextAt > delayedJobMs,
   });
+}
+
+// ジョブの現在位置より前の接続を、取得中へ巻き戻さない。
+function jobActivity(job, id, field) {
+  if (!Array.isArray(job?.[field]) || !Number.isInteger(job.index)) return null;
+  const position = job[field].indexOf(id);
+  if (position < 0 || position < job.index) return null;
+  return position === job.index ? "running" : "queued";
 }

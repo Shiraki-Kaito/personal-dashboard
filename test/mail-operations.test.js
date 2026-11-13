@@ -218,7 +218,10 @@ test("Driveの個人作業は正確なパス区分だけで分け、元の未確
     true,
   );
   assert.equal(isPersonalWork({ folder: "Root / 個人作業用 / 名前" }), true);
+  for (const name of ["900_白木_個人作業", "９００＿白木＿個人作業用", "白木-個人作業", "900 個人作業"])
+    assert.equal(isPersonalWork({ folder: "Root / " + name + " / 子フォルダ" }), true);
   assert.equal(isPersonalWork({ folder: "Root / 個人作業の共有成果" }), false);
+  assert.equal(isPersonalWork({ folder: "Root / 900_個人作業_共有成果" }), false);
   const s = memory();
   const file = {
     id: "f",

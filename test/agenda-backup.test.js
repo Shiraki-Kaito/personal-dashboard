@@ -12,6 +12,7 @@ test("表示名と重要判定を復元し、既存の別名を上書きしな�
   const key = "agenda:cache:" + accounts[0].id,
     cache = await source.get(key);
   cache.messages[0].priority = {
+    version: 2,
     category: "career",
     important: true,
     reason: "選考の連絡",
@@ -22,6 +23,7 @@ test("表示名と重要判定を復元し、既存の別名を上書きしな�
   await restoreBackup(env, target, backup, plan.checksum);
   assert.equal(await target.get("agenda:label:" + accounts[0].id), "就活");
   assert.equal((await target.get(key)).messages[0].priority.important, true);
+  assert.equal((await target.get(key)).messages[0].priority.version, 2);
   const fresh = memory();
   await fresh.put("agenda:accounts", accounts);
   await fresh.put("agenda:label:" + accounts[0].id, "private");
