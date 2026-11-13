@@ -1,13 +1,11 @@
+import { queueCalendarSync } from "./calendar-scheduler.js";
 import { disconnectAccount, clearAccountCache, previewAccountDeletion, deleteAccount } from "./agenda-management.js";
 import { readMailPage, recordMailRun } from "./agenda-mail.js";
 import { displayAccounts, saveAccountLabel } from "./agenda-labels.js";
 import { mailPriority } from "./agenda-priority.js";
 import { maximumAgendaAccounts } from "./agenda-account-rules.js";
 import { InputError } from "./sync.js";
-import {
-  upcomingCalendarView,
-  refreshUpcomingCalendar,
-} from "./agenda-calendar.js";
+import { upcomingCalendarView } from "./agenda-calendar.js";
 import {
   agendaAccounts,
   agendaClient,
@@ -144,8 +142,10 @@ export async function reviewAgenda(env, storage, input) {
   await storage.put(key, reviews);
   return agendaView(env, storage, account.id);
 }
-export async function refreshAgendaCalendar(env, storage, input, send = fetch) {
-  await refreshUpcomingCalendar(env, storage, send);
+export async function refreshAgendaCalendar(env, storage, input) {
+  if (await storage.get("agenda:calendarJob"))
+    throw new InputError("予定の自動取得中です。完了後に再取得してください");
+  await queueCalendarSync(storage, Date.now(), "manual-batch");
   return agendaView(env, storage, input.accountId);
 }
 export async function refreshAgenda(

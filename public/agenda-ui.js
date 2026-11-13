@@ -47,7 +47,7 @@ function controls() {
     !state?.accounts.length || state?.mailJob?.active;
   el("agendaLabelSave").disabled ||= !state?.accountId;
   el("agendaManual").disabled ||= !state?.accountId;
-  el("calendarRefresh").disabled ||= !state?.accounts.length;
+  el("calendarRefresh").disabled ||= !state?.accounts.length || state?.calendar?.job?.active;
   el("agendaMore").disabled ||= !state?.nextPageToken || state?.limited;
   el("appointmentRegister").disabled =
     busy ||
@@ -303,7 +303,9 @@ function renderCalendar() {
       minute: "2-digit",
     });
   el("calendarStatus").textContent =
-    `${day(calendar.range.start)}〜${day(Date.parse(calendar.range.end) - 1)} ／ ${calendar.events.length}件` +
+    `取得対象 ${day(calendar.range.start)}〜${day(Date.parse(calendar.range.end) - 1)} ／ 表示 ${calendar.events.length}件・毎時自動取得` +
+    (calendar.job?.active ? " ／ 取得中（前の完全な一覧を表示）" : "") +
+    (calendar.scheduler?.lastTriggeredAt ? " ／ 前回Cron " + time(calendar.scheduler.lastTriggeredAt) : " ／ Cron未記録") +
     (calendar.complete
       ? " ／ 全接続の取得完了"
       : " ／ 未取得・古さ・失敗を確認してください") +
@@ -316,10 +318,10 @@ function renderCalendar() {
     ...calendar.accounts.map((account) => {
       const p = document.createElement("p");
       p.textContent =
-        `${accountName(account)}：${account.count}件 ／ API取得 ${account.receivedCount ?? "未記録"}件・${account.pages ?? "未記録"}ページ ／ 試行 ${time(account.lastAttempt)} ／ 成功 ${time(account.lastSuccess)}` +
+        `${accountName(account)}：${account.count}件 ／ 取得元 ${{cron:"自動", "manual-batch":"手動・全接続",manual:"手動"}[account.source] || "未記録"} ／ API取得 ${account.receivedCount ?? "未記録"}件・${account.pages ?? "未記録"}ページ ／ 試行 ${time(account.lastAttempt)} ／ 成功 ${time(account.lastSuccess)}` +
         (account.error ? " ／ 取得失敗：" + account.error : "") +
         (account.stale ? " ／ 保存済み情報は古いか未取得です" : "");
-      if (account.rangeStart && (account.stale || account.error))
+      if (account.rangeStart)
         p.textContent += ` ／ 保存範囲 ${day(account.rangeStart)}〜${day(Date.parse(account.rangeEnd) - 1)}`;
       return p;
     }),
@@ -341,7 +343,7 @@ function renderCalendar() {
         (event.location ? " ／ " + event.location : "") +
         (event.tentative ? " ／ 未確定" : "") +
         (event.transparent ? " ／ 空き時間として扱う" : "") +
-        (event.stale || event.cachedWithError ? " ／ 保存済み" : "");
+        (event.stale || event.cachedWithError ? " ／ 保存済み・取得対象期間と異なる場合があります" : "");
       row.append(title, info, source);
       if (event.url) {
         const link = document.createElement("a");

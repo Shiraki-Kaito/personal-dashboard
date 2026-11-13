@@ -92,6 +92,8 @@ export async function upcomingCalendarView(storage, now = Date.now()) {
       label: account.label,
       count: cache.events?.length || 0,
       lastAttempt: cache.lastAttempt || null,
+      source: cache.source || null,
+      lastAttemptSource: cache.lastAttemptSource || null,
       lastSuccess: cache.lastSuccess || null,
       error: account.disconnectedAt ? "接続停止中・保存情報です" : cache.error || null,
       errorCode: account.disconnectedAt ? "disconnected" : cache.errorCode || null,
@@ -124,6 +126,10 @@ export async function upcomingCalendarView(storage, now = Date.now()) {
     range,
     accounts,
     events,
+    job: (await storage.get("agenda:calendarJob"))
+      ? { active: true, nextAt: (await storage.get("agenda:calendarJob")).nextAt }
+      : { active: false },
+    scheduler: (await storage.get("agenda:calendarScheduler")) || null,
     complete:
       accounts.length > 0 && accounts.every((a) => !a.stale && !a.error),
     maximumEventsPerAccount: pageSize * maximumPages,
@@ -135,17 +141,19 @@ export async function refreshUpcomingCalendar(
   storage,
   send = fetch,
   now = Date.now(),
+  options = {},
 ) {
   const range = calendarRange(now),
     budget = { remaining: 30 };
   for (const account of await agendaAccounts(storage)) {
-    if (account.disconnectedAt) continue;
+    if (account.disconnectedAt || (options.accountId && account.id !== options.accountId)) continue;
     const key = "agenda:calendar:" + account.id,
       cache = (await storage.get(key)) || {};
     if (cache.retryAt > now) continue;
     const attempt = {
       ...cache,
       lastAttempt: new Date(now).toISOString(),
+      lastAttemptSource: options.source || "manual",
       retryAt: now + minimumRefreshMs,
     };
     await storage.put(key, attempt);
@@ -213,6 +221,8 @@ export async function refreshUpcomingCalendar(
         rangeStart: range.start,
         rangeEnd: range.end,
         lastAttempt: attempt.lastAttempt,
+        lastAttemptSource: attempt.lastAttemptSource,
+        source: attempt.lastAttemptSource,
         lastSuccess: new Date(Math.max(now, Date.now())).toISOString(),
         retryAt: attempt.retryAt,
         error: null,

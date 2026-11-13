@@ -2,7 +2,7 @@ import { refreshDrive } from "./drive.js";
 
 // 既存のセッション期限とDriveの分割取得を同じAlarmで調停する。
 export async function nextAlarmAt(storage, now = Date.now()) {
-  const [session, flow, job, recovery, agendaFlow, mailJob] = await Promise.all(
+  const [session, flow, job, recovery, agendaFlow, mailJob, calendarJob] = await Promise.all(
     [
       storage.get("session"),
       storage.get("drive:flow"),
@@ -10,6 +10,7 @@ export async function nextAlarmAt(storage, now = Date.now()) {
       storage.get("drive:recovery"),
       storage.get("agenda:flow"),
       storage.get("agenda:mailJob"),
+      storage.get("agenda:calendarJob"),
     ],
   );
   const candidates = [
@@ -19,6 +20,7 @@ export async function nextAlarmAt(storage, now = Date.now()) {
     recovery?.nextAt,
     agendaFlow?.expires,
     mailJob?.nextAt,
+    calendarJob?.nextAt,
   ].filter(Number.isFinite);
   return candidates.length
     ? Math.max(now + 100, Math.min(...candidates))

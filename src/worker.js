@@ -15,6 +15,7 @@ import { DriveReviewError } from "./drive-review.js";
 import { homeView } from "./home.js";
 import { createBackup, backupPlan, restoreBackup } from "./backup.js";
 import { scheduleAlarm, runHourlyDrive } from "./scheduler.js";
+import { queueCalendarSync, runCalendarBatch } from "./calendar-scheduler.js";
 import { queueMailSync, runMailBatch } from "./mail-scheduler.js";
 import { agendaConnect, AgendaError } from "./agenda-google.js";
 import {
@@ -76,6 +77,7 @@ export class Dashboard extends DurableObject {
     return this.serialize(async () => {
       try {
         await queueMailSync(this.ctx.storage);
+        await queueCalendarSync(this.ctx.storage);
         await runHourlyDrive(this.env, this.ctx.storage);
       } finally {
         await scheduleAlarm(this.ctx.storage);
@@ -102,7 +104,12 @@ export class Dashboard extends DurableObject {
           (recovery?.nextAt && recovery.nextAt <= Date.now())
         )
           await refreshDrive(this.env, this.ctx.storage);
-        else await runMailBatch(this.env, this.ctx.storage);
+        else {
+          const mailJob = await this.ctx.storage.get("agenda:mailJob");
+          if (mailJob && mailJob.nextAt <= Date.now())
+            await runMailBatch(this.env, this.ctx.storage);
+          else await runCalendarBatch(this.env, this.ctx.storage);
+        }
       } finally {
         await scheduleAlarm(this.ctx.storage);
       }
