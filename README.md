@@ -18,6 +18,12 @@
 | 8 | 未接続 | GitHub上のObsidianノート（`*_L.md`除外） |
 | 9 | 未実装 | Windowsアプリ・壁紙風表示、その後のiPad／iPhone展開 |
 
+### 新しい専用アプリを追加しない閲覧の確認（2026年11月13日）
+
+- 本人から「アプリを入れずにChatGPTが確認できないか」と依頼があり、既存のChatGPT側Slack接続（KIT Developers Hub）を読み取りだけで試験しました。公開チャンネル2件の一覧取得と、`#general`の最新投稿1件を読む操作が成功しています。追加インストール・既存アプリ変更・投稿・リアクション・既読変更は行っていません。投稿本文・接続用ID・認証情報はリポジトリやCloudflareへ保存していません。
+- これはChatGPTの認可済み接続による閲覧で、自作ダッシュボードのSlack接続が済んだわけではありません。この接続をWorkersから利用する公開された認証・常時取得経路は今回確認できませんでした。元の「ChatGPT接続の自作アプリへの流用なし」「ChatGPTの定期タスク不使用」を自動で撤回せず、読み取った内容の中継や同期も実装していません。
+- OpenAIの[Plugins公式説明](https://learn.chatgpt.com/docs/plugins)とSlackの[トークン仕様](https://docs.slack.dev/authentication/tokens/)を確認しました。Slack User Tokenもアプリへの認可に基づくため「ユーザートークンなら新規アプリ不要」とは断定せず、[新規Legacy tokenは作れない](https://docs.slack.dev/legacy/legacy-custom-integrations/legacy-custom-integrations-tokens/)ことも確認しています。管理者による[公開チャンネルJSONエクスポート](https://slack.com/help/articles/201658943-Export-your-workspace-data)は別案ですが、手動取り込みと継続同期を区別します。
+
 ### Slack初回設定の現在位置（2026年11月13日）
 
 - 本人が作成先として **KIT Developers Hub** を選択しました。Slackの「Create from a manifest」へ専用マニフェストを入力し、ワークスペースを指定したところ、`has reached its app limit` の実エラーでNextが無効になっています。現時点では専用アプリ未作成・Client Secret未発行・Slack未認可のままです。
