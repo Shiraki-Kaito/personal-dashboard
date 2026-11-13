@@ -77,7 +77,7 @@ function render() {
       ? "Slack接続済み " +
         state.workspaces.filter((workspace) => workspace.connected).length +
         "ワークスペース"
-      : "Slack未接続") + "／ノート未接続";
+      : "Slack未接続");
   el("slackStatus").textContent = !state.configured
     ? "専用Slackアプリの設定待ちです。必要な権限と対象を確認してから接続します。"
     : !state.connection?.connected

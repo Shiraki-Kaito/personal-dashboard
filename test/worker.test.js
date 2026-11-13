@@ -27,6 +27,12 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     if (url.hostname === "github.com")
       return Response.json({ scope: "project", access_token: "fixture" });
     if (url.pathname === "/user") return Response.json({ node_id: viewer });
+    if (url.pathname === "/repos/fixture/notes") return Response.json({default_branch:"main",private:false});
+    if (url.pathname === "/repos/fixture/notes/commits/main") return Response.json({sha:"b".repeat(40),commit:{tree:{sha:"a".repeat(40)}}});
+    if (url.pathname === "/repos/fixture/notes/git/trees/"+"a".repeat(40)) return Response.json({sha:"a".repeat(40),truncated:false,tree:[
+      {path:"note.md",mode:"100644",type:"blob",sha:"c".repeat(40),size:0},
+      {path:"private_L.md",mode:"100644",type:"blob",sha:"d".repeat(40),size:0},
+    ]});
     const { query, variables } = await req.json();
     if (variables.settingsProject)
       return Response.json({ data: settingsFixture(cfg) });
@@ -65,6 +71,9 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
   function boot() {
     const modules = [
       "worker",
+      "notes",
+      "health",
+      "notes-http",
       "auth",
       "github",
       "sync",
@@ -166,7 +175,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       401,
     );
     assert.equal((await request("/auth/agenda/start", {})).status, 401);
-    for (const route of ["/api/slack", "/slack-ui.js", "/auth/slack/callback"])
+    for (const route of ["/api/slack", "/slack-ui.js", "/auth/slack/callback", "/api/notes", "/notes-ui.js", "/api/health", "/health-ui.js"])
       assert.equal((await request(route)).status, 401);
     for (const action of ["configure", "refresh", "addChannel", "review", "stop"])
       assert.equal((await request("/api/slack", {action})).status, 401);
@@ -227,6 +236,17 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
         (await request("/api/agenda", { action }, "https://other.test")).status,
         403,
       );
+    assert.equal((await request("/api/notes", {action:"configure"}, "https://other.test")).status, 403);
+    assert.equal((await request("/api/health", {})).status, 405);
+    assert.equal((await (await request("/api/health")).json()).externalRequests, 0);
+    const emptyNotes = await (await request("/api/notes")).json();
+    assert.equal(emptyNotes.configured, false);
+    assert.deepEqual(emptyNotes.files, []);
+    for (const action of ["configure","read","refresh","stop"]) assert.equal((await request("/api/notes",{action},"https://other.test")).status,403);
+    const configuredNotes = await request("/api/notes",{action:"configure",repository:"https://github.com/fixture/notes",confirm:true});
+    assert.equal(configuredNotes.status,200);
+    assert.deepEqual((await configuredNotes.json()).files.map(file=>file.path),["note.md"]);
+    assert.equal((await request("/api/notes", {action:"read",path:"secret_L.md"})).status, 409);
     const emptySlack = await (await request("/api/slack")).json();
     assert.equal(emptySlack.configured, false);
     assert.deepEqual(emptySlack.workspaces, []);
@@ -314,6 +334,11 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     await app.dispose();
     app = boot();
     rejectWrites = false;
+    const restartedNotes=await (await request("/api/notes")).json();
+    assert.equal(restartedNotes.configured,true);
+    assert.deepEqual(restartedNotes.files.map(file=>file.path),["note.md"]);
+    const healthAfterRestart=await (await request("/api/health")).json();
+    assert.equal(healthAfterRestart.pending.find(item=>item.service==="github").count,1);
     const recovered = await (await request("/api/state")).json();
     assert.equal(recovered.pending.id, failed.pending.id);
     const retries = await Promise.all([

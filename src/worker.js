@@ -1,3 +1,6 @@
+import { healthView } from "./health.js";
+import { notesView, configureNotes, refreshNotes, readNote, stopNotes } from "./notes.js";
+import { NotesError } from "./notes-http.js";
 import { selectedSlackStore } from "./slack-store.js";
 import { slackConnect, configureSlackApplication } from "./slack-auth.js";
 import { SlackError } from "./slack-http.js";
@@ -58,6 +61,8 @@ export default {
   },
 };
 const actions = new Set([
+  "notes",
+  "health",
   "slack",
   "agenda",
   "home",
@@ -198,6 +203,8 @@ export class Dashboard extends DurableObject {
         "/home-ui.js",
         "/agenda-ui.js",
         "/slack-ui.js",
+        "/notes-ui.js",
+        "/health-ui.js",
         "/slack-app-manifest.json",
         "/backup-ui.js",
         "/backup-format.js",
@@ -214,9 +221,9 @@ export class Dashboard extends DurableObject {
     if (!pathname.startsWith("/api/") || !actions.has(action))
       return new Response(null, { status: 404 });
     if (
-      ["drive", "home", "backup", "agenda", "slack"].includes(action)
+      ["drive", "home", "backup", "agenda", "slack", "notes"].includes(action)
         ? !["GET", "POST"].includes(request.method)
-        : request.method !== (action === "state" ? "GET" : "POST")
+        : request.method !== (["state", "health"].includes(action) ? "GET" : "POST")
     )
       return new Response(null, { status: 405 });
     let input = {};
@@ -232,6 +239,15 @@ export class Dashboard extends DurableObject {
         return new Response(null, { status: 400 });
     }
     try {
+      if (action === "health") return Response.json(await healthView(this.env, storage));
+      if (action === "notes") {
+        if (request.method === "GET") return Response.json(await notesView(storage));
+        if (input.action === "configure") return Response.json(await configureNotes(storage, input));
+        if (input.action === "refresh") return Response.json(await refreshNotes(storage));
+        if (input.action === "read") return Response.json(await readNote(storage, input));
+        if (input.action === "stop") return Response.json(await stopNotes(storage, input));
+        throw new InputError("ノートの操作が不正です");
+      }
       if (action === "slack") {
         if (request.method === "GET") return Response.json(await dashboardSlackView(this.env, storage, searchParams.get("teamId")));
         if (input.action === "configure") {
@@ -393,6 +409,7 @@ export class Dashboard extends DurableObject {
         e instanceof InputError ||
         e instanceof DriveReviewError ||
         e instanceof SlackError ||
+        e instanceof NotesError ||
         e instanceof AgendaError
       )
         return Response.json(

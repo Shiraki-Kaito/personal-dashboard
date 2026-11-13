@@ -13,6 +13,8 @@
     <script type="module" src="/backup-ui.js"></script>
     <script type="module" src="/agenda-ui.js"></script>
     <script type="module" src="/slack-ui.js"></script>
+    <script type="module" src="/notes-ui.js"></script>
+    <script type="module" src="/health-ui.js"></script>
   </head>
   <body data-view="home">
     <a class="skip-link" href="#workspace">メインへ移動</a>
@@ -51,6 +53,7 @@
           ><span class="nav-count" id="navTaskCount">—</span>
         </button>
         <button class="nav-button" data-panel="slack" data-focus="slackHeading"><span class="nav-symbol" aria-hidden="true">#</span><span class="nav-label">Slack</span></button>
+        <button class="nav-button" data-panel="notes" data-focus="notesHeading"><span class="nav-symbol" aria-hidden="true">▧</span><span class="nav-label">ノート</span></button>
       </nav>
       <div class="sidebar-bottom">
         <div class="service-small">
@@ -209,7 +212,7 @@
           </div>
           <footer class="panel-footer">
             <span id="homeDriveTime">未取得</span
-            ><span><span id="homeSlackStatus">Slack・ノートは未接続</span></span>
+            ><span><span id="homeSlackStatus">Slackは未接続</span><span id="homeNotesStatus"> ／ ノートは未設定</span></span>
           </footer>
           <section
             class="home-agenda-section"
@@ -445,6 +448,27 @@
           </footer>
           <p id="driveReviewStatus" class="review-status" role="status"></p>
           <p class="inline-notice" id="driveNotice" hidden></p>
+        </section>
+        <section class="panel surface notes-panel" aria-labelledby="notesHeading">
+          <div class="panel-heading"><div><p class="eyebrow">OBSIDIAN · READ ONLY</p><h2 id="notesHeading" tabindex="-1">ノート</h2></div><button id="notesRefresh" class="button">一覧を更新</button></div>
+          <p id="notesStatus" class="agenda-help" role="status">取得対象は未設定です</p>
+          <details id="notesSettings" class="notes-settings"><summary>取得対象・接続の設定</summary>
+            <p>指定フォルダ以下のMarkdownを検索・閲覧します。ファイルの編集、Obsidianの同期設定の変更は行いません。<code>*_L.md</code>は一覧表示と本文取得から除外します。</p>
+            <form id="notesForm">
+              <label>リポジトリURL<input id="notesRepository" type="url" value="https://github.com/Shiraki-Kaito/obsidian-notes" placeholder="https://github.com/owner/repository" required autocomplete="off" /></label>
+              <label>対象フォルダ（ルートなら空欄）<input id="notesFolder" placeholder="notes" autocomplete="off" /></label>
+              <label>ブランチ（空欄なら既定）<input id="notesBranch" autocomplete="off" /></label>
+              <label><input id="notesPrivate" type="checkbox" checked /> 非公開リポジトリを専用トークンで読む</label>
+              <p>非公開の場合はGitHubでFine-grained tokenを作成し、対象リポジトリだけを選択、Repository permissionsのContentsをRead-onlyにします。Projects用認可やPCのCLI認証を流用しません。トークンはサーバーに保存し、再表示・バックアップしません。権限の実際の設定はGitHub側でも確認してください。</p>
+              <p><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">GitHubの専用トークン作成画面 ↗</a></p>
+              <label>Fine-grained token（同じリポジトリの設定変更では空欄で保持）<input id="notesToken" type="password" autocomplete="new-password" /></label>
+              <label><input id="notesConfirm" type="checkbox" /> 指定した対象の読み取りとサーバーへの設定保存を確認しました</label>
+              <div class="notes-actions"><button id="notesSave" class="button" type="submit">対象を確認して保存</button><button id="notesStop" type="button" class="button button-secondary">接続と一覧をこのサイトから削除</button></div>
+            </form>
+          </details>
+          <div class="panel-toolbar"><label class="notes-search">ファイル名・パスで検索<input id="notesSearch" type="search" placeholder="研究、運営、ノート名…" /></label><span id="notesCount"></span></div>
+          <div class="notes-workspace"><div id="notesList" class="notes-list" aria-label="ノート一覧"></div><article class="notes-reader"><div class="notes-reader-heading"><h3 id="noteTitle">ノートを選択</h3><a id="noteSource" target="_blank" rel="noreferrer" hidden>GitHubで開く ↗</a></div><p id="noteStatus" role="status"></p><pre id="noteBody">一覧から選ぶと、本文を取得します。本文はMarkdown原文として表示し、外部画像・HTML・スクリプトは実行しません。</pre></article></div>
+          <p class="agenda-help">一覧は手動更新です。上限1000ノート・ツリー5000項目、本文256KiB。取得失敗時は以前の一覧を明示して保持し、本文は取得しません。検索はファイル名・パスが対象です。ノート情報は現行バックアップ対象外です。</p>
         </section>
         <section class="panel surface slack-panel" aria-labelledby="slackHeading">
           <div class="panel-heading"><h2 id="slackHeading" tabindex="-1">Slack</h2><button id="slackRefresh" class="button">投稿を更新</button></div>
@@ -848,6 +872,11 @@
           </button>
         </div>
         <section class="settings-section">
+          <h3>全接続の診断・復旧</h3><button id="healthRefresh" class="button button-small">保存状態を確認</button>
+          <p id="healthSummary" role="status">設定を開くと保存状況を確認します。</p><div id="healthSources"></div>
+          <h4>未同期・結果未確認</h4><div id="healthPending"></div><p id="healthJobs"></p>
+        </section>
+        <section class="settings-section">
           <h3>Google Drive</h3>
           <p id="driveTimes">取得状況を確認中</p>
           <p id="driveSchedule"></p>
@@ -913,7 +942,7 @@
           </button>
         </section>
         <div class="unconnected-services">
-          <span>今後の連携</span>Obsidian・端末アプリ
+          <span>今後の連携</span>端末アプリ
         </div>
       </div>
     </dialog>
