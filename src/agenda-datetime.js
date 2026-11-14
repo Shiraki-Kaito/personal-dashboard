@@ -2,7 +2,7 @@
 const weekdays = "日月火水木金土";
 const timePattern =
   "(?:(?:午前|午後|AM|PM)\\s*)?\\d{1,2}(?::\\d{2}|時(?:\\d{1,2}分?|半)?)(?![\\d:])";
-function readTime(value, inheritedPeriod) {
+export function readTime(value, inheritedPeriod) {
   const match = value.match(
     /^(?:(午前|午後|AM|PM)\s*)?(\d{1,2})(?::(\d{2})|時(?:(\d{1,2})分?|(半))?)$/i,
   );

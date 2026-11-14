@@ -1,3 +1,4 @@
+import { extractMailTiming, timingPriority } from "./mail-timing.js";
 // 保存済みメールから関連候補と次の確認案を作る純粋関数。送信・登録・確認済み化は行わない。
 const normalize = (value = "") =>
   value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
@@ -93,7 +94,7 @@ export function mailSuggestion(entry) {
   }
   return { ...suggestion, checks };
 }
-export function groupMailSuggestions(entries) {
+export function groupMailSuggestions(entries, now = Date.now()) {
   const groups = new Map();
   // 未確定操作を他メールへ吸収せず、必ず独立した復旧案として残す。
   for (const entry of entries) {
@@ -125,11 +126,45 @@ export function groupMailSuggestions(entries) {
       const sorted = [...group.entries].sort((a, b) =>
         (b.receivedAt || "").localeCompare(a.receivedAt || ""),
       );
+      const latestByAccount = new Map();
+      for (const entry of sorted)
+        if (!latestByAccount.has(entry.accountId))
+          latestByAccount.set(entry.accountId, entry);
+      const timings = [...latestByAccount.values()].flatMap((entry) =>
+        extractMailTiming(entry).map((timing) => ({
+          ...timing,
+          accountId: entry.accountId,
+          messageId: entry.messageId,
+          accountName: entry.accountName || entry.email,
+          sourceTitle: entry.title,
+          receivedAt: entry.receivedAt,
+          sourceStale: !!entry.sourceStale,
+        })),
+      );
+      const pending = sorted[0].kind === "pending";
+      const kindOrder = { deadline: 0, event: 1, date: 2 };
+      timings.sort((a, b) => {
+        const first = timingPriority([a], false, now),
+          second = timingPriority([b], false, now);
+        return (
+          first.rank - second.rank ||
+          (first.at ?? Infinity) - (second.at ?? Infinity) ||
+          kindOrder[a.kind] - kindOrder[b.kind]
+        );
+      });
+      const suggestion = mailSuggestion(sorted[0]);
+      const priority = timingPriority(timings, pending, now);
+      if (!timings.length && suggestion.category === "受付の確認") {
+        priority.rank = 7;
+        priority.label = "受付内容の確認";
+      }
       return {
         ...group,
-        suggestion: mailSuggestion(sorted[0]),
+        suggestion,
+        timings,
+        priority,
         latestAt: sorted[0].receivedAt || null,
-        pending: sorted[0].kind === "pending",
+        pending,
         // 宛先ごとの証跡・個別操作を維持する。古い案内を最新と同列に勧めない。
         entries: sorted.map(({ excerpt, from, ...entry }) => ({
           ...entry,
@@ -140,7 +175,8 @@ export function groupMailSuggestions(entries) {
     })
     .sort(
       (a, b) =>
-        Number(b.pending) - Number(a.pending) ||
+        a.priority.rank - b.priority.rank ||
+        (a.priority.at ?? Infinity) - (b.priority.at ?? Infinity) ||
         (b.latestAt || "").localeCompare(a.latestAt || ""),
     );
 }

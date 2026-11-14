@@ -98,6 +98,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "agenda-priority",
       "mail-priority-rules",
       "mail-suggestions",
+      "mail-timing",
       "agenda-labels",
       "agenda-account-rules",
       "agenda-management",

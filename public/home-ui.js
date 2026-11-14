@@ -3,6 +3,7 @@ import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 const pollMs = 60000;
+const visibleTimingCount = 3;
 let state = null,
   busy = false,
   driveBusy = false,
@@ -217,9 +218,39 @@ function renderSuggestions(agenda) {
   agendaSignature = signature;
   const rows = groups.map(group => {
     const row = element("article", "suggestion-card");
+    if (group.priority) {
+      row.dataset.priority = String(group.priority.rank);
+      row.append(element("p", "suggestion-priority", group.priority.label));
+    }
     row.append(element("p", "suggestion-case", group.label));
     row.append(element("h3", "suggestion-title", group.suggestion.title));
     row.append(element("p", "suggestion-reason", group.suggestion.reason));
+    if (group.timings?.length) {
+      const timings = element("div", "suggestion-timings");
+      const more = element("details", "timing-more");
+      more.append(element("summary", "", `ほかの記載日時を確認（${Math.max(0,group.timings.length-visibleTimingCount)}件）`));
+      for (const [index,timing] of group.timings.entries()) {
+        const item = element("article", "suggestion-timing");
+        item.dataset.confirmed = String(timing.confirmed);
+        item.append(element("strong", "", timing.action));
+        const label = timing.kind === "deadline" ? "締切" : timing.kind === "event" ? "予定日時" : "記載日時";
+        item.append(element("p", "suggestion-when", `${label}：${timing.display}${timing.confirmed ? "" : " · 要確認"}`));
+        item.append(element("p", "home-item-meta", timing.accountName || "接続アカウント"));
+        if (timing.reasons.length) item.append(element("p", "timing-caution", timing.reasons.join("・")));
+        if (timing.sourceStale) item.append(element("p", "timing-caution", "保存済みメールです。取得状況と、案内が今も有効か確認してください。"));
+        const evidence = element("details", "timing-evidence");
+        evidence.append(element("summary", "", "日時の根拠を確認"));
+        evidence.append(element("p", "suggestion-excerpt", timing.evidence));
+        const open = element("button", "text-button", "この日時の元メールを開く ↗");
+        open.type = "button";
+        open.onclick = () => openMail(timing);
+        evidence.append(open);
+        item.append(evidence);
+        (index < visibleTimingCount ? timings : more).append(item);
+      }
+      if (group.timings.length > visibleTimingCount) timings.append(more);
+      row.append(timings);
+    } else if (!group.pending) row.append(element("p", "home-item-meta", "最新の保存済み案内に、採用できる具体的な締切・日時はありません。"));
     if (group.suggestion.checks?.length) {
       const checks = element("ul", "suggestion-checks");
       for (const check of group.suggestion.checks) checks.append(element("li", "", check));

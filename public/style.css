@@ -2119,6 +2119,21 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 .suggestion-card { padding: 20px; margin-bottom: 14px; border: 1px solid #d7e6e0; border-radius: 14px; background: linear-gradient(145deg,#f3faf7,#ffffff 70%); }
 .suggestion-card:last-child { margin-bottom: 0; }
 .suggestion-case { font-size: 12px; color: #087565; font-weight: 650; overflow-wrap: anywhere; }
+.suggestion-priority { display:inline-block; margin-bottom:10px; padding:3px 9px; border-radius:6px; background:#edf1f4; color:#365365; font-size:12px; font-weight:650; }
+.suggestion-card[data-priority="0"] .suggestion-priority,
+.suggestion-card[data-priority="1"] .suggestion-priority,
+.suggestion-card[data-priority="2"] .suggestion-priority { background:#fff0e6; color:#9b3d15; }
+.suggestion-card[data-priority="3"] .suggestion-priority { background:#dff3eb; color:#086657; }
+.suggestion-timings { display:grid; gap:12px; margin-top:16px; }
+.suggestion-timing { padding:13px; border:1px solid #bcd6ce; border-radius:9px; background:#fff; overflow-wrap:anywhere; }
+.suggestion-timing[data-confirmed="false"] { border-color:#e0c49b; background:#fffaf2; }
+.suggestion-timing strong { font-size:14px; }
+.suggestion-when { font-size:15px; font-weight:650; margin-top:4px; color:#183c4b; }
+.timing-caution { font-size:12px; color:#935123; margin-top:5px; }
+.timing-evidence { font-size:12px; margin-top:8px; }
+.timing-evidence summary { cursor:pointer; color:#365365; }
+.timing-more summary { cursor:pointer; font-size:13px; color:#365365; padding-block:8px; }
+.timing-more .suggestion-timing + .suggestion-timing { margin-top:12px; }
 .suggestion-title { font-size: 19px; line-height: 1.65; margin: 9px 0; }
 .suggestion-reason { font-size: 14px; color: #415966; }
 .suggestion-checks { margin: 12px 0; padding-left: 20px; font-size: 14px; }

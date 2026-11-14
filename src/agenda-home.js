@@ -89,6 +89,7 @@ export async function agendaHome(storage, now = Date.now()) {
         title: message.subject || "件名なし",
         from: message.from || "",
         excerpt: message.excerpt || "",
+        sourceStale: stale || !!cache.error || !connection.connected,
         reason:
           operation?.error ||
           priorityWithRules(message, rules).reason,
@@ -104,7 +105,7 @@ export async function agendaHome(storage, now = Date.now()) {
   return {
     accounts,
     entries: entries.map(({ excerpt, from, ...entry }) => entry),
-    groups: groupMailSuggestions(entries),
+    groups: groupMailSuggestions(entries, now),
     alerts,
     complete: accounts.every(
       (a) =>
