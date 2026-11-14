@@ -38,11 +38,25 @@ document
   );
 function showPanel(panel, focusId) {
   document.body.dataset.view = panel;
+  const titles = {
+    home: ["ホーム", "今、確認したいことをひと目で。"],
+    agenda: ["メール・予定", "重要な連絡と、これからの予定を確認。"],
+    drive: ["Drive", "チームの更新と個人作業を分けて確認。"],
+    tasks: ["タスク", "GitHub Projectsの状態と期限を管理。"],
+    slack: ["Slack", "接続したチャンネルの情報を確認。"],
+    notes: ["ノート", "GitHubのノートを検索・閲覧。"],
+  };
+  const [title, description] = titles[panel] || titles.home;
+  document.getElementById("workspaceTitle").textContent = title;
+  document.getElementById("workspaceDescription").textContent = description;
   document
     .querySelectorAll(".sidebar nav .nav-button")
-    .forEach((nav) =>
-      nav.classList.toggle("active", nav.dataset.panel === panel),
-    );
+    .forEach((nav) => {
+      const current = nav.dataset.panel === panel;
+      nav.classList.toggle("active", current);
+      if (current) nav.setAttribute("aria-current", "page");
+      else nav.removeAttribute("aria-current");
+    });
   if (focusId) {
     const target = document.getElementById(focusId);
     target.focus();
