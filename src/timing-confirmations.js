@@ -214,6 +214,10 @@ export async function saveTimingConfirmation(storage, input, now = Date.now()) {
   const value = input.reset === true ? null : normalizeTimingValue(input.value);
   return storage.transaction(async (tx) => {
     const message = await selectedMessage(tx, input);
+    const operations = await tx.list({prefix:"agenda:operation:"+input.accountId+":",limit:1001});
+    if (operations.size > 1000) throw new InputError("登録記録の照合上限です。日時は変更せず停止しました");
+    if ([...operations.values()].some(operation=>operation.timingRef?.timingId === input.timingId && operation.timingRef?.messageId === input.messageId && operation.phase !== "登録確認済み"))
+      throw new InputError("この日時の予定登録結果が未確認です。先に登録結果を照合してください");
     const key = stateKey(input.accountId),
       records = (await tx.get(key)) || {};
     const view = await messageTimingView(message, records);

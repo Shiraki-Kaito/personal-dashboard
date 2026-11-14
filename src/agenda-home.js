@@ -3,6 +3,7 @@ import { priorityWithRules, priorityRulesView } from "./mail-priority-rules.js";
 import { displayAccounts } from "./agenda-labels.js";
 import { groupMailSuggestions } from "./mail-suggestions.js";
 import { messageTimingView } from "./timing-confirmations.js";
+import { timingOperationId } from "./timing-calendar.js";
 const mailFreshMs = 60 * 60 * 1000;
 // 保存済みのメール候補・確認記録・未確定操作を集約する。Googleへの通信は行わない。
 export async function agendaHome(storage, now = Date.now()) {
@@ -81,6 +82,11 @@ export async function agendaHome(storage, now = Date.now()) {
       );
       if (operation?.phase === "登録確認済み") continue;
       const timingView = await messageTimingView(message,timingRecords);
+      for (const timing of timingView.timings) if (timing.manual) {
+        const operationId = await timingOperationId({messageId:message.id,timingId:timing.timingId});
+        const operation = await storage.get("agenda:operation:"+account.id+":"+operationId);
+        if (operation) timing.calendarPhase = operation.phase;
+      }
       entries.push({
         kind: "mail",
         accountId: account.id,

@@ -1,5 +1,6 @@
 import { normalizePriorityRules } from "./mail-priority-rules.js";
 import { normalizeTimingRecords } from "./timing-confirmations.js";
+import { validTimingReference, timingOperationId } from "./timing-calendar.js";
 import { mailPriorityVersion } from "./agenda-priority.js";
 import { InputError } from "./sync.js";
 import { digest } from "./agenda-rules.js";
@@ -27,6 +28,7 @@ const operationKeys = [
   "lastAttempt",
   "lastSuccess",
   "sourceType",
+  "timingRef",
 ];
 const namespaces = [
   "cache",
@@ -192,6 +194,7 @@ export async function agendaRestoreEntries(storage, backup) {
     for (const operation of item.operations) {
       const id = operation?.messageId,
         draft = operation?.draft;
+      requireValid(operation?.timingRef === undefined || (operation.sourceType === "manual" && validTimingReference(operation.timingRef) && id === await timingOperationId(operation.timingRef)));
       requireValid(
         operation &&
           (mailId.test(id) || manualId.test(id)) &&
@@ -214,6 +217,7 @@ export async function agendaRestoreEntries(storage, backup) {
       operations.set(id, operation);
       entries.set("agenda:operation:" + account.id + ":" + id, {
         ...pick(operation, operationKeys),
+        ...(operation.timingRef ? {timingRef:pick(operation.timingRef,["messageId","timingId","sourceRevision","revision"])} : {}),
         draft: pick(draft, ["title", "start", "end", "location"]),
         phase: "バックアップから復元・再照合待ち",
         error: "Googleから登録結果を照合してください。予定は再送していません",

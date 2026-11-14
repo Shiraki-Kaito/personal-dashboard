@@ -1,5 +1,5 @@
 import { createCalendarCard } from "./calendar-cards.js";
-import { openTimingEditor } from "./timing-editor.js";
+import { openTimingEditor } from "./timing-editor.js?v=calendar1";
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);
@@ -240,6 +240,13 @@ function renderSuggestions(agenda) {
         item.append(element("p", "suggestion-when", `${label}：${timing.display}${timing.confirmed ? "" : " · 要確認"}`));
         item.append(element("p", "home-item-meta", timing.accountName || "接続アカウント"));
         if (timing.manual) item.append(element("p", "timing-confirmed", "本人確定 · 保存 " + time(timing.manual.confirmedAt)));
+        if (timing.manual) {
+          if (timing.calendarPhase) item.append(element("p", "home-item-meta", "カレンダー："+timing.calendarPhase));
+          const calendar = element("button", "button button-small", timing.calendarPhase ? "登録結果を確認" : "予定の登録内容を確認");
+          calendar.type = "button";
+          calendar.onclick = ()=>emit("dashboard:calendar-from-timing", {accountId:timing.accountId,timingRef:{messageId:timing.messageId,timingId:timing.timingId,sourceRevision:timing.sourceRevision,revision:timing.revision}});
+          item.append(calendar);
+        }
         if (timing.reasons.length) item.append(element("p", "timing-caution", timing.reasons.join("・")));
         if (timing.sourceStale) item.append(element("p", "timing-caution", "保存済みメールです。取得状況と、案内が今も有効か確認してください。"));
         const evidence = element("details", "timing-evidence");

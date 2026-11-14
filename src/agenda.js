@@ -6,6 +6,7 @@ import { priorityWithRules, priorityRulesView } from "./mail-priority-rules.js";
 import { maximumAgendaAccounts } from "./agenda-account-rules.js";
 import { InputError } from "./sync.js";
 import { upcomingCalendarView } from "./agenda-calendar.js";
+import { validateTimingDraft } from "./timing-calendar.js";
 import {
   agendaAccounts,
   agendaClient,
@@ -240,7 +241,8 @@ async function calendarEvents(env, storage, draft, send) {
   const events = [];
   // 5接続のトークン更新・登録後照合を含めても、1要求の通信数を抑える。
   const budget = { remaining: 30 };
-  for (const account of await agendaAccounts(storage)) {
+  const accounts = await agendaAccounts(storage);
+  for (const account of accounts) {
     const read = await agendaClient(env, storage, account, send, budget);
     let cursor = null;
     const cursors = new Set();
@@ -286,7 +288,7 @@ async function calendarEvents(env, storage, draft, send) {
       cursors.add(cursor);
     }
   }
-  return events;
+  return {events,accountIds:accounts.map(account=>account.id).sort()};
 }
 async function operationContext(storage, input) {
   const source = await selected(storage, input.accountId),
@@ -310,23 +312,26 @@ async function operationContext(storage, input) {
   } catch (error) {
     throw new InputError(error.message);
   }
+  const timingRef = input.timingRef
+    ? await validateTimingDraft(storage,source.id,message.id,input.timingRef,draft)
+    : null;
+  if (timingRef && !manual) throw new InputError("確定日時の登録方法が不正です");
   return {
     source,
     target,
     message,
     draft,
+    timingRef,
     key: "agenda:operation:" + source.id + ":" + message.id,
   };
 }
 export async function previewAppointment(env, storage, input, send = fetch) {
   const context = await operationContext(storage, input),
-    { source, target, message, draft, key } = context;
+    { source, target, message, draft, key, timingRef } = context;
   if (await storage.get(key))
     throw new InputError("登録処理がすでにあります。結果を照合してください");
-  const matches = compareAppointments(
-    draft,
-    await calendarEvents(env, storage, draft, send),
-  );
+  const checked = await calendarEvents(env, storage, draft, send);
+  const matches = compareAppointments(draft,checked.events);
   matches.sort((a, b) =>
     (a.accountId + a.id).localeCompare(b.accountId + b.id),
   );
@@ -336,6 +341,8 @@ export async function previewAppointment(env, storage, input, send = fetch) {
     message: message.id,
     draft,
     matches,
+    checkedAccountIds:checked.accountIds,
+    ...(timingRef ? {timingRef} : {}),
   });
   await storage.put("agenda:preview:" + source.id + ":" + message.id, {
     checksum,
@@ -346,6 +353,7 @@ export async function previewAppointment(env, storage, input, send = fetch) {
     matches,
     calendar: target.email + " のメインカレンダー",
     draft,
+    checkedAccountIds:checked.accountIds,
   };
 }
 function eventMatches(event, operation) {
@@ -377,7 +385,7 @@ function calendarUrl(event, email) {
 export async function registerAppointment(env, storage, input, send = fetch) {
   if (input.confirmed !== true)
     throw new InputError("内容の本人確認が必要です");
-  const { source, target, message, draft, key } = await operationContext(
+  const { source, target, message, draft, key, timingRef } = await operationContext(
     storage,
     input,
   );
@@ -407,6 +415,7 @@ export async function registerAppointment(env, storage, input, send = fetch) {
     lastAttempt: new Date().toISOString(),
     error: null,
     sourceType: input.manual === true ? "manual" : "mail",
+    ...(timingRef ? {timingRef} : {}),
   };
   const read = await agendaClient(env, storage, target, send);
   const existing = await read("calendar", "events/" + eventId, {}, null, true);
@@ -415,14 +424,15 @@ export async function registerAppointment(env, storage, input, send = fetch) {
       "登録IDが存在します。元のカレンダーを確認してください",
       "conflict",
     );
-  const pendingKey = "agenda:pending:" + source.id,
-    pending = (await storage.get(pendingKey)) || [];
-  if (pending.length >= 100)
-    throw new AgendaError(
-      "未確認の登録が100件あります。先に結果を照合してください",
-      "limit",
-    );
+  const pendingKey = "agenda:pending:" + source.id;
   await storage.transaction(async (tx) => {
+    if (await tx.get(key)) throw new InputError("二重登録を停止しました。結果を照合してください");
+    const accounts = await agendaAccounts(tx);
+    if (accounts.some(account=>account.disconnectedAt) || JSON.stringify(accounts.map(account=>account.id).sort()) !== JSON.stringify(current.checkedAccountIds))
+      throw new InputError("照合対象の接続が変わりました。全アカウントを再照合してください");
+    if (timingRef) await validateTimingDraft(tx,source.id,message.id,timingRef,draft);
+    const pending = (await tx.get(pendingKey)) || [];
+    if (pending.length >= 100) throw new AgendaError("未確認の登録が100件あります。先に結果を照合してください","limit");
     await tx.put(key, operation);
     await tx.put(pendingKey, [...pending, message.id]);
     if (input.manual === true) {
@@ -475,13 +485,16 @@ export async function registerAppointment(env, storage, input, send = fetch) {
     };
   }
   await storage.transaction(async (tx) => {
+    const existing = await tx.get(key);
+    if (existing?.phase === "登録確認済み" && operation.phase !== "登録確認済み") return;
     await tx.put(key, operation);
     if (operation.phase === "登録確認済み")
       await tx.put(
         pendingKey,
-        pending.filter((id) => id !== message.id),
+        ((await tx.get(pendingKey)) || []).filter((id) => id !== message.id),
       );
   });
+  if (operation.phase === "登録確認済み") await queueCalendarSync(storage,Date.now(),"manual-batch");
   return agendaView(env, storage, source.id);
 }
 export async function reconcileAppointment(env, storage, input, send = fetch) {
@@ -536,6 +549,7 @@ export async function reconcileAppointment(env, storage, input, send = fetch) {
         error instanceof AgendaError ? error.message : "結果を照合できません",
     });
   }
+  if ((await storage.get(key))?.phase === "登録確認済み") await queueCalendarSync(storage,Date.now(),"manual-batch");
   return agendaView(env, storage, account.id);
 }
 

@@ -101,7 +101,7 @@ function invalidate() {
 }
 function openMessage(message) {
   current = message;
-  el("appointmentHeading").textContent = message.manual ? "予定の内容を確認" : "メールと対応内容を確認";
+  el("appointmentHeading").textContent = message.timingRef ? "確定日時から予定を確認" : message.manual ? "予定の内容を確認" : "メールと対応内容を確認";
   preview = null;
   el("appointmentSource").textContent = message.subject + " ／ " + message.from;
   el("appointmentReasons").textContent =
@@ -111,7 +111,7 @@ function openMessage(message) {
       "抽出結果と原文を確認してください");
   el("appointmentExcerpt").textContent = message.excerpt;
   el("appointmentMailLink").href = message.url;
-  el("appointmentMailLink").hidden = !!message.manual;
+  el("appointmentMailLink").hidden = !!message.manual && !message.timingRef;
   el("appointmentReview").hidden =
     !!message.manual || !state.messages.some((m) => m.id === message.id);
   el("appointmentReview").textContent = message.review
@@ -128,6 +128,8 @@ function openMessage(message) {
     ["appointmentLocation", "location"],
   ])
     el(id).value = message.candidate[key] || "";
+  el("appointmentStart").readOnly = !!message.timingRef && !!message.candidate.start;
+  el("appointmentEnd").readOnly = !!message.timingRef && !!message.candidate.end;
   invalidate();
   const op = message.operation;
   el("appointmentCalendarLink").hidden = !op?.calendarUrl;
@@ -194,8 +196,8 @@ function render() {
           id: operation.messageId,
           manual: true,
           subject: operation.draft.title,
-          from: "手入力",
-          excerpt: "実メールの処理記録とは別の予定です。",
+          from: operation.timingRef ? "本人確定日時からの登録" : "手入力",
+          excerpt: operation.timingRef ? "保存した確定日時を使った予定の登録記録です。登録結果はこの記録で照合します。" : "実メールの処理記録とは別の予定です。",
           candidate: {
             status: "手入力の登録記録",
             reasons: [],
@@ -340,6 +342,7 @@ async function run(body = null, accountId) {
   controls();
   try {
     state = await api(body, accountId);
+    if (["register","reconcile"].includes(body?.action)) document.dispatchEvent(new CustomEvent("dashboard:agenda-changed"));
     render();
     if (current && el("appointmentDialog").open) {
       if (current.manual) {
@@ -366,6 +369,7 @@ function input() {
     accountId: state.accountId,
     manual: current.manual === true,
     messageId: current.id,
+    ...(current.timingRef ? {timingRef:current.timingRef} : {}),
     targetAccountId: el("appointmentTarget").value,
     draft: {
       title: el("appointmentTitle").value,
@@ -722,7 +726,7 @@ el("appointmentForm").onsubmit = async (event) => {
   try {
     preview = await api({ action: "preview", ...input() });
     el("appointmentResult").textContent =
-      preview.calendar +
+      preview.calendar + " ／ " + (preview.checkedAccountIds?.length || state.accounts.length) + "アカウントを照合" +
       " ／ " +
       (preview.matches.length
         ? "重複・時間競合を確認してください"
@@ -777,6 +781,26 @@ el("appointmentReview").onclick = () =>
     messageId: current.id,
     reviewed: !current.review,
   });
+document.addEventListener("dashboard:calendar-from-timing",async(event)=>{
+  if (busy) return;
+  const {accountId,timingRef} = event.detail;
+  document.dispatchEvent(new CustomEvent("dashboard:show-panel",{detail:{panel:"agenda"}}));
+  current = null;
+  await run(null,accountId);
+  if (state?.accountId !== accountId) return;
+  busy = true; controls();
+  try {
+    const seed = await api({action:"timingCalendar",accountId,timingRef});
+    const original = state.messages.find(message=>message.id === timingRef.messageId);
+    const sourceAccount = state.accounts.find(account=>account.id === accountId);
+    openMessage({id:seed.id,manual:true,timingRef:seed.timingRef,
+      subject:seed.candidate.title,from:"保存済みの本人確定日時",
+      excerpt:"本人確定："+seed.display+"\n\n"+(original?.excerpt || "元メールはGmailから確認してください。"),
+      url:original?.url || "https://mail.google.com/mail/u/"+encodeURIComponent(sourceAccount.email)+"/#all/"+timingRef.messageId,
+      candidate:seed.candidate,operation:seed.operation});
+  } catch(error) {el("agendaStatus").textContent = error.message;}
+  finally {busy = false;controls();}
+});
 document.addEventListener("dashboard:open-agenda", async (event) => {
   if (busy) return;
   const { accountId, messageId } = event.detail;

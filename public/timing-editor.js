@@ -20,6 +20,8 @@ const value = () =>
   );
 const dirty = () => JSON.stringify(value()) !== initial;
 function controls() {
+  el("timingCalendar").hidden = !current?.manual;
+  el("timingCalendar").disabled = busy;
   el("timingSave").disabled = busy || !el("timingConfirm").checked;
   el("timingReset").disabled =
     busy || !current?.manual || !el("timingConfirm").checked;
@@ -170,3 +172,8 @@ el("timingEditorForm").onsubmit = (event) => {
   save(false);
 };
 el("timingReset").onclick = () => save(true);
+el("timingCalendar").onclick = async()=>{
+  if (busy || !current?.manual || (dirty() && !(await confirmDiscard("入力中の変更を破棄し、保存済みの確定日時から予定を確認します。")))) return;
+  dialog.close();
+  document.dispatchEvent(new CustomEvent("dashboard:calendar-from-timing",{detail:{accountId:current.accountId,timingRef:{messageId:current.messageId,timingId:current.timingId,sourceRevision:current.sourceRevision,revision:current.revision}}}));
+};

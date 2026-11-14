@@ -1,5 +1,6 @@
 import { previewPriorityRules, savePriorityRules } from "./mail-priority-rules.js";
 import { readTimingConfirmation, saveTimingConfirmation } from "./timing-confirmations.js";
+import { timingCalendarSeed } from "./timing-calendar.js";
 import { healthView } from "./health.js";
 import { notesView, configureNotes, refreshNotes, readNote, stopNotes } from "./notes.js";
 import { NotesError } from "./notes-http.js";
@@ -291,6 +292,7 @@ export class Dashboard extends DurableObject {
           );
         const operations = {
           timingView: (_env, storage, input) => readTimingConfirmation(storage,input),
+          timingCalendar: (_env, storage, input) => timingCalendarSeed(storage,input),
           saveTiming: (_env, storage, input) => saveTimingConfirmation(storage,input),
           previewPriorityRules: (_env, storage, input) => previewPriorityRules(storage, input),
           savePriorityRules: async (env, storage, input) => {

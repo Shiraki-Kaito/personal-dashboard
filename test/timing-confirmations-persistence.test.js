@@ -11,10 +11,30 @@ const fixtureSource = `
 import { DurableObject } from "cloudflare:workers";
 import { readTimingConfirmation, saveTimingConfirmation } from "./src/timing-confirmations.js";
 import { agendaHome } from "./src/agenda-home.js";
+import { timingCalendarSeed } from "./src/timing-calendar.js";
+import { previewAppointment, registerAppointment } from "./src/agenda.js";
 export class TimingFixture extends DurableObject {
   seed(entries) { return this.ctx.storage.put(Object.fromEntries(entries)); }
   view(input) { return readTimingConfirmation(this.ctx.storage,input); }
   home(now) { return agendaHome(this.ctx.storage,now); }
+  calendarSeed(input) { return timingCalendarSeed(this.ctx.storage,input); }
+  calendarPreview(input) { return previewAppointment({},this.ctx.storage,input,this.send.bind(this)); }
+  async calendarRegister(input) {
+    try { return {view:await registerAppointment({},this.ctx.storage,input,this.send.bind(this))}; }
+    catch(error) {return {error:error.message};}
+  }
+  async writes() { return (await this.ctx.storage.get("fixture:writes")) || 0; }
+  async send(url,options={}) {
+    if(new URL(url).pathname.endsWith("/events")) {
+      if(options.method!=="POST") return Response.json({kind:"calendar#events",timeZone:"Asia/Tokyo",items:[]});
+      const event={...JSON.parse(options.body),htmlLink:"https://www.google.com/calendar/event?eid=fixture"};
+      await this.ctx.storage.put("fixture:writes",await this.writes()+1);
+      await this.ctx.storage.put("fixture:event",event);
+      return Response.json(event);
+    }
+    const event=await this.ctx.storage.get("fixture:event");
+    return event ? Response.json(event) : Response.json({}, {status:404});
+  }
   async save(input,now,fail=false) {
     const storage=this.ctx.storage;
     const wrapped=fail ? {transaction:fn=>storage.transaction(tx=>fn(new Proxy(tx,{
@@ -120,6 +140,60 @@ test("SQLiteで日時確定の並行保存・応答喪失後の照合・ロー�
     assert.equal((await stub.view(input)).timings[0].manual, null);
     assert.equal((await stub.home(now)).groups[0].priority.rank, 4);
     assert.match((await stub.save(input, now)).error, /別の画面/);
+    const currentTiming = (await stub.view(input)).timings[0];
+    const confirmed = (
+      await stub.save({ ...input, expectedRevision: currentTiming.revision }, now + 2)
+    ).view.timings[0];
+    await stub.seed([
+      [
+        "agenda:credential:one",
+        { token: "fixture", expires: Date.now() + 3600000 },
+      ],
+    ]);
+    const seed = JSON.parse(JSON.stringify(await stub.calendarSeed({
+      accountId: "one",
+      timingRef: {
+        messageId: "abc",
+        timingId: confirmed.timingId,
+        sourceRevision: confirmed.sourceRevision,
+        revision: confirmed.revision,
+      },
+    })));
+    const registration = {
+      accountId: "one",
+      targetAccountId: "one",
+      manual: true,
+      messageId: seed.id,
+      timingRef: seed.timingRef,
+      draft: {
+        title: "SQLite試験",
+        start: seed.candidate.start,
+        end: "2026-11-14T17:05",
+        location: "",
+      },
+    };
+    const preview = await stub.calendarPreview(registration);
+    const ready = {
+      ...registration,
+      checksum: preview.checksum,
+      confirmed: true,
+    };
+    const registrations = await Promise.all([
+      stub.calendarRegister(ready),
+      stub.calendarRegister(ready),
+    ]);
+    assert.equal(registrations.filter((result) => result.view).length, 1);
+    assert.equal(registrations.filter((result) => result.error).length, 1);
+    assert.equal(await stub.writes(), 1);
+    await app.dispose();
+    app = boot();
+    stub = await stubFor();
+    assert.equal(await stub.writes(), 1);
+    assert.equal(
+      (await stub.calendarSeed({ accountId: "one", timingRef: seed.timingRef }))
+        .operation.phase,
+      "登録確認済み",
+    );
   } finally {
     await app.dispose();
     const resolved = path.resolve(persist);
