@@ -19,6 +19,7 @@ const fileKeys = [
   "mimeType",
   "createdTime",
   "modifiedTime",
+  "lastModifiedBy",
   "folder",
 ];
 const changeKeys = [
@@ -179,7 +180,9 @@ async function restoreEntries(env, storage, backup) {
         typeof file.mimeType !== "string" ||
         typeof file.folder !== "string" ||
         !Number.isFinite(Date.parse(file.modifiedTime)) ||
-        !Number.isFinite(Date.parse(file.createdTime))
+        !Number.isFinite(Date.parse(file.createdTime)) ||
+        (file.lastModifiedBy !== undefined && file.lastModifiedBy !== null &&
+          (typeof file.lastModifiedBy !== "string" || file.lastModifiedBy.length > 200))
       )
         throw new InputError("Driveのファイル情報が不正です");
     for (const change of value.unreadChanges)

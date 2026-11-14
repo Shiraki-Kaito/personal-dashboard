@@ -2083,3 +2083,78 @@ body[data-view="tasks"] .drive-panel, body[data-view="drive"] .task-panel { disp
   .dialog-body { padding: 18px; }
   .dialog-top { top: -18px; }
 }
+
+/* ホームは件数のダッシュボードから、確認案・予定・変更の作業面へ。 */
+body[data-view="home"] #workspaceTitle,
+body[data-view="home"] #workspaceDescription,
+body[data-view="home"] .metrics { display: none; }
+body[data-view="home"] .topbar { min-height: 42px; }
+body[data-view="home"] .workspace { gap: 16px; }
+body[data-view="home"] .dashboard-grid {
+  grid-template-columns: minmax(0,1.15fr) minmax(0,1fr);
+  grid-template-areas: "tasks tasks" "mail drive" "mail calendar";
+  grid-template-rows: auto auto minmax(240px,1fr);
+  min-height: 0;
+  align-items: start;
+}
+.home-calendar-card { grid-area: calendar; }
+.home-health { padding: 10px 16px; background: #fff5ed; color: #913e17; border: 1px solid #edc5ac; border-radius: 10px; }
+.home-health summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+#homeAlerts p { font-size: 12px; margin-top: 8px; overflow-wrap: anywhere; }
+.home-tasks-card .panel-heading { padding: 14px 20px 8px; align-items: center; }
+.home-tasks-card .section-kicker,
+.home-tasks-card .panel-heading .eyebrow { display: none; }
+.home-tasks-card .panel-toolbar { padding: 0 20px 8px; }
+.home-tasks-card .panel-footer { padding: 6px 20px; }
+body[data-view="home"] .home-tasks-card[data-empty="true"] { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0 12px; }
+body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-heading { padding-bottom: 10px; }
+body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-toolbar { padding: 10px 20px 10px 0; justify-content: flex-end; }
+body[data-view="home"] .home-tasks-card[data-empty="true"] #homeTasks { display: none; }
+body[data-view="home"] .home-tasks-card[data-empty="true"] .empty-state { display: block; min-height: 0; height: auto; padding: 0; text-align: left; font-size: 13px; }
+body[data-view="home"] .home-tasks-card[data-empty="true"] .empty-state small { display: block; font-size: 12px; }
+body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-column: 1/-1; }
+.home-mail-card .section-kicker { color: #087f70; }
+.suggestion-method { font-size: 12px; color: var(--muted); margin-top: 5px; }
+#homeAgendaEntries { max-height: none; overflow: visible; padding: 0 20px 20px; }
+.suggestion-card { padding: 20px; margin-bottom: 14px; border: 1px solid #d7e6e0; border-radius: 14px; background: linear-gradient(145deg,#f3faf7,#ffffff 70%); }
+.suggestion-card:last-child { margin-bottom: 0; }
+.suggestion-case { font-size: 12px; color: #087565; font-weight: 650; overflow-wrap: anywhere; }
+.suggestion-title { font-size: 19px; line-height: 1.65; margin: 9px 0; }
+.suggestion-reason { font-size: 14px; color: #415966; }
+.suggestion-checks { margin: 12px 0; padding-left: 20px; font-size: 14px; }
+.suggestion-checks li + li { margin-top: 5px; }
+.suggestion-card > .button { margin: 14px 0 4px; white-space: normal; text-align: left; }
+.suggestion-sources { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+.suggestion-sources summary { font-size: 13px; color: #365365; cursor: pointer; }
+.suggestion-source { padding-block: 12px; border-bottom: 1px solid var(--line); }
+.suggestion-source:last-child { border-bottom: 0; }
+.suggestion-excerpt { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; color: var(--muted); padding: 8px; background: #f3f5f7; border-radius: 6px; margin-top: 6px; }
+#homeCalendarEvents { max-height: 230px; padding-bottom: 16px; }
+.calendar-event, #calendarEvents .calendar-event {
+  display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+  padding: 16px; margin: 0 0 12px; background: #f7f9fc;
+  border: 1px solid #d9e2ed; border-left: 4px solid #8ca8cd; border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.calendar-event h3 { font-size: 15px; font-weight: 650; margin: 0; }
+.calendar-event-time { font-size: 13px; font-weight: 600; color: #245f93; }
+.calendar-event a { font-size: 12px; align-self: flex-start; padding-top: 4px; }
+#homeDriveFiles { max-height: 200px; }
+.home-drive-card .home-row { align-items: flex-start; }
+@media (max-width: 900px) {
+  body[data-view="home"] .dashboard-grid {
+    display: grid; grid-template-columns: minmax(0,1fr);
+    grid-template-areas: "tasks" "mail" "drive" "calendar"; grid-template-rows: auto;
+  }
+  #homeAgendaEntries { max-height: none; }
+}
+@media (max-width: 520px) {
+  body[data-view="home"] .home-tasks-card[data-empty="true"] { display: flex; }
+  body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-heading { align-self: stretch; }
+  body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-toolbar { padding: 0 16px 8px; align-self: stretch; justify-content: flex-start; }
+  body[data-view="home"] .home-tasks-card[data-empty="true"] #homeTasks { width: 100%; padding-inline: 16px; }
+  body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { width: 100%; }
+  .suggestion-card { padding: 15px; }
+  .suggestion-title { font-size: 18px; }
+  #homeAgendaEntries { padding-inline: 14px; }
+}

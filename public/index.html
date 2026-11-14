@@ -8,14 +8,14 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/dashboard-192.png" type="image/png" />
     <title>ワークスペース | Personal Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=20261114-readable1" />
+    <link rel="stylesheet" href="/style.css?v=20261114-actions3" />
     <script type="module" src="/session-ui.js"></script>
     <script type="module" src="/ui.js"></script>
-    <script type="module" src="/drive-ui.js"></script>
+    <script type="module" src="/drive-ui.js?v=actions2"></script>
     <script type="module" src="/motion-ui.js"></script>
-    <script type="module" src="/home-ui.js"></script>
+    <script type="module" src="/home-ui.js?v=actions3"></script>
     <script type="module" src="/backup-ui.js"></script>
-    <script type="module" src="/agenda-ui.js"></script>
+    <script type="module" src="/agenda-ui.js?v=actions2"></script>
     <script type="module" src="/slack-ui.js"></script>
     <script type="module" src="/notes-ui.js"></script>
     <script type="module" src="/health-ui.js"></script>
@@ -137,6 +137,11 @@
           <span id="metricPending" class="metric-note">Projectを確認中</span>
         </div>
       </div>
+      <details id="homeHealthDetails" class="home-health" hidden>
+        <summary id="homeHealthSummary">接続・取得に警告があります</summary>
+        <div id="homeAlerts" role="status"></div>
+      </details>
+      <p id="homeNotice" class="inline-notice" role="status" hidden></p>
       <div class="dashboard-grid">
         <section
           class="panel surface home-panel home-tasks-card"
@@ -173,13 +178,6 @@
             </div>
           </div>
           <div
-            id="homeAlerts"
-            class="home-alerts scroll-area"
-            role="status"
-            hidden
-          ></div>
-          <p id="homeNotice" class="inline-notice" role="status" hidden></p>
-          <div
             id="homeTasks"
             class="home-list scroll-area"
             tabindex="0"
@@ -199,12 +197,13 @@
         >
           <div class="panel-heading">
             <div>
-              <p class="section-kicker">MAIL &amp; CALENDAR</p>
+              <p class="section-kicker">NEXT ACTION</p>
               <h2 id="homeAgendaHeading">
-                重要メール・予定
+                次にすること
                 <span id="homeAgendaCount" class="home-total">—</span>
               </h2>
               <p id="homeAgendaStatus" class="eyebrow"></p>
+              <p class="suggestion-method">メールの内容から作る確認案です。自動で送信・登録はしません。</p>
             </div>
             <button
               id="homeOpenAgenda"
@@ -221,6 +220,10 @@
             tabindex="0"
           ></div>
         </section>
+        <section class="panel surface home-panel home-calendar-card" aria-labelledby="homeCalendarHeading" data-enter>
+          <div class="panel-heading"><div><p class="section-kicker">CALENDAR</p><h2 id="homeCalendarHeading">これからの予定</h2><p id="homeCalendarStatus" class="eyebrow"></p></div><button id="homeOpenCalendar" class="icon-button" aria-label="カレンダーの全件一覧へ移動">↗</button></div>
+          <div id="homeCalendarEvents" class="home-list scroll-area" tabindex="0" aria-label="ホームの予定一覧"></div>
+        </section>
         <section
           class="panel surface home-panel home-drive-card"
           aria-labelledby="homeDriveHeading"
@@ -230,10 +233,10 @@
             <div>
               <p class="section-kicker">GOOGLE DRIVE</p>
               <h2 id="homeDriveHeading">
-                Driveの未確認
+                チームの更新
                 <span id="homeDriveCount" class="home-total">—</span>
               </h2>
-              <p class="eyebrow">確認するまで保持・元ファイルは変更しません</p>
+              <p class="eyebrow">最終更新者と、検知した変更を表示します</p>
             </div>
             <button
               id="homeOpenDrive"
@@ -822,7 +825,7 @@
     <dialog id="appointmentDialog" class="settings-dialog">
       <div class="dialog-body">
         <div class="dialog-top">
-          <h2>予定の内容を確認</h2>
+          <h2 id="appointmentHeading">メールと対応内容を確認</h2>
           <button
             class="icon-button"
             data-close

@@ -1,3 +1,4 @@
+import { createCalendarCard } from "./calendar-cards.js";
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id),
@@ -100,6 +101,7 @@ function invalidate() {
 }
 function openMessage(message) {
   current = message;
+  el("appointmentHeading").textContent = message.manual ? "予定の内容を確認" : "メールと対応内容を確認";
   preview = null;
   el("appointmentSource").textContent = message.subject + " ／ " + message.from;
   el("appointmentReasons").textContent =
@@ -296,15 +298,6 @@ function renderCalendar() {
   if (!calendar) return;
   const day = (value) =>
     new Date(value).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" });
-  const calendarTime = (value) =>
-    new Date(value).toLocaleString("ja-JP", {
-      timeZone: "Asia/Tokyo",
-      month: "numeric",
-      day: "numeric",
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   el("calendarStatus").textContent =
     `取得対象 ${day(calendar.range.start)}〜${day(Date.parse(calendar.range.end) - 1)} ／ 表示 ${calendar.events.length}件・毎時自動取得` +
     (calendar.job?.active ? " ／ 取得中（前の完全な一覧を表示）" : "") +
@@ -330,34 +323,7 @@ function renderCalendar() {
     }),
   );
   el("calendarEvents").replaceChildren(
-    ...calendar.events.map((event) => {
-      const row = document.createElement("div"),
-        title = document.createElement("strong"),
-        info = document.createElement("span"),
-        source = document.createElement("span");
-      row.className = "task-row calendar-event";
-      title.textContent = event.title;
-      info.className = source.className = "task-meta";
-      info.textContent = event.allDay
-        ? `${event.start.date}〜${new Date(Date.parse(event.end.date) - 86400000).toISOString().slice(0, 10)}・終日（${event.timezone}）`
-        : `${calendarTime(event.start.dateTime)}〜${calendarTime(event.end.dateTime)}`;
-      source.textContent =
-        accountName(event) +
-        (event.location ? " ／ " + event.location : "") +
-        (event.tentative ? " ／ 未確定" : "") +
-        (event.transparent ? " ／ 空き時間として扱う" : "") +
-        (event.stale || event.cachedWithError ? " ／ 保存済み・取得対象期間と異なる場合があります" : "");
-      row.append(title, info, source);
-      if (event.url) {
-        const link = document.createElement("a");
-        link.href = event.url;
-        link.target = "_blank";
-        link.rel = "noreferrer";
-        link.textContent = "Googleカレンダーで開く ↗";
-        row.append(link);
-      }
-      return row;
-    }),
+    ...calendar.events.map(createCalendarCard),
   );
   if (!calendar.events.length) {
     const p = document.createElement("p");

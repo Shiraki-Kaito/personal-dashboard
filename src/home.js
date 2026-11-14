@@ -1,6 +1,7 @@
 import { catalog, projectsFrom, taskStorage } from "./catalog.js";
 import { driveView } from "./drive.js";
 import { agendaHome } from "./agenda-home.js";
+import { upcomingCalendarView } from "./agenda-calendar.js";
 
 const githubFreshMs = 2 * 60 * 1000;
 const driveFreshMs = 90 * 60 * 1000;
@@ -203,6 +204,7 @@ export async function homeView(
     sources,
     alerts,
     agenda,
+    calendar: await upcomingCalendarView(storage, now),
     complete:
       projects.length > 0 &&
       sources.every((source) => source.detailsReady && !source.stale) &&

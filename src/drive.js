@@ -87,7 +87,7 @@ async function advanceScan(config, job, read) {
     const parameters = {
       q: "'" + folder.id + "' in parents and trashed = false",
       fields:
-        "nextPageToken,incompleteSearch,files(id,name,mimeType,createdTime,modifiedTime,parents)",
+        "nextPageToken,incompleteSearch,files(id,name,mimeType,createdTime,modifiedTime,parents,lastModifyingUser(displayName))",
       pageSize: "1000",
       supportsAllDrives: "true",
       includeItemsFromAllDrives: "true",
@@ -135,6 +135,9 @@ async function advanceScan(config, job, read) {
           mimeType: file.mimeType,
           createdTime: file.createdTime,
           modifiedTime: file.modifiedTime,
+          lastModifiedBy: typeof file.lastModifyingUser?.displayName === "string"
+            ? file.lastModifyingUser.displayName.trim().slice(0, 200) || null
+            : null,
           folder: folder.path,
         });
         if (files.size > maxInventoryFiles)
@@ -213,6 +216,7 @@ export async function driveView(env, storage, now = Date.now()) {
   let cache = await storage.get("drive:cache");
   if (!config || cache?.scope !== configKey(config)) cache = null;
   let job = await storage.get("drive:job");
+  const currentFiles = new Map((cache?.files || []).map(file => [file.id, file]));
   if (!config || job?.scope !== configKey(config)) job = null;
   return {
     configured: !!config && googleConfigured(env),
@@ -232,9 +236,14 @@ export async function driveView(env, storage, now = Date.now()) {
       isPersonalWork(file) ? { ...file, personal: true } : file,
     ),
     changes: cache?.changes || [],
-    unreadChanges: unreadChanges(cache).map((file) =>
-      isPersonalWork(file) ? { ...file, personal: true } : file,
-    ),
+    unreadChanges: unreadChanges(cache).map((file) => {
+      const current = currentFiles.get(file.id);
+      // 同じ更新時刻のスナップショットだけ補完する。新しい更新者を過去の検知に付けない。
+      const enriched = current?.modifiedTime === file.modifiedTime && current?.lastModifiedBy
+        ? { ...file, lastModifiedBy: current.lastModifiedBy }
+        : file;
+      return isPersonalWork(enriched) ? { ...enriched, personal: true } : enriched;
+    }),
     changesKnown: cache?.viewVersion === 3,
     nextScheduledAt: new Date(
       (Math.floor(now / driveRefreshIntervalMs) + 1) * driveRefreshIntervalMs,

@@ -46,6 +46,7 @@ async function fixture() {
     folder: "Root",
     createdTime: "2026-11-12T00:00:00Z",
     modifiedTime: "2026-11-12T00:00:00Z",
+    lastModifiedBy: "検証担当者",
   };
   await s.put("drive:cache", {
     scope: "root:true",
@@ -69,6 +70,7 @@ test("資格情報を読まず、未同期と未確認を選んでバックア�
     backup = await createBackup(env, source);
   assert.equal(backup.tasks.length, 1);
   assert.equal(backup.drive.unreadChanges[0].occurrences, 2);
+  assert.equal(backup.drive.files[0].lastModifiedBy, "検証担当者");
   assert.equal(JSON.stringify(backup).includes("fixture-private-value"), false);
 });
 test("空の保存先だけに復元し、既存データ・競合・確認後の変更を上書きしない", async () => {
@@ -83,6 +85,7 @@ test("空の保存先だけに復元し、既存データ・競合・確認後�
     2,
   );
   const restored = await target.get("task:p:task");
+  assert.equal((await target.get("drive:cache")).files[0].lastModifiedBy, "検証担当者");
   assert.equal(restored.pending.id, "op");
   assert.match(restored.phase, /再照合待ち/);
   assert.equal(

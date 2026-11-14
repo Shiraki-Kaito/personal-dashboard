@@ -1,3 +1,4 @@
+import { createCalendarCard } from "./calendar-cards.js";
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);
@@ -7,9 +8,11 @@ let state = null,
   driveBusy = false,
   category = "priority",
   taskSignature = "",
-  driveSignature = "";
+  driveSignature = "",
+  agendaSignature = "",
+  calendarSignature = "";
 const time = (value) =>
-  value ? new Date(value).toLocaleString("ja-JP") : "未取得";
+  value ? new Date(value).toLocaleString("ja-JP", {timeZone:"Asia/Tokyo"}) : "未取得";
 const emit = (name, detail) =>
   document.dispatchEvent(new CustomEvent(name, { detail }));
 function showPanel(panel) {
@@ -47,6 +50,12 @@ function sourceLink(url) {
 }
 function renderTasks() {
   const tasks = state.tasks.filter((task) => task.category === category);
+  document.querySelector(".home-tasks-card").dataset.empty = String(!tasks.length);
+  const githubFresh = state.sources.length && state.sources.every(source => !source.stale);
+  el("homeHeading").textContent = tasks.length ? "要確認タスク"
+    : !githubFresh ? "タスクの取得状況を確認してください"
+    : category === "priority" ? "要確認タスクはありません"
+    : category === "done" ? "完了タスクはありません" : "その他のタスクはありません";
   const signature = JSON.stringify([
     category,
     state.complete,
@@ -133,8 +142,8 @@ function renderTasks() {
           : category === "done"
             ? "完了タスクはありません"
             : "その他のタスクはありません",
-        state.complete
-          ? "Driveの未確認もホームで確認できます。全タスクは各分類とタスク画面に表示します。"
+        state.sources.length && state.sources.every(source => !source.stale)
+          ? "全タスクは「その他」「完了」から確認できます。"
           : "取得が未完了または古い情報です。上の警告と取得時刻を確認してください。",
       ),
     );
@@ -156,6 +165,11 @@ function renderDrive() {
       open.onclick = () => emit("dashboard:open-drive-file", { id: file.id });
       open.append(
         element("strong", "home-item-title", file.name),
+        element(
+          "span",
+          "home-item-meta",
+          "最終更新者：" + (file.lastModifiedBy || "未取得・不明") + " · 更新 " + time(file.modifiedTime),
+        ),
         element(
           "span",
           "home-item-meta",
@@ -193,6 +207,60 @@ function renderDrive() {
   ))
     button.disabled = busy || driveBusy;
 }
+function openMail(entry) {
+  emit("dashboard:open-agenda", {accountId:entry.accountId, messageId:entry.messageId});
+}
+function renderSuggestions(agenda) {
+  const groups = agenda.groups || [];
+  const signature = JSON.stringify([groups, agenda.complete]);
+  if (signature === agendaSignature) return;
+  agendaSignature = signature;
+  const rows = groups.map(group => {
+    const row = element("article", "suggestion-card");
+    row.append(element("p", "suggestion-case", group.label));
+    row.append(element("h3", "suggestion-title", group.suggestion.title));
+    row.append(element("p", "suggestion-reason", group.suggestion.reason));
+    if (group.suggestion.checks?.length) {
+      const checks = element("ul", "suggestion-checks");
+      for (const check of group.suggestion.checks) checks.append(element("li", "", check));
+      row.append(checks);
+    }
+    row.append(element("p", "home-item-meta", `ルールによる提案 · 根拠：最新のメール ${time(group.latestAt)}`));
+    if (group.accountCount > 1) row.append(element("p", "home-item-meta", `${group.accountCount}アカウントに届いた案内です。宛先ごとに対応状況を確認してください。`));
+    const action = element("button", "button button-primary", group.pending ? "登録結果を確認する" : "最新の案内を確認する");
+    action.type = "button";
+    action.onclick = () => openMail(group.entries[0]);
+    row.append(action);
+    const details = element("details", "suggestion-sources");
+    details.append(element("summary", "", `根拠・関連メール ${group.entries.length}通`));
+    details.append(element("p", "home-item-meta", group.basis + "。同一案件とは限らず、一括で処理しません。"));
+    for (const entry of group.entries) {
+      const item = element("article", "suggestion-source"), open = element("button", "home-task-open");
+      open.type = "button";
+      open.append(element("strong", "home-item-title", entry.title));
+      open.append(element("span", "home-item-meta", (entry.accountName || entry.email) + " · " + time(entry.receivedAt)));
+      open.onclick = () => openMail(entry);
+      item.append(open);
+      if (entry.excerpt) item.append(element("p", "suggestion-excerpt", "本文の抜粋：" + entry.excerpt));
+      details.append(item);
+    }
+    row.append(details);
+    return row;
+  });
+  if (!rows.length) rows.push(empty("未処理の重要メールはありません", agenda.complete ? "取得済みの全メールは「メール・予定」で確認できます。" : "未取得・取得失敗の警告も確認してください。"));
+  replaceList(el("homeAgendaEntries"), rows);
+}
+function renderCalendar() {
+  const calendar = state.calendar;
+  if (!calendar) return;
+  const signature = JSON.stringify([calendar, Math.floor(Date.now() / pollMs)]);
+  if (signature === calendarSignature) return;
+  calendarSignature = signature;
+  const now = Date.now();
+  const upcoming = calendar.events.filter(event => Date.parse(event.end.dateTime || event.end.date + "T00:00:00+09:00") > now);
+  el("homeCalendarStatus").textContent = (calendar.complete ? "取得した7日間・日本時間" : "保存済み・古さや取得失敗を確認してください") + ` · ${upcoming.length}件`;
+  replaceList(el("homeCalendarEvents"), upcoming.length ? upcoming.map(createCalendarCard) : [empty("直近の予定はありません", calendar.complete ? "取得した7日間に、これからの予定はありません。" : "未取得または保存済み情報です。メール・予定で取得状況を確認してください。")]);
+}
 function render() {
   if (!state) return;
   for (const key of ["priority", "other", "done"]) {
@@ -210,41 +278,15 @@ function render() {
     candidates: 0,
     pending: 0,
   };
-  el("homeAgendaCount").textContent = agenda.entries.length;
+  el("homeAgendaCount").textContent = agenda.groups?.length ?? agenda.entries.length;
   el("homeAgendaStatus").textContent = !agenda.accounts.length
     ? "未接続"
-    : `${agenda.accounts.length}アカウント・重要メール ${agenda.candidates}・結果不明 ${agenda.pending}` +
+    : `${agenda.groups?.length ?? agenda.entries.length}件の確認案・関連メール ${agenda.candidates}通・結果未確認 ${agenda.pending}` +
       (agenda.accounts.some((a) => a.hasMore) ? "・未取得の続きあり" : "");
-  const agendaRows = agenda.entries.map((entry) => {
-    const row = element("button", "home-task-open");
-    row.type = "button";
-    row.append(
-      element("strong", "home-item-title", entry.title),
-      element(
-        "span",
-        "home-item-meta",
-        entry.reason + " · " + (entry.accountName || entry.email),
-      ),
-    );
-    row.onclick = () =>
-      emit("dashboard:open-agenda", {
-        accountId: entry.accountId,
-        messageId: entry.messageId,
-      });
-    return row;
-  });
-  if (!agendaRows.length)
-    agendaRows.push(
-      empty(
-        "取得済みの範囲に未処理の重要メールはありません",
-        agenda.accounts.length
-          ? agenda.complete
-            ? "全メールと確認済みの項目はメール画面で確認できます。"
-            : "未取得・古さ・取得失敗の警告を確認してください。全メールはメール画面で確認できます。"
-          : "メール・予定画面から接続できます。",
-      ),
-    );
-  replaceList(el("homeAgendaEntries"), agendaRows);
+  renderSuggestions(agenda);
+  renderCalendar();
+  el("homeHealthDetails").hidden = !state.alerts.length;
+  el("homeHealthSummary").textContent = `接続・取得に警告があります（${state.alerts.length}件）`;
   el("homeAlerts").hidden = !state.alerts.length;
   el("homeAlerts").replaceChildren(
     ...state.alerts.map((alert) => element("p", "", alert.message)),
@@ -332,6 +374,7 @@ for (const [id, value] of [
   };
 el("homeRefresh").onclick = () => load(true);
 el("homeOpenDrive").onclick = () => showPanel("drive");
+el("homeOpenCalendar").onclick = () => showPanel("agenda");
 document.addEventListener("dashboard:refresh", () => {
   if (document.body.dataset.view === "home") load(true);
 });

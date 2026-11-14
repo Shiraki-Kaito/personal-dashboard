@@ -1,6 +1,7 @@
 import { agendaConnectionStatus } from "./agenda-google.js";
 import { priorityWithRules, priorityRulesView } from "./mail-priority-rules.js";
 import { displayAccounts } from "./agenda-labels.js";
+import { groupMailSuggestions } from "./mail-suggestions.js";
 const mailFreshMs = 60 * 60 * 1000;
 // 保存済みのメール候補・確認記録・未確定操作を集約する。Googleへの通信は行わない。
 export async function agendaHome(storage, now = Date.now()) {
@@ -86,6 +87,8 @@ export async function agendaHome(storage, now = Date.now()) {
           ? account.label + " · " + account.email
           : account.email,
         title: message.subject || "件名なし",
+        from: message.from || "",
+        excerpt: message.excerpt || "",
         reason:
           operation?.error ||
           priorityWithRules(message, rules).reason,
@@ -100,7 +103,8 @@ export async function agendaHome(storage, now = Date.now()) {
   );
   return {
     accounts,
-    entries,
+    entries: entries.map(({ excerpt, from, ...entry }) => entry),
+    groups: groupMailSuggestions(entries),
     alerts,
     complete: accounts.every(
       (a) =>

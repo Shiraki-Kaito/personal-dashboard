@@ -47,7 +47,7 @@ function openFile(file) {
   el("fileDialogType").textContent = kind.name;
   el("fileDialogName").textContent = file.name;
   el("fileDialogFolder").textContent = file.folder;
-  el("fileDialogModified").textContent = time(file.modifiedTime);
+  el("fileDialogModified").textContent = time(file.modifiedTime) + " ／ 最終更新者：" + (file.lastModifiedBy || "未取得・不明");
   el("fileDialogCreated").textContent = time(file.createdTime);
   el("fileDialogChanges").textContent =
     (file.events?.join("・") || "") +
@@ -74,7 +74,7 @@ function renderFiles(force = false) {
         ? state.unreadChanges.filter((file) => file.personal)
         : state.files;
   const files = source.filter((file) =>
-    (file.name + " " + file.folder).toLocaleLowerCase().includes(query),
+    (file.name + " " + file.folder + " " + (file.lastModifiedBy || "")).toLocaleLowerCase().includes(query),
   );
   const signature = [
     state.lastSuccess,
@@ -110,7 +110,7 @@ function renderFiles(force = false) {
     name.textContent = file.name;
     name.title = file.name;
     folder.className = "file-folder";
-    folder.textContent = file.folder;
+    folder.textContent = "最終更新者：" + (file.lastModifiedBy || "未取得・不明") + " · " + file.folder;
     folder.title = file.folder;
     meta.className = "file-meta";
     date.textContent = shortTime(file.modifiedTime);

@@ -97,6 +97,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "agenda-mail",
       "agenda-priority",
       "mail-priority-rules",
+      "mail-suggestions",
       "agenda-labels",
       "agenda-account-rules",
       "agenda-management",
@@ -181,7 +182,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       401,
     );
     assert.equal((await request("/auth/agenda/start", {})).status, 401);
-    for (const route of ["/api/slack", "/slack-ui.js", "/auth/slack/callback", "/api/notes", "/notes-ui.js", "/api/health", "/health-ui.js", "/mail-rules-ui.js", "/api/session", "/session-ui.js", "/session-connection.js"])
+    for (const route of ["/api/slack", "/slack-ui.js", "/auth/slack/callback", "/api/notes", "/notes-ui.js", "/api/health", "/health-ui.js", "/mail-rules-ui.js", "/api/session", "/session-ui.js", "/session-connection.js", "/calendar-cards.js"])
       assert.equal((await request(route)).status, 401);
     for (const action of ["configure", "refresh", "addChannel", "review", "stop"])
       assert.equal((await request("/api/slack", {action})).status, 401);

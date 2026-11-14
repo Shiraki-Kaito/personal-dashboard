@@ -96,6 +96,24 @@ test("40フォルダを超える一覧を永続化し、再開後に全件取得
 });
 const now = Date.parse("2026-11-11T03:00:00Z");
 const config = { folderId: "root", includeSubfolders: true };
+test("最終更新者は表示名だけ保存し、未取得を推測せず、過去の変更へ新しい人物を付けない", async () => {
+  const result = await scanDrive(config, async (path, params) => {
+    if(path === "files/root") return {id:"root",name:"Root",mimeType:folderType};
+    assert.match(params.fields,/lastModifyingUser\(displayName\)/);
+    return {files:[{...file("one"),lastModifyingUser:{displayName:"担当者",emailAddress:"not-needed@example.test"}},file("two")]};
+  });
+  assert.equal(result.files[0].lastModifiedBy,"担当者");
+  assert.equal(result.files[1].lastModifiedBy,null);
+  assert.equal(JSON.stringify(result).includes("not-needed"),false);
+  const storage=memory();
+  await storage.put("drive:cache",{scope:"root:true",files:[{...result.files[0],modifiedTime:"2026-02-01T00:00:00Z",lastModifiedBy:"別の人"}],unreadChanges:[{...result.files[0],lastModifiedBy:null}],viewVersion:3});
+  const view=await driveView(env,storage,now);
+  assert.equal(view.unreadChanges[0].lastModifiedBy,null);
+  const cache=await storage.get("drive:cache");
+  cache.files[0].modifiedTime=result.files[0].modifiedTime;
+  await storage.put("drive:cache",cache);
+  assert.equal((await driveView(env,storage,now)).unreadChanges[0].lastModifiedBy,"別の人");
+});
 const env = {
   DRIVE_CONFIG: JSON.stringify(config),
   GOOGLE_CLIENT_ID: "1234-fixture.apps.googleusercontent.com",

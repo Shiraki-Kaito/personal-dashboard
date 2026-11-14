@@ -206,6 +206,7 @@ export class Dashboard extends DurableObject {
         "/task-drafts.js",
         "/confirm.js",
         "/home-ui.js",
+        "/calendar-cards.js",
         "/agenda-ui.js",
         "/slack-ui.js",
         "/notes-ui.js",
