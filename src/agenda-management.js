@@ -71,7 +71,7 @@ async function removeAccountFromJob(storage, accountId, now, jobKey = "agenda:ma
 const deletionPlanLifetimeMs = 10 * 60 * 1000;
 const maximumDeletionOperations = 5000;
 const accountValueNamespaces = [
-  "credential", "label", "priorityRules", "cache", "calendar", "history", "reviews", "pending", "manualHistory",
+  "credential", "label", "priorityRules", "timingConfirmations", "cache", "calendar", "history", "reviews", "pending", "manualHistory",
 ];
 
 // 削除候補と参照を毎回調べ、確認画面と実行時で同じ内容か照合する。
@@ -112,6 +112,7 @@ async function deletionSnapshot(storage, input) {
       messages: entries.get("agenda:cache:" + account.id)?.messages?.length || 0,
       calendarEvents: entries.get("agenda:calendar:" + account.id)?.events?.length || 0,
       reviews: Object.keys(entries.get("agenda:reviews:" + account.id) || {}).length,
+      timingConfirmations: Object.values(entries.get("agenda:timingConfirmations:" + account.id) || {}).filter(record=>record.value).length,
       operations: ownOperations.length,
       mailHistory: entries.get("agenda:history:" + account.id)?.length || 0,
       foreignReferences: foreignReferences.length,

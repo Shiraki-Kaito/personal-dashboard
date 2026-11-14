@@ -2,6 +2,7 @@ import { agendaConnectionStatus } from "./agenda-google.js";
 import { priorityWithRules, priorityRulesView } from "./mail-priority-rules.js";
 import { displayAccounts } from "./agenda-labels.js";
 import { groupMailSuggestions } from "./mail-suggestions.js";
+import { messageTimingView } from "./timing-confirmations.js";
 const mailFreshMs = 60 * 60 * 1000;
 // 保存済みのメール候補・確認記録・未確定操作を集約する。Googleへの通信は行わない。
 export async function agendaHome(storage, now = Date.now()) {
@@ -16,6 +17,7 @@ export async function agendaHome(storage, now = Date.now()) {
     const reviews = (await storage.get("agenda:reviews:" + account.id)) || {};
     const pending = (await storage.get("agenda:pending:" + account.id)) || [];
     const messages = cache.messages || [];
+    const timingRecords = (await storage.get("agenda:timingConfirmations:" + account.id)) || {};
     const { rules } = await priorityRulesView(storage, account.id);
     const stale =
       !Number.isFinite(Date.parse(cache.lastSuccess)) ||
@@ -78,6 +80,7 @@ export async function agendaHome(storage, now = Date.now()) {
         "agenda:operation:" + account.id + ":" + message.id,
       );
       if (operation?.phase === "登録確認済み") continue;
+      const timingView = await messageTimingView(message,timingRecords);
       entries.push({
         kind: "mail",
         accountId: account.id,
@@ -89,6 +92,8 @@ export async function agendaHome(storage, now = Date.now()) {
         title: message.subject || "件名なし",
         from: message.from || "",
         excerpt: message.excerpt || "",
+        timings: timingView.timings,
+        timingNotice: timingView.notice,
         sourceStale: stale || !!cache.error || !connection.connected,
         reason:
           operation?.error ||
@@ -104,7 +109,7 @@ export async function agendaHome(storage, now = Date.now()) {
   );
   return {
     accounts,
-    entries: entries.map(({ excerpt, from, ...entry }) => entry),
+    entries: entries.map(({ excerpt, from, timings, timingNotice, ...entry }) => entry),
     groups: groupMailSuggestions(entries, now),
     alerts,
     complete: accounts.every(

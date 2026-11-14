@@ -19,7 +19,7 @@ for (const card of document.querySelectorAll(".surface")) {
 }
 document.querySelectorAll("dialog").forEach((dialog) => {
   dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) dialog.close();
+    if (event.target === dialog && !dialog.hasAttribute("data-preserve-draft")) dialog.close();
   });
 });
 for (const button of document.querySelectorAll("[data-open]")) {

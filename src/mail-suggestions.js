@@ -131,7 +131,7 @@ export function groupMailSuggestions(entries, now = Date.now()) {
         if (!latestByAccount.has(entry.accountId))
           latestByAccount.set(entry.accountId, entry);
       const timings = [...latestByAccount.values()].flatMap((entry) =>
-        extractMailTiming(entry).map((timing) => ({
+        (entry.timings || extractMailTiming(entry)).map((timing) => ({
           ...timing,
           accountId: entry.accountId,
           messageId: entry.messageId,
@@ -161,12 +161,13 @@ export function groupMailSuggestions(entries, now = Date.now()) {
       return {
         ...group,
         suggestion,
+        timingNotices: [...latestByAccount.values()].filter(entry=>entry.timingNotice).map(entry=>({accountName:entry.accountName || entry.email,message:entry.timingNotice})),
         timings,
         priority,
         latestAt: sorted[0].receivedAt || null,
         pending,
         // 宛先ごとの証跡・個別操作を維持する。古い案内を最新と同列に勧めない。
-        entries: sorted.map(({ excerpt, from, ...entry }) => ({
+        entries: sorted.map(({ excerpt, from, timings, timingNotice, ...entry }) => ({
           ...entry,
           excerpt: (excerpt || "").slice(0, 240),
         })),

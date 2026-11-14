@@ -1,4 +1,5 @@
 import { createCalendarCard } from "./calendar-cards.js";
+import { openTimingEditor } from "./timing-editor.js";
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);
@@ -6,6 +7,7 @@ const pollMs = 60000;
 const visibleTimingCount = 3;
 let state = null,
   busy = false,
+  reloadAfterBusy = false,
   driveBusy = false,
   category = "priority",
   taskSignature = "",
@@ -225,6 +227,7 @@ function renderSuggestions(agenda) {
     row.append(element("p", "suggestion-case", group.label));
     row.append(element("h3", "suggestion-title", group.suggestion.title));
     row.append(element("p", "suggestion-reason", group.suggestion.reason));
+    for (const notice of group.timingNotices || []) row.append(element("p", "timing-caution", notice.accountName + "：" + notice.message));
     if (group.timings?.length) {
       const timings = element("div", "suggestion-timings");
       const more = element("details", "timing-more");
@@ -236,6 +239,7 @@ function renderSuggestions(agenda) {
         const label = timing.kind === "deadline" ? "締切" : timing.kind === "event" ? "予定日時" : "記載日時";
         item.append(element("p", "suggestion-when", `${label}：${timing.display}${timing.confirmed ? "" : " · 要確認"}`));
         item.append(element("p", "home-item-meta", timing.accountName || "接続アカウント"));
+        if (timing.manual) item.append(element("p", "timing-confirmed", "本人確定 · 保存 " + time(timing.manual.confirmedAt)));
         if (timing.reasons.length) item.append(element("p", "timing-caution", timing.reasons.join("・")));
         if (timing.sourceStale) item.append(element("p", "timing-caution", "保存済みメールです。取得状況と、案内が今も有効か確認してください。"));
         const evidence = element("details", "timing-evidence");
@@ -246,6 +250,12 @@ function renderSuggestions(agenda) {
         open.onclick = () => openMail(timing);
         evidence.append(open);
         item.append(evidence);
+        if (timing.timingId) {
+          const edit = element("button", "button button-small", timing.manual ? "確定日時を編集・解除" : "日時を修正・確定");
+          edit.type = "button";
+          edit.onclick = ()=>openTimingEditor(timing);
+          item.append(edit);
+        }
         (index < visibleTimingCount ? timings : more).append(item);
       }
       if (group.timings.length > visibleTimingCount) timings.append(more);
@@ -384,6 +394,7 @@ async function load(refresh = false) {
     el("homeRefresh").disabled = false;
     emit("dashboard:busy", { service: "home", busy });
     render();
+    if (reloadAfterBusy) { reloadAfterBusy = false; void load(false); }
   }
 }
 for (const [id, value] of [
@@ -413,7 +424,10 @@ document.addEventListener("dashboard:view", (event) => {
   if (event.detail === "home") load(true);
 });
 document.addEventListener("dashboard:drive-reviewed", () => load(false));
-document.addEventListener("dashboard:agenda-changed", () => load(false));
+document.addEventListener("dashboard:agenda-changed", () => {
+  if (busy) reloadAfterBusy = true;
+  else load(false);
+});
 document.addEventListener("dashboard:busy", (event) => {
   if (event.detail.service === "drive") {
     driveBusy = event.detail.busy;

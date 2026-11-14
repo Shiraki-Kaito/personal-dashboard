@@ -2134,6 +2134,17 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 .timing-evidence summary { cursor:pointer; color:#365365; }
 .timing-more summary { cursor:pointer; font-size:13px; color:#365365; padding-block:8px; }
 .timing-more .suggestion-timing + .suggestion-timing { margin-top:12px; }
+.timing-confirmed { margin-top:6px; font-size:12px; color:#086657; font-weight:650; }
+.suggestion-timing > .button { margin-top:10px; }
+#timingEditorForm { display:grid; gap:14px; margin-top:16px; }
+#timingEditorForm label:not(.timing-confirm) { display:grid; gap:6px; }
+.timing-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.timing-confirm { display:flex; gap:9px; align-items:flex-start; }
+.timing-confirm input { margin-top:7px; }
+.timing-editor-actions { display:flex; gap:10px; flex-wrap:wrap; }
+.timing-editor-actions .button { white-space:normal; }
+#timingEditorSource, #timingEditorStatus { overflow-wrap:anywhere; }
+@media(max-width:520px) { .timing-fields { grid-template-columns:1fr; } }
 .suggestion-title { font-size: 19px; line-height: 1.65; margin: 9px 0; }
 .suggestion-reason { font-size: 14px; color: #415966; }
 .suggestion-checks { margin: 12px 0; padding-left: 20px; font-size: 14px; }

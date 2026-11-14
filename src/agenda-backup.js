@@ -1,4 +1,5 @@
 import { normalizePriorityRules } from "./mail-priority-rules.js";
+import { normalizeTimingRecords } from "./timing-confirmations.js";
 import { mailPriorityVersion } from "./agenda-priority.js";
 import { InputError } from "./sync.js";
 import { digest } from "./agenda-rules.js";
@@ -33,6 +34,7 @@ const namespaces = [
   "pending",
   "manualHistory",
   "operation",
+  "timingConfirmations",
 ];
 
 // 認証用キー・OAuth途中状態にはアクセスせず、アプリの保存情報だけを選ぶ。
@@ -52,6 +54,7 @@ export async function createAgendaBackup(storage) {
       account: pick(account, ["id", "email", "calendar", "label"]),
       priorityRules: (await storage.get("agenda:priorityRules:" + account.id))
         ?.rules,
+      timingConfirmations: normalizeTimingRecords((await storage.get("agenda:timingConfirmations:" + account.id)) || {}),
       cache: cache
         ? {
             ...pick(cache, cacheKeys),
@@ -146,6 +149,11 @@ export async function agendaRestoreEntries(storage, backup) {
         rules,
         revision: crypto.randomUUID(),
       });
+    }
+    if (item.timingConfirmations !== undefined) {
+      const records = normalizeTimingRecords(item.timingConfirmations);
+      for (const record of Object.values(records)) record.revision = crypto.randomUUID();
+      entries.set("agenda:timingConfirmations:" + account.id, records);
     }
     if (account.label) {
       const key = "agenda:label:" + account.id,

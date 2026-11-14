@@ -8,14 +8,14 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/dashboard-192.png" type="image/png" />
     <title>ワークスペース | Personal Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=20261114-timing2" />
+    <link rel="stylesheet" href="/style.css?v=20261114-confirm1" />
     <script type="module" src="/session-ui.js"></script>
     <script type="module" src="/ui.js"></script>
     <script type="module" src="/drive-ui.js?v=actions2"></script>
-    <script type="module" src="/motion-ui.js"></script>
-    <script type="module" src="/home-ui.js?v=timing2"></script>
+    <script type="module" src="/motion-ui.js?v=confirm1"></script>
+    <script type="module" src="/home-ui.js?v=confirm1"></script>
     <script type="module" src="/backup-ui.js"></script>
-    <script type="module" src="/agenda-ui.js?v=actions2"></script>
+    <script type="module" src="/agenda-ui.js?v=confirm1"></script>
     <script type="module" src="/slack-ui.js"></script>
     <script type="module" src="/notes-ui.js"></script>
     <script type="module" src="/health-ui.js"></script>
@@ -998,6 +998,23 @@
         <button id="sessionCheck" class="button">ログイン後に接続を確認</button>
         <p>保存・予定登録は自動再送しません。</p>
         <a href="/">入力を破棄してログイン画面へ戻る</a>
+      </div>
+    </dialog>
+    <dialog id="timingEditor" class="settings-dialog" aria-labelledby="timingEditorHeading" data-preserve-draft>
+      <div class="dialog-body">
+        <div class="dialog-top"><h2 id="timingEditorHeading">日時を修正・確定</h2><button id="timingEditorClose" class="icon-button" aria-label="日時の編集を閉じる">×</button></div>
+        <p id="timingEditorSource" class="home-item-meta"></p>
+        <p>このメールの日時を、サイト内の確認用として保存します。Googleカレンダーへの登録やメール送信は行いません。新しい案内は別に確認してください。</p>
+        <details><summary>元メールの記載を確認</summary><p id="timingEditorOriginal"></p><pre id="timingEditorEvidence" class="suggestion-excerpt"></pre></details>
+        <form id="timingEditorForm">
+          <label>種別<select id="timingKind" required><option value="">選択してください</option><option value="deadline">締切</option><option value="event">予定日時</option></select></label>
+          <label>対応内容<input id="timingAction" required maxlength="200" /></label>
+          <div class="timing-fields"><label>年月日（日本時間）<input id="timingDate" type="date" min="2000-01-01" max="2099-12-31" required /></label><label>時刻<input id="timingTime" type="time" step="60" /><span class="home-item-meta">締切は日付のみでも確定できます。予定には開始時刻が必要です。</span></label></div>
+          <div class="timing-fields"><label>終了日（予定のみ・任意）<input id="timingEndDate" type="date" min="2000-01-01" max="2099-12-31" /></label><label>終了時刻（予定のみ・任意）<input id="timingEndTime" type="time" step="60" /></label></div>
+          <label class="timing-confirm"><input id="timingConfirm" type="checkbox" />元メールと入力内容を確認しました（解除する場合も確認）</label>
+          <p id="timingEditorStatus" role="status"></p>
+          <div class="timing-editor-actions"><button id="timingSave" class="button button-primary" type="submit" disabled>この日時を確定して保存</button><button id="timingReset" class="button" type="button" disabled>確定を解除して抽出値へ戻す</button><button id="timingReload" class="button" type="button">最新の保存内容を再読込</button></div>
+        </form>
       </div>
     </dialog>
     <dialog id="confirmDialog" class="detail-dialog">
