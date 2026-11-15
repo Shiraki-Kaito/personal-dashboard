@@ -23,6 +23,7 @@ export async function agendaHome(storage, now = Date.now()) {
     const stale =
       !Number.isFinite(Date.parse(cache.lastSuccess)) ||
       now - Date.parse(cache.lastSuccess) > mailFreshMs;
+    const contentLimitedCount = messages.filter(message=>message.contentLimited).length;
     const unclassified = messages.filter(
       (message) => typeof message.candidate?.isCandidate !== "boolean",
     ).length;
@@ -36,8 +37,9 @@ export async function agendaHome(storage, now = Date.now()) {
       loaded: messages.length,
       hasMore: !!cache.nextPageToken || !!cache.limited,
       unclassified,
+      contentLimitedCount,
     });
-    if (!account.disconnectedAt && (!connection.connected || cache.error || stale || unclassified))
+    if (!account.disconnectedAt && (!connection.connected || cache.error || stale || unclassified || contentLimitedCount))
       alerts.push({
         service: "agenda",
         message:
@@ -50,7 +52,9 @@ export async function agendaHome(storage, now = Date.now()) {
                 ? "メール未取得"
                 : unclassified
                   ? "予定候補の判定を更新してください"
-                  : "1時間以上前のメール情報です")),
+                  : contentLimitedCount
+                    ? "本文の一部だけを解析したメールが"+contentLimitedCount+"件あります。原文を確認してください"
+                    : "1時間以上前のメール情報です")),
       });
     for (const id of pending) {
       const operation = await storage.get(
@@ -99,7 +103,7 @@ export async function agendaHome(storage, now = Date.now()) {
         from: message.from || "",
         excerpt: message.excerpt || "",
         timings: timingView.timings,
-        timingNotice: timingView.notice,
+        timingNotice: [timingView.notice, message.contentLimited ? "本文の一部だけを解析しています。提案・日時はGmailの原文で確認してください" : ""].filter(Boolean).join("・"),
         sourceStale: stale || !!cache.error || !connection.connected,
         reason:
           operation?.error ||
@@ -120,7 +124,7 @@ export async function agendaHome(storage, now = Date.now()) {
     alerts,
     complete: accounts.every(
       (a) =>
-        a.connected && !a.stale && !a.error && !a.hasMore && !a.unclassified,
+        a.connected && !a.stale && !a.error && !a.hasMore && !a.unclassified && !a.contentLimitedCount,
     ),
     pending: entries.filter((e) => e.kind === "pending").length,
     candidates: entries.filter((e) => e.kind === "mail").length,

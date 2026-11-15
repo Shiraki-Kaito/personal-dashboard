@@ -1,5 +1,5 @@
 import { agendaClient, AgendaError } from "./agenda-google.js";
-import { extractAppointment, messageText } from "./agenda-rules.js";
+import { extractAppointment, decodeMessageContent } from "./agenda-rules.js";
 import { mailPriority } from "./agenda-priority.js";
 export async function readMailPage(
   env,
@@ -30,18 +30,58 @@ export async function readMailPage(
     });
     if (mail.id !== entry.id || !mail.payload)
       throw new AgendaError("メール本文の取得が未完了です", "incomplete");
+    let content;
+    try {
+      content = decodeMessageContent(mail.payload);
+    } catch {
+      throw new AgendaError(
+        "メール本文の形式を解釈できません。保存済み一覧を保持しました",
+        "incomplete",
+      );
+    }
+    if (
+      !/^\d+$/.test(String(mail.internalDate)) ||
+      !Number.isFinite(+new Date(Number(mail.internalDate)))
+    )
+      throw new AgendaError(
+        "メールの受信日時が不正です。保存済み一覧を保持しました",
+        "incomplete",
+      );
+    if (
+      mail.payload.headers !== undefined &&
+      (!Array.isArray(mail.payload.headers) ||
+        mail.payload.headers.some(
+          (header) =>
+            typeof header?.name !== "string" ||
+            typeof header?.value !== "string",
+        ))
+    )
+      throw new AgendaError(
+        "メールの見出し形式が不正です。保存済み一覧を保持しました",
+        "incomplete",
+      );
     const header = (name) =>
       mail.payload.headers?.find((h) => h.name.toLowerCase() === name)?.value ||
       "";
     const subject = header("subject").slice(0, 300),
-      text = messageText(mail.payload);
+      text =
+        content.text || (typeof mail.snippet === "string" ? mail.snippet : "");
+    const contentLimited = content.limited || (!content.text && !!mail.snippet);
+    const candidate = extractAppointment(subject, text);
+    if (contentLimited && candidate.isCandidate) {
+      candidate.reasons.push(
+        "本文の一部だけを解析しています。Gmailの原文で日時を確認してください",
+      );
+      candidate.status = "確認待ち";
+    }
     messages.push({
       id: mail.id,
       subject,
       from: header("from").slice(0, 300),
       receivedAt: new Date(Number(mail.internalDate)).toISOString(),
       excerpt: text.slice(0, 1600),
-      candidate: extractAppointment(subject, text),
+      candidate,
+      contentLimited,
       priority: mailPriority({ subject, from: header("from") }, text),
       url:
         "https://mail.google.com/mail/u/" +

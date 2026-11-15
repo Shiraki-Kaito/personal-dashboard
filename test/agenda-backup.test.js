@@ -68,6 +68,7 @@ async function fixture() {
     from: "fixture@example.test",
     receivedAt: "2026-11-12T00:00:00Z",
     excerpt: "本文抜粋",
+    contentLimited: true,
     candidate: extractAppointment("会議", "2027/1/12 10:00-11:00"),
     url: "https://untrusted.test",
   };
@@ -119,6 +120,7 @@ test("2アカウントのメール・確認・手入力・結果不明を秘密�
   const id = accounts[0].id;
   const cache = await target.get("agenda:cache:" + id);
   assert.equal(cache.messages[0].excerpt, "本文抜粋");
+  assert.equal(cache.messages[0].contentLimited,true);
   assert.equal(cache.messages[0].candidate.isCandidate, true);
   assert.match(cache.messages[0].url, /^https:\/\/mail.google.com\//);
   assert.equal(cache.nextPageToken, null);

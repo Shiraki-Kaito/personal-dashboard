@@ -108,7 +108,7 @@ function openMessage(message) {
     message.candidate.status +
     "：" +
     (message.candidate.reasons.join("・") ||
-      "抽出結果と原文を確認してください");
+      "抽出結果と原文を確認してください") + (message.contentLimited ? " ／ 本文の一部だけを解析しています。Gmailの原文を確認してください。" : "");
   el("appointmentExcerpt").textContent = message.excerpt;
   el("appointmentMailLink").href = message.url;
   el("appointmentMailLink").hidden = !!message.manual && !message.timingRef;
@@ -232,9 +232,11 @@ function render() {
       return button;
     }),
   );
+  const contentLimitedCount = state.messages.filter(message=>message.contentLimited).length;
   el("agendaStatus").textContent = !state.accounts.length
     ? "未接続です。追加認可を行ったアカウントだけを取得します。"
     : `取得済み ${state.messages.length}件 ／ 最終試行 ${time(state.lastAttempt)} ／ 最終成功 ${time(state.lastSuccess)}` +
+      (contentLimitedCount ? " ／ 本文一部のメール "+contentLimitedCount+"件・原文を確認してください" : "") +
       (connection?.disconnectedAt ? " ／ 接続停止中・保存情報です" : "") +
       (state.mailJob?.active
         ? " ／ メールの自動・分割取得中（前回の成功分を表示）"

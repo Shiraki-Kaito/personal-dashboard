@@ -20,7 +20,7 @@ const pick = (value, keys) =>
     keys.filter((k) => value?.[k] !== undefined).map((k) => [k, value[k]]),
   );
 const cacheKeys = ["lastAttempt", "lastSuccess", "limited"];
-const messageKeys = ["id", "subject", "from", "receivedAt", "excerpt"];
+const messageKeys = ["id", "subject", "from", "receivedAt", "excerpt", "contentLimited"];
 const operationKeys = [
   "eventId",
   "targetAccountId",
@@ -268,6 +268,7 @@ export async function agendaRestoreEntries(storage, backup) {
             text(message.subject, 300) &&
             text(message.from, 300) &&
             text(message.excerpt, 1600) &&
+            (message.contentLimited === undefined || typeof message.contentLimited === "boolean") &&
             date(message.receivedAt) &&
             validCandidate(message.candidate),
         );
