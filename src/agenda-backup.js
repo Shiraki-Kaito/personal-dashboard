@@ -1,3 +1,4 @@
+import { normalizeCaseRecords } from "./mail-cases.js";
 import { maximumMailMessages, retrievalBackupFields } from "./mail-retrieval.js";
 import { normalizePriorityRules } from "./mail-priority-rules.js";
 import { normalizeTimingRecords } from "./timing-confirmations.js";
@@ -38,6 +39,7 @@ const namespaces = [
   "manualHistory",
   "operation",
   "timingConfirmations",
+  "cases",
 ];
 
 // 認証用キー・OAuth途中状態にはアクセスせず、アプリの保存情報だけを選ぶ。
@@ -57,6 +59,7 @@ export async function createAgendaBackup(storage) {
       account: pick(account, ["id", "email", "calendar", "label"]),
       priorityRules: (await storage.get("agenda:priorityRules:" + account.id))
         ?.rules,
+      cases: normalizeCaseRecords((await storage.get("agenda:cases:" + account.id)) || {}),
       timingConfirmations: normalizeTimingRecords((await storage.get("agenda:timingConfirmations:" + account.id)) || {}),
       cache: cache
         ? {
@@ -128,6 +131,7 @@ function validCandidate(value) {
 // 同じOAuth確認済みアカウントを先に接続する。資格情報や接続状態は復元しない。
 export async function agendaRestoreEntries(storage, backup) {
   requireValid(Array.isArray(backup) && backup.length <= maximumAccounts);
+  const caseRevisions = new Map();
   const connected = (await storage.get("agenda:accounts")) || [];
   const entries = new Map(),
     conflicts = [],
@@ -147,6 +151,14 @@ export async function agendaRestoreEntries(storage, backup) {
     requireValid(
       account.label === undefined || validAccountLabel(account.label),
     );
+    if (item.cases !== undefined) {
+      const records = normalizeCaseRecords(item.cases);
+      for (const record of Object.values(records)) {
+        if (!caseRevisions.has(record.revision)) caseRevisions.set(record.revision, crypto.randomUUID());
+        record.revision = caseRevisions.get(record.revision);
+      }
+      if (Object.keys(records).length) entries.set("agenda:cases:" + account.id, records);
+    }
     if (item.priorityRules !== undefined) {
       const rules = normalizePriorityRules(item.priorityRules);
       entries.set("agenda:priorityRules:" + account.id, {

@@ -34,6 +34,7 @@ fileInput.onchange = async () => {
       plan.driveFiles +
       "件・メール " +
       plan.agendaMessages +
+      "件・案件記録 " + (plan.agendaCases || 0) +
       "件・予定操作 " +
       plan.agendaOperations +
       "件（" +

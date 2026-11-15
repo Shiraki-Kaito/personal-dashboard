@@ -8,14 +8,14 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/dashboard-192.png" type="image/png" />
     <title>ワークスペース | Personal Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=20261115-progress1" />
+    <link rel="stylesheet" href="/style.css?v=20261115-cases2" />
     <script type="module" src="/session-ui.js"></script>
     <script type="module" src="/ui.js"></script>
     <script type="module" src="/drive-ui.js?v=progress1"></script>
     <script type="module" src="/motion-ui.js?v=confirm1"></script>
-    <script type="module" src="/home-ui.js?v=progress1"></script>
-    <script type="module" src="/backup-ui.js?v=groups1"></script>
-    <script type="module" src="/agenda-ui.js?v=mail-coverage2"></script>
+    <script type="module" src="/home-ui.js?v=cases1"></script>
+    <script type="module" src="/backup-ui.js?v=cases1"></script>
+    <script type="module" src="/agenda-ui.js?v=cases1"></script>
     <script type="module" src="/slack-ui.js"></script>
     <script type="module" src="/notes-ui.js"></script>
     <script type="module" src="/health-ui.js"></script>
@@ -213,6 +213,12 @@
               ↗
             </button>
           </div>
+          <div id="homeCaseTabs" class="case-tabs" role="group" aria-label="案件の対応状態">
+            <button id="homeCaseOpen" class="button button-small" aria-pressed="true">未対応</button>
+            <button id="homeCaseHold" class="button button-small" aria-pressed="false">保留</button>
+            <button id="homeCaseDone" class="button button-small" aria-pressed="false">対応済み</button>
+          </div>
+          <p id="homeCaseStatus" class="home-item-meta" role="status"></p>
           <div
             id="homeAgendaEntries"
             class="home-list scroll-area"
@@ -1020,6 +1026,21 @@
         <button id="sessionCheck" class="button">ログイン後に接続を確認</button>
         <p>保存・予定登録は自動再送しません。</p>
         <a href="/">入力を破棄してログイン画面へ戻る</a>
+      </div>
+    </dialog>
+    <dialog id="caseEditor" class="settings-dialog" aria-labelledby="caseEditorHeading" data-preserve-draft>
+      <div class="dialog-body">
+        <div class="dialog-top"><h2 id="caseEditorHeading">案件の対応状況</h2><button id="caseEditorClose" class="icon-button" aria-label="案件の編集を閉じる">×</button></div>
+        <p id="caseEditorLabel"></p><p id="caseEditorScope" class="home-item-meta"></p>
+        <form id="caseEditorForm">
+          <label>対応状態<select id="caseStatus"><option value="open">未対応</option><option value="hold">保留</option><option value="done">対応済み</option></select></label>
+          <label id="caseHoldFields">再表示日（任意・日本時間0時）<input id="caseSnoozeUntil" type="date" max="2099-12-31" /><span class="home-item-meta">指定しない場合は、保留一覧からいつでも戻せます。</span></label>
+          <label>メモ（任意・200文字まで）<textarea id="caseNote" maxlength="200" rows="3"></textarea></label>
+          <p class="home-item-meta">新しい関連メールや確定日時の変更があれば、対応済み・保留から未対応へ戻します。登録結果未確認の予定は、この操作で隠れません。</p>
+          <label class="timing-confirm"><input id="caseConfirm" type="checkbox" />対象の関連メールと対応状況を確認しました</label>
+          <p id="caseEditorStatus" role="status"></p>
+          <div class="timing-editor-actions"><button id="caseSave" class="button button-primary" type="submit" disabled>この状態を保存</button><button id="caseReload" class="button" type="button">最新情報を再取得</button></div>
+        </form>
       </div>
     </dialog>
     <dialog id="timingEditor" class="settings-dialog" aria-labelledby="timingEditorHeading" data-preserve-draft>

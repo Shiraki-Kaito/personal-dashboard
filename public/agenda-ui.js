@@ -552,7 +552,7 @@ async function openAccountDeletion(account) {
     renderAccountReferences();
     const counts = deletionPlan.counts;
     el("accountDeleteCounts").textContent =
-      `削除対象：メール ${counts.messages}件・直近予定 ${counts.calendarEvents}件・確認記録 ${counts.reviews}件・本人確定日時 ${counts.timingConfirmations || 0}件・予定登録記録 ${counts.operations}件・取得履歴 ${counts.mailHistory}件`;
+      `削除対象：メール ${counts.messages}件・直近予定 ${counts.calendarEvents}件・確認記録 ${counts.reviews}件・案件記録 ${counts.cases || 0}件・本人確定日時 ${counts.timingConfirmations || 0}件・予定登録記録 ${counts.operations}件・取得履歴 ${counts.mailHistory}件`;
     el("accountDeleteStatus").textContent = deletionPlan.blockers.length
       ? deletionPlan.blockers.join(" ")
       : "削除内容の確認は10分間有効です。保存情報が変わった場合は再確認が必要です。";

@@ -1,3 +1,5 @@
+import { mailCaseView, writeMailCase } from "./mail-cases.js";
+import { digest } from "./agenda-rules.js";
 import { prioritySearchPlan, mailRetrievalView } from "./mail-retrieval.js";
 import { agendaConnectionStatus } from "./agenda-google.js";
 import { priorityWithRules, priorityRulesView } from "./mail-priority-rules.js";
@@ -97,6 +99,7 @@ export async function agendaHome(storage, now = Date.now()) {
       }
       entries.push({
         kind: "mail",
+        caseSourceRevision: await digest({subject:message.subject,from:message.from,excerpt:message.excerpt}),
         accountId: account.id,
         messageId: message.id,
         email: account.email,
@@ -124,7 +127,7 @@ export async function agendaHome(storage, now = Date.now()) {
   return {
     accounts,
     entries: entries.map(({ excerpt, from, timings, timingNotice, ...entry }) => entry),
-    groups: groupMailSuggestions(entries, now),
+    ...await mailCaseView(storage, accounts, groupMailSuggestions(entries, now), now),
     alerts,
     complete: accounts.every(
       (a) =>
@@ -133,4 +136,12 @@ export async function agendaHome(storage, now = Date.now()) {
     pending: entries.filter((e) => e.kind === "pending").length,
     candidates: entries.filter((e) => e.kind === "mail").length,
   };
+}
+
+export async function saveAgendaCase(storage, input, now = Date.now()) {
+  return storage.transaction(async tx => {
+    const view = await agendaHome(tx, now);
+    await writeMailCase(tx, view.accounts, view, input, now);
+    return agendaHome(tx, now);
+  });
 }

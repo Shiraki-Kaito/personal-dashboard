@@ -1,3 +1,4 @@
+import { saveAgendaCase } from "./agenda-home.js";
 import { saveDriveGroup } from "./drive-groups.js";
 import { previewPriorityRules, savePriorityRules } from "./mail-priority-rules.js";
 import { readTimingConfirmation, saveTimingConfirmation } from "./timing-confirmations.js";
@@ -209,6 +210,7 @@ export class Dashboard extends DurableObject {
         "/task-drafts.js",
         "/confirm.js",
         "/home-ui.js",
+        "/mail-case-editor.js",
         "/timing-editor.js",
         "/calendar-cards.js",
         "/agenda-ui.js",
@@ -293,6 +295,7 @@ export class Dashboard extends DurableObject {
             await agendaView(this.env, storage, searchParams.get("accountId")),
           );
         const operations = {
+          saveCase: (_env, storage, input) => saveAgendaCase(storage,input),
           timingView: (_env, storage, input) => readTimingConfirmation(storage,input),
           timingCalendar: (_env, storage, input) => timingCalendarSeed(storage,input),
           saveTiming: (_env, storage, input) => saveTimingConfirmation(storage,input),

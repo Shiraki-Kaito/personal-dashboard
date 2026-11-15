@@ -113,6 +113,7 @@ export function groupMailSuggestions(entries, now = Date.now()) {
             ]);
     if (!groups.has(key))
       groups.set(key, {
+        caseKey: key,
         label: company || entry.title,
         basis: company
           ? "件名に同じ組織名がある関連候補"

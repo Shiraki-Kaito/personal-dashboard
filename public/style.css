@@ -2258,3 +2258,13 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 .home-team-edit:disabled { opacity:.5; cursor:default; }
 .home-progress-result { margin:0; padding:0 20px; font-size:12px; color:#17695b; }
 .home-progress-result:empty { display:none; }
+
+.case-tabs { display:flex; flex-wrap:wrap; gap:.5rem; margin:.75rem 0; }
+.case-tabs [aria-pressed="true"] { background:var(--accent, #087f72); color:white; }
+.case-note { white-space:pre-wrap; overflow-wrap:anywhere; }
+#caseEditor textarea { width:100%; box-sizing:border-box; font:inherit; border:1px solid #ccd8dd; border-radius:.5rem; padding:.65rem; }
+.case-archived { opacity:.9; }
+
+#caseEditorForm { display:grid; gap:12px; }
+#caseEditorForm > label:not(.timing-confirm) { display:grid; gap:6px; }
+#caseEditorForm > label[hidden] { display:none; }

@@ -1,3 +1,4 @@
+import { openMailCase } from "./mail-case-editor.js";
 import { createCalendarCard } from "./calendar-cards.js";
 import { openTimingEditor } from "./timing-editor.js?v=calendar1";
 import { sessionFetch as fetch } from "./session-connection.js";
@@ -5,6 +6,7 @@ import { confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 const pollMs = 60000;
 const visibleTimingCount = 3;
+let caseFilter = "open";
 let state = null,
   busy = false,
   reloadAfterBusy = false,
@@ -240,20 +242,21 @@ function openMail(entry) {
 }
 function renderSuggestions(agenda) {
   const groups = agenda.groups || [];
-  const signature = JSON.stringify([groups, agenda.complete]);
+  const signature = JSON.stringify([groups, agenda.caseHistory, caseFilter, agenda.complete]);
   if (signature === agendaSignature) return;
   agendaSignature = signature;
-  const rows = groups.map(group => {
+  const rows = groups.filter(group => group.pending || (group.caseState?.status || "open") === caseFilter).map(group => {
     const row = element("article", "suggestion-card");
-    if (group.priority) {
+    if (group.priority && (group.caseState?.status || "open") === "open") {
       row.dataset.priority = String(group.priority.rank);
       row.append(element("p", "suggestion-priority", group.priority.label));
     }
+    if (group.caseState?.status === "done" || group.caseState?.status === "hold") row.append(element("p", "suggestion-priority", group.caseState.status === "done" ? "対応済み" : "保留"));
     row.append(element("p", "suggestion-case", group.label));
     row.append(element("h3", "suggestion-title", group.suggestion.title));
     row.append(element("p", "suggestion-reason", group.suggestion.reason));
     for (const notice of group.timingNotices || []) row.append(element("p", "timing-caution", notice.accountName + "：" + notice.message));
-    if (group.timings?.length) {
+    if ((group.caseState?.status || "open") === "open" && group.timings?.length) {
       const timings = element("div", "suggestion-timings");
       const more = element("details", "timing-more");
       more.append(element("summary", "", `ほかの記載日時を確認（${Math.max(0,group.timings.length-visibleTimingCount)}件）`));
@@ -292,8 +295,8 @@ function renderSuggestions(agenda) {
       }
       if (group.timings.length > visibleTimingCount) timings.append(more);
       row.append(timings);
-    } else if (!group.pending) row.append(element("p", "home-item-meta", "最新の保存済み案内に、採用できる具体的な締切・日時はありません。"));
-    if (group.suggestion.checks?.length) {
+    } else if (!group.pending && (group.caseState?.status || "open") === "open") row.append(element("p", "home-item-meta", "最新の保存済み案内に、採用できる具体的な締切・日時はありません。"));
+    if ((group.caseState?.status || "open") === "open" && group.suggestion.checks?.length) {
       const checks = element("ul", "suggestion-checks");
       for (const check of group.suggestion.checks) checks.append(element("li", "", check));
       row.append(checks);
@@ -304,9 +307,19 @@ function renderSuggestions(agenda) {
     action.type = "button";
     action.onclick = () => openMail(group.entries[0]);
     row.append(action);
+    if (group.caseState) {
+      const record = group.caseState;
+      if (record.notice) row.append(element("p", "timing-caution", record.notice));
+      if (record.note) row.append(element("p", "case-note", "メモ：" + record.note));
+      if (record.status === "hold") row.append(element("p", "home-item-meta", record.snoozeUntil ? "再表示 " + record.snoozeUntil.replaceAll("-", "/") + "（日本時間0時）" : "再表示日なし・保留一覧から戻せます"));
+      if (record.updatedAt) row.append(element("p", "home-item-meta", "対応状況の保存 " + time(record.updatedAt)));
+      const edit = element("button", "button button-small", "案件の対応状況を変更");
+      edit.type = "button"; edit.onclick = () => openMailCase(group);
+      row.append(edit);
+    }
     const details = element("details", "suggestion-sources");
     details.append(element("summary", "", `根拠・関連メール ${group.entries.length}通`));
-    details.append(element("p", "home-item-meta", group.basis + "。同一案件とは限らず、一括で処理しません。"));
+    details.append(element("p", "home-item-meta", group.pending ? "登録結果の未確認は独立した照合案として表示します。案件の状態変更では隠しません。" : group.basis + "。同一案件とは限りません。案件の状態保存は、このカードに含まれる関連メール全体が対象です。"));
     for (const entry of group.entries) {
       const item = element("article", "suggestion-source"), open = element("button", "home-task-open");
       open.type = "button";
@@ -320,7 +333,16 @@ function renderSuggestions(agenda) {
     row.append(details);
     return row;
   });
-  if (!rows.length) rows.push(empty("未処理の重要メールはありません", agenda.complete ? "取得済みの全メールは「メール・予定」で確認できます。" : "未取得・取得失敗の警告も確認してください。"));
+  for (const record of agenda.caseHistory || []) if (record.status === caseFilter) {
+    const row = element("article", "suggestion-card case-archived");
+    row.append(element("h3", "suggestion-case", record.label), element("p", "home-item-meta", "元メールは現在の取得範囲にありません。保存済みの対応記録です。"));
+    if (record.note) row.append(element("p", "case-note", "メモ：" + record.note));
+    if (record.snoozeUntil) row.append(element("p", "home-item-meta", "再表示日 " + record.snoozeUntil + "（日本時間0時）"));
+    row.append(element("p", "home-item-meta", "保存 " + time(record.updatedAt)));
+    const reopen = element("button", "button button-small", "保存記録を未対応に戻す");
+    reopen.type = "button"; reopen.onclick = () => openMailCase(record, true); row.append(reopen); rows.push(row);
+  }
+  if (!rows.length) rows.push(empty(caseFilter === "open" ? "未対応の重要メール案件はありません" : caseFilter === "hold" ? "保留の案件はありません" : "対応済みの案件はありません", agenda.complete ? "取得済みの全メールは「メール・予定」で確認できます。" : "未取得・取得失敗の警告も確認してください。"));
   replaceList(el("homeAgendaEntries"), rows);
 }
 function renderCalendar() {
@@ -344,17 +366,23 @@ function render() {
   el("navHomeCount").textContent =
     state.counts.priority +
     state.counts.drive +
-    (state.agenda?.entries.length || 0);
+    (state.agenda?.groups?.filter(group=>group.pending || group.caseState?.status === "open").length || 0) +
+    (state.agenda?.caseHistory?.filter(record=>record.status === "open").length || 0);
   const agenda = state.agenda || {
     accounts: [],
     entries: [],
     candidates: 0,
     pending: 0,
   };
-  el("homeAgendaCount").textContent = agenda.groups?.length ?? agenda.entries.length;
+  const countCases = status => (agenda.groups || []).filter(group => group.pending ? status === "open" : (group.caseState?.status || "open") === status).length + (agenda.caseHistory || []).filter(record => record.status === status).length;
+  el("homeAgendaCount").textContent = countCases("open");
+  for (const [id, status, label] of [["homeCaseOpen","open","未対応"],["homeCaseHold","hold","保留"],["homeCaseDone","done","対応済み"]]) {
+    el(id).textContent = label + " " + countCases(status);
+    el(id).setAttribute("aria-pressed", String(caseFilter === status));
+  }
   el("homeAgendaStatus").textContent = !agenda.accounts.length
     ? "未接続"
-    : `${agenda.groups?.length ?? agenda.entries.length}件の確認案・関連メール ${agenda.candidates}通・結果未確認 ${agenda.pending}` +
+    : `未対応 ${countCases("open")}件・保留 ${countCases("hold")}件・対応済み ${countCases("done")}件・結果未確認 ${agenda.pending}（全タブに表示）` +
       (agenda.accounts.some((a) => a.hasMore) ? "・未取得の続きあり" : "");
   renderSuggestions(agenda);
   renderCalendar();
@@ -481,3 +509,6 @@ await load(true);
 setInterval(() => {
   if (!document.hidden && document.body.dataset.view === "home") load(true);
 }, pollMs);
+
+for (const [id, status] of [["homeCaseOpen","open"],["homeCaseHold","hold"],["homeCaseDone","done"]]) el(id).onclick = () => { caseFilter = status; agendaSignature = ""; render(); };
+document.addEventListener("dashboard:case-saved", event => { el("homeCaseStatus").textContent = ({open:"未対応",hold:"保留",done:"対応済み"})[event.detail] + "の保存を確認しました"; });

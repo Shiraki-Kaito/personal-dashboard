@@ -100,6 +100,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "agenda-priority",
       "mail-priority-rules",
       "mail-suggestions",
+      "mail-cases",
       "mail-timing",
       "timing-confirmations",
       "timing-calendar",
@@ -181,9 +182,9 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     assert.equal((await request("/api/drive",{group:{}})).status,401);
     assert.equal((await request("/api/home")).status, 401);
     assert.equal((await request("/home-ui.js")).status, 401);
-    for (const route of ["/api/agenda", "/agenda-ui.js", "/timing-editor.js"])
+    for (const route of ["/api/agenda", "/agenda-ui.js", "/timing-editor.js", "/mail-case-editor.js"])
       assert.equal((await request(route)).status, 401);
-    for (const action of ["timingView","saveTiming","timingCalendar"])
+    for (const action of ["timingView","saveTiming","timingCalendar","saveCase"])
       assert.equal((await request("/api/agenda",{action})).status,401);
     assert.equal(
       (await request("/api/agenda", { action: "register", confirmed: true }))
@@ -242,7 +243,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       .find((x) => x.startsWith("__Host-dashboard_session"))
       .split(";")[0];
     assert.equal(await (await request("/")).text(), "private dashboard");
-    for (const action of ["timingView","saveTiming","timingCalendar"]) {
+    for (const action of ["timingView","saveTiming","timingCalendar","saveCase"]) {
       assert.equal((await request("/api/agenda",{action},"https://other.test")).status,403);
       assert.equal((await request("/api/agenda",{action})).status,409);
     }
