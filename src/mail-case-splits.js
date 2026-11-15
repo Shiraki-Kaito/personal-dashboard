@@ -134,7 +134,65 @@ export async function splitMailEntries(storage, accounts, entries) {
       };
     }),
   );
-  return { entries: classified, splitRevision: revision, splitCases: cases };
+  const inventory = new Map(
+    cases.map((item) => [
+      item.id,
+      { ...item, homeCount: 0, cachedCount: 0, accountCount: 0 },
+    ]),
+  );
+  for (const account of accounts) {
+    const cache = (await storage.get("agenda:cache:" + account.id)) || {};
+    const cachedIds = new Set(
+      (cache.messages || []).map((message) => message.id),
+    );
+    const seen = new Set();
+    for (const [id, record] of Object.entries(
+      stores.get(account.id).assignments,
+    )) {
+      const item = inventory.get(record.caseId);
+      if (cachedIds.has(id)) item.cachedCount++;
+      if (!seen.has(item.id)) {
+        item.accountCount++;
+        seen.add(item.id);
+      }
+    }
+  }
+  for (const entry of classified)
+    if (entry.manualCase) inventory.get(entry.manualCase.id).homeCount++;
+  const splitCases = await Promise.all(
+    [...inventory.values()].map(async (item) => ({
+      ...item,
+      recordId: await mailCaseId(manualKey(item.id)),
+    })),
+  );
+  return { entries: classified, splitRevision: revision, splitCases };
+}
+
+function removeAssignments(stores, targetId, visibleEntries = []) {
+  const affected = new Set(
+    visibleEntries.map((entry) => entry.automaticCaseId),
+  );
+  const changedAccounts = new Set();
+  let count = 0;
+  for (const [accountId, store] of stores)
+    for (const [id, record] of Object.entries(store.assignments))
+      if (record.caseId === targetId) {
+        affected.add(record.originalCaseId);
+        changedAccounts.add(accountId);
+        count++;
+        delete store.assignments[id];
+        store.revision = crypto.randomUUID();
+      }
+  return { affected, changedAccounts, count };
+}
+
+async function persistSplitStores(storage, stores, changedAccounts) {
+  const updated = [];
+  for (const [accountId, store] of stores)
+    if (changedAccounts.has(accountId))
+      updated.push([keyFor(accountId), normalizeSplitStore(store)]);
+  splitLabels(stores.values());
+  for (const [key, store] of updated) await storage.put(key, store);
 }
 
 async function reopenCases(storage, accounts, ids, now) {
@@ -180,18 +238,18 @@ export async function writeMailSplit(storage, view, input, now = Date.now()) {
   if (input.reset === true) {
     if (!group.manualCaseId)
       throw new InputError("手動で分けた案件を選択してください");
-    let count = 0;
-    for (const entry of group.entries) affected.add(entry.automaticCaseId);
-    for (const [accountId, store] of stores)
-      for (const [id, record] of Object.entries(store.assignments))
-        if (record.caseId === group.manualCaseId) {
-          changedAccounts.add(accountId);
-          count++;
-          affected.add(record.originalCaseId);
-          delete store.assignments[id];
-          store.revision = crypto.randomUUID();
-        }
-    result = { reset: true, count, targetId: group.manualCaseId };
+    const removed = removeAssignments(
+      stores,
+      group.manualCaseId,
+      group.entries,
+    );
+    for (const id of removed.affected) affected.add(id);
+    for (const id of removed.changedAccounts) changedAccounts.add(id);
+    result = {
+      reset: true,
+      count: removed.count,
+      targetId: group.manualCaseId,
+    };
     // 分割側の保存記録は履歴に保ち、戻り先の過去の対応済みを復活させない。
   } else {
     if (
@@ -244,12 +302,68 @@ export async function writeMailSplit(storage, view, input, now = Date.now()) {
     affected.add(group.caseState.id);
     affected.add(await mailCaseId(manualKey(target.id)));
   }
-  const updated = [];
-  for (const [accountId, store] of stores)
-    if (changedAccounts.has(accountId))
-      updated.push([keyFor(accountId), normalizeSplitStore(store)]);
-  splitLabels(stores.values());
-  for (const [key, store] of updated) await storage.put(key, store);
+  await persistSplitStores(storage, stores, changedAccounts);
   await reopenCases(storage, view.accounts, affected, now);
   return result;
+}
+
+// 一覧にメールがなくても、保存済み分類と全宛先の版を照合して管理する。
+export async function writeSplitManagement(
+  storage,
+  view,
+  input,
+  now = Date.now(),
+) {
+  const target = view.splitCases.find((item) => item.id === input.targetId);
+  if (
+    input.confirmed !== true ||
+    !target ||
+    input.expectedSplitRevision !== view.splitRevision ||
+    !["rename", "reset"].includes(input.operation)
+  )
+    throw new InputError(
+      "分類・案内・対応状態が変わったか、確認が未完了です。再読込してください",
+    );
+  const stores = await storesFor(storage, view.accounts);
+  if (input.operation === "reset") {
+    const entries = view.groups
+      .filter((group) => group.manualCaseId === target.id)
+      .flatMap((group) => group.entries);
+    const removed = removeAssignments(stores, target.id, entries);
+    await persistSplitStores(storage, stores, removed.changedAccounts);
+    await reopenCases(storage, view.accounts, removed.affected, now);
+    return { operation: "reset", id: target.id, count: removed.count };
+  }
+  if (!labelValid(input.label))
+    throw new InputError("案件名を100文字以内で入力してください");
+  const label = input.label.trim();
+  if (label === target.label) throw new InputError("案件名が変わっていません");
+  const changedAccounts = new Set();
+  for (const [accountId, store] of stores)
+    for (const assignment of Object.values(store.assignments))
+      if (assignment.caseId === target.id) {
+        assignment.label = label;
+        store.revision = crypto.randomUUID();
+        changedAccounts.add(accountId);
+      }
+  const labelChanges = [];
+  const revisions = new Map();
+  for (const account of view.accounts) {
+    const key = "agenda:cases:" + account.id;
+    const records = normalizeCaseRecords((await storage.get(key)) || {});
+    const record = records[target.recordId];
+    if (!record) continue;
+    // 元々異なる版の記録を同じ版へ揃えず、既存の不一致や未対応を保つ。
+    if (!revisions.has(record.revision))
+      revisions.set(record.revision, crypto.randomUUID());
+    records[target.recordId] = {
+      ...record,
+      label,
+      revision: revisions.get(record.revision),
+    };
+    labelChanges.push([key, normalizeCaseRecords(records)]);
+  }
+  await persistSplitStores(storage, stores, changedAccounts);
+  for (const [key, records] of labelChanges) await storage.put(key, records);
+  return { operation: "rename", id: target.id, label, count: target.count };
 }

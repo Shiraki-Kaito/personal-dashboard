@@ -1,4 +1,4 @@
-import { splitMailEntries, writeMailSplit } from "./mail-case-splits.js";
+import { splitMailEntries, writeMailSplit, writeSplitManagement } from "./mail-case-splits.js";
 import { mailCaseView, writeMailCase } from "./mail-cases.js";
 import { digest } from "./agenda-rules.js";
 import { prioritySearchPlan, mailRetrievalView } from "./mail-retrieval.js";
@@ -126,12 +126,15 @@ export async function agendaHome(storage, now = Date.now()) {
       (b.receivedAt || "").localeCompare(a.receivedAt || ""),
   );
   const classified = await splitMailEntries(storage, accounts, entries);
+  const caseView = await mailCaseView(storage, accounts, groupMailSuggestions(classified.entries, now), now);
+  const activeStatuses = new Map(caseView.groups.filter(group=>group.manualCaseId).map(group=>[group.manualCaseId,group.caseState.status]));
+  const archivedStatuses = new Map(caseView.caseHistory.map(record=>[record.id,record.status]));
   return {
     splitRevision: classified.splitRevision,
-    splitCases: classified.splitCases,
+    splitCases: classified.splitCases.map(item=>({...item,status:activeStatuses.get(item.id) || archivedStatuses.get(item.recordId) || "open"})),
     accounts,
     entries: entries.map(({ excerpt, from, timings, timingNotice, ...entry }) => entry),
-    ...await mailCaseView(storage, accounts, groupMailSuggestions(classified.entries, now), now),
+    ...caseView,
     alerts,
     complete: accounts.every(
       (a) =>
@@ -155,5 +158,13 @@ export async function saveAgendaSplit(storage, input, now = Date.now()) {
     const view = await agendaHome(tx, now);
     const splitResult = await writeMailSplit(tx, view, input, now);
     return {...await agendaHome(tx, now),splitResult};
+  });
+}
+
+export async function manageAgendaSplit(storage,input,now=Date.now()) {
+  return storage.transaction(async tx=>{
+    const view=await agendaHome(tx,now);
+    const splitManagementResult=await writeSplitManagement(tx,view,input,now);
+    return {...await agendaHome(tx,now),splitManagementResult};
   });
 }

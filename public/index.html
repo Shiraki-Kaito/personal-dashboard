@@ -8,12 +8,12 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/dashboard-192.png" type="image/png" />
     <title>ワークスペース | Personal Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=20261115-splits1" />
+    <link rel="stylesheet" href="/style.css?v=20261116-split-manager1" />
     <script type="module" src="/session-ui.js"></script>
     <script type="module" src="/ui.js"></script>
     <script type="module" src="/drive-ui.js?v=progress1"></script>
     <script type="module" src="/motion-ui.js?v=confirm1"></script>
-    <script type="module" src="/home-ui.js?v=splits2"></script>
+    <script type="module" src="/home-ui.js?v=split-manager1"></script>
     <script type="module" src="/backup-ui.js?v=splits1"></script>
     <script type="module" src="/agenda-ui.js?v=splits1"></script>
     <script type="module" src="/slack-ui.js"></script>
@@ -217,6 +217,7 @@
             <button id="homeCaseOpen" class="button button-small" aria-pressed="true">未対応</button>
             <button id="homeCaseHold" class="button button-small" aria-pressed="false">保留</button>
             <button id="homeCaseDone" class="button button-small" aria-pressed="false">対応済み</button>
+            <button id="homeManageSplits" class="button button-small" disabled>分割案件を管理</button>
           </div>
           <p id="homeCaseStatus" class="home-item-meta" role="status"></p>
           <div
@@ -1026,6 +1027,22 @@
         <button id="sessionCheck" class="button">ログイン後に接続を確認</button>
         <p>保存・予定登録は自動再送しません。</p>
         <a href="/">入力を破棄してログイン画面へ戻る</a>
+      </div>
+    </dialog>
+    <dialog id="splitManager" class="settings-dialog" aria-labelledby="splitManagerHeading" data-preserve-draft>
+      <div class="dialog-body">
+        <div class="dialog-top"><h2 id="splitManagerHeading">保存した分割案件を管理</h2><button id="splitManagerClose" class="icon-button" aria-label="分割案件の管理を閉じる">×</button></div>
+        <p id="splitManagerSummary" class="home-item-meta"></p>
+        <form id="splitManagerForm">
+          <label>分割案件を検索<input id="splitManagerFilter" type="search" maxlength="100" /></label>
+          <label>保存した分割案件<select id="splitManagerSelect"></select></label>
+          <p id="splitManagerInfo" class="home-item-meta"></p>
+          <label>案件名（100文字まで）<input id="splitManagerLabel" maxlength="100" required /></label>
+          <p class="home-item-meta">分類解除は保存済みの対象メールすべてに適用し、手動の振り分けを外します。メール・既読・予定は変更しません。対応記録とメモは履歴に保持し、戻り先は未対応になります。</p>
+          <label class="timing-confirm"><input id="splitManagerConfirm" type="checkbox" />対象の案件と変更内容を確認しました</label>
+          <p id="splitManagerStatus" role="status"></p>
+          <div class="timing-editor-actions"><button id="splitManagerRename" class="button button-primary" type="submit" disabled>名前を保存</button><button id="splitManagerReset" class="button" type="button" disabled>この案件の手動分類を解除</button><button id="splitManagerReload" class="button" type="button">最新情報を再取得</button></div>
+        </form>
       </div>
     </dialog>
     <dialog id="splitEditor" class="settings-dialog" aria-labelledby="splitEditorHeading" data-preserve-draft>

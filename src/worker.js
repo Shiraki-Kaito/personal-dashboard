@@ -1,4 +1,4 @@
-import { saveAgendaCase, saveAgendaSplit } from "./agenda-home.js";
+import { saveAgendaCase, saveAgendaSplit, manageAgendaSplit } from "./agenda-home.js";
 import { saveDriveGroup } from "./drive-groups.js";
 import { previewPriorityRules, savePriorityRules } from "./mail-priority-rules.js";
 import { readTimingConfirmation, saveTimingConfirmation } from "./timing-confirmations.js";
@@ -212,6 +212,7 @@ export class Dashboard extends DurableObject {
         "/home-ui.js",
         "/mail-case-editor.js",
         "/mail-split-editor.js",
+        "/mail-split-manager.js",
         "/timing-editor.js",
         "/calendar-cards.js",
         "/agenda-ui.js",
@@ -296,6 +297,7 @@ export class Dashboard extends DurableObject {
             await agendaView(this.env, storage, searchParams.get("accountId")),
           );
         const operations = {
+          manageSplit: (_env, storage, input) => manageAgendaSplit(storage,input),
           splitCase: (_env, storage, input) => saveAgendaSplit(storage,input),
           saveCase: (_env, storage, input) => saveAgendaCase(storage,input),
           timingView: (_env, storage, input) => readTimingConfirmation(storage,input),

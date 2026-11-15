@@ -22,7 +22,7 @@ export function openMailCase(group, archived = false) {
     : "案件の対応状況";
   el("caseEditorLabel").textContent = group.label;
   el("caseEditorScope").textContent = archived
-    ? "元メールは現在のホーム取得範囲にありません。未対応へ戻すと保存記録の一覧から外れ、元メールが再び取得されたときに未対応で表示します。"
+    ? "現在のホームにこの案件のメール一覧がありません。未対応へ戻すと保存記録は履歴から外れます。メールが現在のホームにない場合、新しい案件カードは作りません。"
     : `関連メール ${group.entries.length}通・${group.accountCount}アカウントが対象です。` +
       group.basis +
       "のため、別案件が混ざっていないか確認してください。";

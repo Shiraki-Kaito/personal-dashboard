@@ -1,3 +1,4 @@
+import { openSplitManager } from "./mail-split-manager.js";
 import { openMailSplit } from "./mail-split-editor.js";
 import { openMailCase } from "./mail-case-editor.js";
 import { createCalendarCard } from "./calendar-cards.js";
@@ -320,6 +321,8 @@ function renderSuggestions(agenda) {
       const split = element("button", "button button-small", "案件を分ける・メールを移す");
       split.type="button"; split.onclick=()=>openMailSplit(group,agenda); row.append(split);
       if(group.manualCaseId) {
+        const manage = element("button", "button button-small", "案件名を変更・分類を管理");
+        manage.type="button"; manage.onclick=()=>openSplitManager(agenda,group.manualCaseId); row.append(manage);
         const reset = element("button", "button button-small", "自動のまとめ方に戻す");
         reset.type="button"; reset.onclick=()=>openMailSplit(group,agenda,true); row.append(reset);
       }
@@ -342,7 +345,7 @@ function renderSuggestions(agenda) {
   });
   for (const record of agenda.caseHistory || []) if (record.status === caseFilter) {
     const row = element("article", "suggestion-card case-archived");
-    row.append(element("h3", "suggestion-case", record.label), element("p", "home-item-meta", "元メールは現在の取得範囲にありません。保存済みの対応記録です。"));
+    row.append(element("h3", "suggestion-case", record.label), element("p", "home-item-meta", "現在のホームにこの案件のメール一覧がありません。保存済みの対応記録です。"));
     if (record.note) row.append(element("p", "case-note", "メモ：" + record.note));
     if (record.snoozeUntil) row.append(element("p", "home-item-meta", "再表示日 " + record.snoozeUntil + "（日本時間0時）"));
     row.append(element("p", "home-item-meta", "保存 " + time(record.updatedAt)));
@@ -381,6 +384,8 @@ function render() {
     candidates: 0,
     pending: 0,
   };
+  el("homeManageSplits").disabled = !state.agenda;
+  el("homeManageSplits").textContent = "分割案件を管理（"+(agenda.splitCases?.length || 0)+"）";
   const countCases = status => (agenda.groups || []).filter(group => group.pending ? status === "open" : (group.caseState?.status || "open") === status).length + (agenda.caseHistory || []).filter(record => record.status === status).length;
   el("homeAgendaCount").textContent = countCases("open");
   for (const [id, status, label] of [["homeCaseOpen","open","未対応"],["homeCaseHold","hold","保留"],["homeCaseDone","done","対応済み"]]) {
@@ -521,3 +526,5 @@ for (const [id, status] of [["homeCaseOpen","open"],["homeCaseHold","hold"],["ho
 document.addEventListener("dashboard:case-saved", event => { el("homeCaseStatus").textContent = ({open:"未対応",hold:"保留",done:"対応済み"})[event.detail] + "の保存を確認しました"; });
 
 document.addEventListener("dashboard:split-saved",event=>{caseFilter="open"; agendaSignature=""; if(state) render(); el("homeCaseStatus").textContent=event.detail;});
+
+el("homeManageSplits").onclick=()=>{if(state?.agenda)openSplitManager(state.agenda);};

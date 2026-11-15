@@ -2279,3 +2279,7 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 .split-mail-choice > span { min-width:0; overflow-wrap:anywhere; }
 .split-mail-choice strong, .split-mail-choice small { display:block; }
 .split-mail-choice small { color:var(--muted); margin-top:5px; }
+
+#splitManagerForm { display:grid; gap:12px; }
+#splitManagerForm > label:not(.timing-confirm) { display:grid; gap:6px; }
+#splitManagerForm select { width:100%; min-width:0; }
