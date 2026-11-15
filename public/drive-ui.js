@@ -1,4 +1,4 @@
-import { renderDriveGroups } from "./drive-groups-ui.js?v=1";
+import { renderDriveGroups, openDriveGroupEditor } from "./drive-groups-ui.js?v=home-progress1";
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id);
@@ -380,8 +380,13 @@ async function load(refresh = false, acknowledge = null, group = null) {
 
     if (!response.ok) { const error = await response.json().catch(()=>({})); throw Error(error.error || "Driveの状態を取得できません"); }
     state = await response.json();
+    if (group) {
+      const saved = state.groups.find(saved=>saved.path === group.path);
+      if (!saved || saved.revision === group.expectedRevision || ["name","color","status","nextAction","due"].some(key=>saved[key] !== group[key]))
+        throw Error("保存結果を照合できません。保存内容を再読込して確認してください");
+      document.dispatchEvent(new CustomEvent("dashboard:drive-group-saved",{detail:{name:saved.name}}));
+    }
     success = true;
-    if (group) document.dispatchEvent(new Event("dashboard:drive-reviewed"));
     if (acknowledge)
       document.dispatchEvent(new Event("dashboard:drive-reviewed"));
     if (acknowledge)
@@ -484,6 +489,18 @@ document.addEventListener("dashboard:refresh", () => load(true));
 document.addEventListener("dashboard:review-drive", (event) =>
   load(false, [event.detail]),
 );
+document.addEventListener("dashboard:edit-drive-group", async event => {
+  if (!(await load())) {
+    document.dispatchEvent(new CustomEvent("dashboard:home-error",{detail:"グループの最新設定を取得できません。少し待ってから再度開いてください。"}));
+    return;
+  }
+  const group = state.groups.find(group=>group.path === event.detail.path);
+  if (!group) {
+    document.dispatchEvent(new CustomEvent("dashboard:home-error",{detail:"グループの保存場所が変わりました。ホームを再読込してください。"}));
+    return;
+  }
+  openDriveGroupEditor(group,state);
+});
 document.addEventListener("dashboard:open-drive-group", async event => {
   // 通信中でも既に取得したグループを開ける。未取得時だけ一覧を待つ。
   if (!state && !(await load())) return;

@@ -240,7 +240,7 @@ test("ホームAPIは保存されたチームカラーと未確認変更を同�
  const cache=await storage.get("drive:cache");
  const file={id:"team",name:"投稿案",folder:"Root / 100_SNS運用",mimeType:"text/plain",createdTime:new Date(now).toISOString(),modifiedTime:new Date(now).toISOString(),lastModifiedBy:"担当者"};
  await storage.put("drive:cache",{...cache,files:[file],unreadChanges:[{...file,events:["更新"],changeId:"version",detectedAt:now}]});
- await storage.put("drive:groups",{scope:"root:true",records:[{path:file.folder,name:"SNS",color:"violet",status:"未設定",nextAction:"",due:"",revision:crypto.randomUUID(),updatedAt:new Date(now).toISOString()}]});
+ await storage.put("drive:groups",{scope:"root:true",records:[{path:file.folder,name:"SNS",color:"violet",status:"進行中",nextAction:"投稿案を確認",due:"2026-11-20",revision:crypto.randomUUID(),updatedAt:new Date(now).toISOString()}]});
  const result=await homeView(env,storage,()=>assert.fail(),false,now);
- assert.equal(result.drive.groups.highlighted.length,4);assert.equal(result.drive.groups.highlighted[0].color,"violet");assert.equal(result.drive.groups.highlighted[0].updates[0].lastModifiedBy,"担当者");assert.equal(result.counts.drive,1);
+ assert.equal(result.drive.groups.highlighted.length,4);assert.equal(result.drive.groups.highlighted[0].color,"violet");assert.equal(result.drive.groups.highlighted[0].updates[0].lastModifiedBy,"担当者");assert.equal(result.counts.drive,1);assert.equal(result.drive.groups.highlighted[0].status,"進行中");assert.equal(result.drive.groups.highlighted[0].nextAction,"投稿案を確認");assert.equal(result.drive.groups.highlighted[0].due,"2026-11-20");
 });

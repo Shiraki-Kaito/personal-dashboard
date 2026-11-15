@@ -1,3 +1,4 @@
+import { confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 let current = null;
 let saving = false;
@@ -20,7 +21,7 @@ function fileLink(file, openFile) {
   button.onclick = () => openFile(file);
   return button;
 }
-function editGroup(group, state) {
+export function openDriveGroupEditor(group, state) {
   if (saving) return;
   current = { ...group, scope: state.folderId + ":" + state.includeSubfolders };
   el("groupEditorHeading").textContent = group.name + "の色と進捗";
@@ -35,7 +36,13 @@ function editGroup(group, state) {
 }
 export function renderDriveGroups(state, openFile, save, busy, filterGroup) {
   apiSave = save;
-  const signature = JSON.stringify([state.groups,state.lastSuccess,state.error,state.scanning,busy]);
+  const signature = JSON.stringify([
+    state.groups,
+    state.lastSuccess,
+    state.error,
+    state.scanning,
+    busy,
+  ]);
   if (signature === renderedSignature) return;
   renderedSignature = signature;
   el("driveGroupsTime").textContent =
@@ -114,7 +121,7 @@ export function renderDriveGroups(state, openFile, save, busy, filterGroup) {
     const edit = element("button", "色・表示名・進捗を設定", "button");
     edit.type = "button";
     edit.disabled = busy;
-    edit.onclick = () => editGroup(group, state);
+    edit.onclick = () => openDriveGroupEditor(group, state);
     card.append(edit);
     return card;
   });
@@ -127,18 +134,8 @@ export function renderDriveGroups(state, openFile, save, busy, filterGroup) {
       ),
     );
 }
-el("groupEditorClose").onclick = () => {
-  if (!saving) el("groupEditor").close();
-};
-el("groupEditor").addEventListener("cancel", (event) => {
-  if (saving) event.preventDefault();
-});
-el("groupForm").onsubmit = async (event) => {
-  event.preventDefault();
-  if (saving || !current) return;
-  saving = true;
-  el("groupSave").disabled = true;
-  const input = {
+function groupDraft() {
+  return {
     scope: current.scope,
     path: current.path,
     expectedRevision: current.revision,
@@ -148,6 +145,35 @@ el("groupForm").onsubmit = async (event) => {
     due: el("groupDue").value,
     color: el("groupColor").value,
   };
+}
+async function closeGroupEditor() {
+  if (saving) return;
+  const draft = current && groupDraft();
+  const dirty =
+    draft &&
+    ["name", "status", "nextAction", "due", "color"].some(
+      (key) => draft[key] !== current[key],
+    );
+  if (
+    dirty &&
+    !(await confirmDiscard("未保存のグループ設定を破棄して閉じますか？"))
+  )
+    return;
+  el("groupEditor").close();
+}
+el("groupEditorClose").onclick = closeGroupEditor;
+el("groupEditor").addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeGroupEditor();
+});
+el("groupForm").onsubmit = async (event) => {
+  event.preventDefault();
+  if (saving || !current) return;
+  saving = true;
+  el("groupSave").disabled = true;
+  const input = groupDraft();
+  for (const control of el("groupForm").elements) control.disabled = true;
+  el("groupEditorClose").disabled = true;
   try {
     const result = await apiSave(input);
     if (!result)
@@ -158,6 +184,7 @@ el("groupForm").onsubmit = async (event) => {
     el("groupSaveResult").textContent = error.message;
   } finally {
     saving = false;
-    el("groupSave").disabled = false;
+    for (const control of el("groupForm").elements) control.disabled = false;
+    el("groupEditorClose").disabled = false;
   }
 };

@@ -192,6 +192,20 @@ function renderDrive() {
       const header = element("div", "home-team-heading");
       header.append(element("h3", "", group.name),element("span", "home-team-count", "未確認 " + group.pendingCount));
       card.append(header);
+      const progress = element("div", "home-team-progress");
+      const status = element("span", "group-status", "進捗：" + group.status);
+      status.dataset.status = group.status;
+      const next = element("p", "home-team-next", group.nextAction || "次にすることは未設定です");
+      next.title = group.nextAction || "";
+      const due = element("p", "home-team-due", group.due ? "期限 " + group.due.replaceAll("-","/") + "（日本時間）" : "期限未設定");
+      if (group.due && group.status !== "完了") {
+        const today = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+        if (group.due < today) { due.classList.add("group-overdue"); due.append(" · 期限超過"); }
+        else if (group.due === today) due.append(" · 今日が期限");
+      }
+      if (group.updatedAt) progress.title = "設定保存 " + time(group.updatedAt);
+      progress.append(status,next,due);
+      card.append(progress);
       for (const file of group.updates) card.append(driveFileRow(file));
       if (!group.updates.length) {
         card.append(element("p", "home-team-empty", state.drive.stale || !state.drive.connected ? "保存情報です。最新の取得状況を確認してください。" : state.drive.scanning ? "取得中・前回の未確認なし" : "未確認の更新はありません"));
@@ -201,7 +215,12 @@ function renderDrive() {
       }
       const more = element("button", "home-team-more", group.remaining ? "ほか" + group.remaining + "件・一覧を開く ↗" : "チームの一覧を開く ↗");
       more.type = "button"; more.onclick = () => openDriveGroup(group.path);
-      card.append(more); grid.append(card);
+      const edit = element("button", "home-team-edit", "進捗を編集");
+      edit.type="button"; edit.dataset.homeGroupEdit="true";
+      edit.dataset.editable=String(!!group.path);
+      edit.setAttribute("aria-label",group.name+"の進捗を編集");
+      edit.onclick=()=>emit("dashboard:edit-drive-group",{path:group.path});
+      card.append(more,edit); grid.append(card);
     }
     const other = element("details", "home-drive-other");
     other.append(element("summary", "", "その他のグループ（"+(state.drive.groups?.others.length || 0)+"）"));
@@ -214,6 +233,7 @@ function renderDrive() {
     replaceList(el("homeDriveFiles"), [grid,other]);
   }
   for (const button of el("homeDriveFiles").querySelectorAll("[data-home-review]")) button.disabled = busy || driveBusy;
+  for (const button of el("homeDriveFiles").querySelectorAll("[data-home-group-edit]")) button.disabled = busy || driveBusy || button.dataset.editable !== "true";
 }
 function openMail(entry) {
   emit("dashboard:open-agenda", {accountId:entry.accountId, messageId:entry.messageId});
@@ -436,6 +456,10 @@ document.addEventListener("dashboard:view", (event) => {
   if (event.detail === "home") load(true);
 });
 document.addEventListener("dashboard:drive-reviewed", () => load(false));
+document.addEventListener("dashboard:drive-group-saved", event => {
+  el("homeDriveGroupStatus").textContent=event.detail.name+"の進捗・設定の保存を確認しました";
+  load(false);
+});
 document.addEventListener("dashboard:agenda-changed", () => {
   if (busy) reloadAfterBusy = true;
   else load(false);

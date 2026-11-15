@@ -293,8 +293,14 @@ test("チーム番号の変更後も色と版を引き継ぎ、旧フォルダ�
   assert.equal(view.length, 1);
   assert.equal(view[0].color, "rose");
   assert.equal(view[0].path, "チーム / 100_SNS運用");
-  assert.equal(view[0].name,"SNSチーム");
-  assert.equal(groupView(nextCache,{...saved,records:[{...saved.records[0],name:"200_SNS運用"}]})[0].name,"100_SNS運用");
+  assert.equal(view[0].name, "SNSチーム");
+  assert.equal(
+    groupView(nextCache, {
+      ...saved,
+      records: [{ ...saved.records[0], name: "200_SNS運用" }],
+    })[0].name,
+    "100_SNS運用",
+  );
   await saveDriveGroup(s, {
     ...input(),
     path: view[0].path,
@@ -314,4 +320,51 @@ test("チーム番号の変更後も色と版を引き継ぎ、旧フォルダ�
   );
   assert.equal(both.length, 2);
   assert.equal(both.find((g) => g.path.endsWith("200_SNS運用")).color, "rose");
+});
+
+test("保存した手動進捗・次の対応・期限をホームへ渡し、解除も反映してDriveファイルを保持する", async () => {
+  const storage = memory();
+  const cache = await storage.get("drive:cache");
+  cache.files = [file("sns", "チーム / 100_SNS運用")];
+  await storage.put("drive:cache", cache);
+  const request = {
+    ...input(),
+    path: "チーム / 100_SNS運用",
+    status: "確認待ち",
+    nextAction: "投稿案を確認\n担当者へ共有",
+    due: "2026-11-20",
+  };
+  const saved = await saveDriveGroup(storage, request);
+  const project = async () =>
+    homeDriveGroups({
+      groups: groupView(
+        await storage.get("drive:cache"),
+        await storage.get("drive:groups"),
+      ),
+      unreadChanges: [],
+    }).highlighted[0];
+  const home = await project();
+  assert.equal(home.status, request.status);
+  assert.equal(home.nextAction, request.nextAction);
+  assert.equal(home.due, request.due);
+  assert.equal(home.updatedAt, saved.updatedAt);
+  assert.equal(home.color, "rose");
+  await saveDriveGroup(storage, {
+    ...request,
+    expectedRevision: saved.revision,
+    status: "未設定",
+    nextAction: "",
+    due: "",
+  });
+  const cleared = await project();
+  assert.equal(cleared.status, "未設定");
+  assert.equal(cleared.nextAction, "");
+  assert.equal(cleared.due, "");
+  assert.equal(cleared.color, "rose");
+  assert.deepEqual(await storage.get("drive:cache"), cache);
+  const missing = homeDriveGroups({ groups: [], unreadChanges: [] })
+    .highlighted[0];
+  assert.equal(missing.status, "未設定");
+  assert.equal(missing.nextAction, "");
+  assert.equal(missing.due, "");
 });
