@@ -1,3 +1,4 @@
+import { homeDriveGroups } from "./drive-groups.js";
 import { catalog, projectsFrom, taskStorage } from "./catalog.js";
 import { driveView } from "./drive.js";
 import { agendaHome } from "./agenda-home.js";
@@ -221,6 +222,7 @@ export async function homeView(
       drive: drive.unreadChanges.filter((file) => !file.personal).length,
     },
     drive: {
+      groups: homeDriveGroups(drive),
       files: drive.unreadChanges.filter((file) => !file.personal),
       personalCount: drive.unreadChanges.filter((file) => file.personal).length,
       lastSuccess: drive.lastSuccess,

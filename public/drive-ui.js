@@ -381,6 +381,7 @@ async function load(refresh = false, acknowledge = null, group = null) {
     if (!response.ok) { const error = await response.json().catch(()=>({})); throw Error(error.error || "Driveの状態を取得できません"); }
     state = await response.json();
     success = true;
+    if (group) document.dispatchEvent(new Event("dashboard:drive-reviewed"));
     if (acknowledge)
       document.dispatchEvent(new Event("dashboard:drive-reviewed"));
     if (acknowledge)
@@ -483,6 +484,15 @@ document.addEventListener("dashboard:refresh", () => load(true));
 document.addEventListener("dashboard:review-drive", (event) =>
   load(false, [event.detail]),
 );
+document.addEventListener("dashboard:open-drive-group", async event => {
+  // 通信中でも既に取得したグループを開ける。未取得時だけ一覧を待つ。
+  if (!state && !(await load())) return;
+  const path = event.detail.path;
+  el("driveGroupFilter").value = (state.groups || []).some(group=>group.path === path) ? path : "";
+  el("driveSearch").value = "";
+  el("driveAllTab").click();
+  el("driveFiles").focus();
+});
 document.addEventListener("dashboard:open-drive-file", async (event) => {
   if (!(await load())) return;
   const review = state.unreadChanges.find(

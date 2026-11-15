@@ -2221,3 +2221,31 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 .file-row[data-group-color] { border-left:4px solid var(--group-accent); background:var(--group-tint); }
 .group-filter { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:0 0 14px; font-size:.9rem; }
 .group-filter select { max-width:100%; border:1px solid #cad7e0; border-radius:8px; padding:9px; background:white; }
+
+/* ホームは4チームだけを主役にし、その他の保存場所は小さな導線へ。 */
+#homeDriveFiles { max-height:none; overflow:visible; padding-top:6px; }
+.home-drive-teams { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.home-drive-team { min-width:0; border:1px solid var(--border); border-top:4px solid var(--group-accent,#64748b); border-radius:14px; background:var(--group-tint,#f7f9fb); padding:14px; display:flex; flex-direction:column; gap:10px; }
+.home-team-heading { display:flex; align-items:start; justify-content:space-between; flex-wrap:wrap; gap:6px; }
+.home-team-heading h3 { font-size:15px; margin:0; overflow-wrap:anywhere; }
+.home-team-count { font-size:11px; color:var(--muted); white-space:nowrap; }
+.home-team-update { padding:8px 0; border-top:1px solid #dce5e9; display:flex; flex-direction:column; gap:6px; }
+.home-team-update .home-item-title { font-size:13px; }
+.home-team-update .home-item-meta { font-size:11px; line-height:1.6; }
+.home-team-update .home-task-open { min-width:0; }
+.home-team-review { align-self:flex-end; padding:5px 8px; border:1px solid #cedae2; background:white; border-radius:7px; font-size:11px; cursor:pointer; }
+.home-team-more { margin-top:auto; padding:9px 0 0; border:0; background:transparent; color:var(--group-accent,#365365); font:inherit; font-size:12px; text-align:left; cursor:pointer; }
+.home-team-empty,.home-team-caption { margin:0; color:var(--muted); font-size:12px; line-height:1.7; }
+.home-team-caption { font-size:11px; }
+.home-drive-other { margin-top:15px; font-size:13px; }
+.home-other-links { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.home-other-group { border:1px solid #dce5e9; border-left:4px solid var(--group-accent,#64748b); border-radius:8px; padding:8px 10px; background:var(--group-tint,white); font:inherit; font-size:12px; text-align:left; cursor:pointer; overflow-wrap:anywhere; }
+@media(max-width:520px) { .home-drive-teams { grid-template-columns:minmax(0,1fr); } }
+
+@media(min-width:901px) {
+  body[data-view="home"] .dashboard-grid { grid-template-areas:"tasks tasks" "drive drive" "mail calendar"; grid-template-rows:auto auto auto; }
+  .home-drive-teams { grid-template-columns:repeat(4,minmax(0,1fr)); }
+}
+.home-team-update .home-item-title { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.55; }
+.home-team-events { display:block; font-size:11px; color:var(--muted); line-height:1.6; }
+.home-drive-card > .panel-heading { padding-bottom:10px; }

@@ -152,63 +152,68 @@ function renderTasks() {
     );
   replaceList(el("homeTasks"), rows);
 }
+function driveFileRow(file, pending = true) {
+  const row = element("article", "home-team-update");
+  const open = element("button", "home-task-open");
+  open.type = "button";
+  open.onclick = () => emit("dashboard:open-drive-file", { id: file.id });
+  const title = element("strong", "home-item-title", file.name);
+  title.title = file.name;
+  const modified = file.modifiedTime ? new Date(file.modifiedTime).toLocaleString("ja-JP", {timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "更新時刻不明";
+  const actor = element("span", "home-item-meta", "最終更新者：" + (file.lastModifiedBy || "不明"));
+  const updated = element("span", "home-item-meta", "更新 " + modified);
+  updated.title = "更新 " + time(file.modifiedTime) + (pending ? " ／ 検知 " + time(file.detectedAt) : "");
+  open.append(title,actor,updated);
+  if (pending) open.append(element("span", "home-team-events", (file.events || []).join("・")));
+  row.append(open);
+  if (pending) {
+    const review = element("button", "home-team-review", "確認済み");
+    review.type = "button";
+    review.dataset.homeReview = "true";
+    review.setAttribute("aria-label", file.name + "を確認済みにする");
+    review.onclick = () => emit("dashboard:review-drive", {id:file.id,changeId:file.changeId});
+    row.append(review);
+  }
+  return row;
+}
+function openDriveGroup(path) {
+  showPanel("drive");
+  emit("dashboard:open-drive-group", {path});
+}
 function renderDrive() {
-  const signature = JSON.stringify([
-    state.drive.files,
-    state.drive.stale,
-    state.drive.connected,
-    state.drive.scanning,
-  ]);
+  const signature = JSON.stringify([state.drive.groups,state.drive.stale,state.drive.connected,state.drive.scanning]);
   if (signature !== driveSignature) {
     driveSignature = signature;
-    const rows = state.drive.files.map((file) => {
-      const row = element("article", "home-row"),
-        open = element("button", "home-task-open");
-      open.type = "button";
-      open.onclick = () => emit("dashboard:open-drive-file", { id: file.id });
-      open.append(
-        element("strong", "home-item-title", file.name),
-        element(
-          "span",
-          "home-item-meta",
-          "最終更新者：" + (file.lastModifiedBy || "未取得・不明") + " · 更新 " + time(file.modifiedTime),
-        ),
-        element(
-          "span",
-          "home-item-meta",
-          file.events.join("・") + " · 検知 " + time(file.detectedAt),
-        ),
-        element("span", "home-item-meta", file.folder),
-      );
-      const review = element("button", "button button-small", "確認済み");
-      review.type = "button";
-      review.dataset.homeReview = "true";
-      review.setAttribute("aria-label", file.name + "を確認済みにする");
-      review.onclick = () =>
-        emit("dashboard:review-drive", {
-          id: file.id,
-          changeId: file.changeId,
-        });
-      row.append(open, review);
-      return row;
-    });
-    if (!rows.length)
-      rows.push(
-        empty(
-          "未確認の変更はありません",
-          state.drive.stale || !state.drive.connected
-            ? "取得状況に警告があります。最新の状態とは限りません。"
-            : state.drive.scanning
-              ? "次の一覧を取得しています。完了後に照合します。"
-              : "新しい変更は毎時の取得後に表示します。過去の全件はDrive画面から確認できます。",
-        ),
-      );
-    replaceList(el("homeDriveFiles"), rows);
+    const grid = element("div", "home-drive-teams");
+    for (const group of state.drive.groups?.highlighted || []) {
+      const card = element("section", "home-drive-team");
+      card.dataset.groupColor = group.color;
+      card.setAttribute("aria-label", group.name + "の更新");
+      const header = element("div", "home-team-heading");
+      header.append(element("h3", "", group.name),element("span", "home-team-count", "未確認 " + group.pendingCount));
+      card.append(header);
+      for (const file of group.updates) card.append(driveFileRow(file));
+      if (!group.updates.length) {
+        card.append(element("p", "home-team-empty", state.drive.stale || !state.drive.connected ? "保存情報です。最新の取得状況を確認してください。" : state.drive.scanning ? "取得中・前回の未確認なし" : "未確認の更新はありません"));
+        if (group.latest) {
+          card.append(element("p", "home-team-caption", "直近の更新（確認済みも含む）"),driveFileRow(group.latest,false));
+        } else if (!group.available) card.append(element("p", "home-team-caption", "現在の取得範囲にファイルはありません"));
+      }
+      const more = element("button", "home-team-more", group.remaining ? "ほか" + group.remaining + "件・一覧を開く ↗" : "チームの一覧を開く ↗");
+      more.type = "button"; more.onclick = () => openDriveGroup(group.path);
+      card.append(more); grid.append(card);
+    }
+    const other = element("details", "home-drive-other");
+    other.append(element("summary", "", "その他のグループ（"+(state.drive.groups?.others.length || 0)+"）"));
+    const links = element("div", "home-other-links");
+    for (const group of state.drive.groups?.others || []) {
+      const link = element("button", "home-other-group", group.name + " · 未確認 " + group.pendingCount);
+      link.dataset.groupColor = group.color; link.type="button"; link.onclick=()=>openDriveGroup(group.path); links.append(link);
+    }
+    other.append(links);
+    replaceList(el("homeDriveFiles"), [grid,other]);
   }
-  for (const button of el("homeDriveFiles").querySelectorAll(
-    "[data-home-review]",
-  ))
-    button.disabled = busy || driveBusy;
+  for (const button of el("homeDriveFiles").querySelectorAll("[data-home-review]")) button.disabled = busy || driveBusy;
 }
 function openMail(entry) {
   emit("dashboard:open-agenda", {accountId:entry.accountId, messageId:entry.messageId});

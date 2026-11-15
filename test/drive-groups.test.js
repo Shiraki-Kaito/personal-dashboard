@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  homeDriveGroups,
   groupView,
   saveDriveGroup,
   defaultGroupColor,
@@ -145,4 +146,172 @@ test("バックアップに色と進捗を含め、復元後の旧版保存・�
   assert.ok(
     (await backupPlan(env, empty, backup)).conflicts.includes("drive:groups"),
   );
+});
+
+test("ホームは番号に依存せず4チームを選び、Driveと同じ色・更新者・版を渡す", () => {
+  const groups = [
+    {
+      path: "Root / 100_SNS運用",
+      name: "SNSチーム",
+      color: "blue",
+      available: true,
+      recent: [],
+    },
+    {
+      path: "Root / 200_LP",
+      name: "LP",
+      color: "violet",
+      available: true,
+      recent: [],
+    },
+    {
+      path: "Root / 300_コミュニティ連携",
+      name: "連携",
+      color: "teal",
+      available: true,
+      recent: [],
+    },
+    {
+      path: "Root / 400_デザイン",
+      name: "デザイン",
+      color: "rose",
+      available: true,
+      recent: [],
+    },
+    {
+      path: "Root / 500_クラウドファンディング",
+      name: "CF",
+      color: "amber",
+      available: true,
+      recent: [],
+    },
+  ];
+  const update = {
+    ...file("sns", "Root / 100_SNS運用 / 投稿"),
+    changeId: "version",
+    detectedAt: 2,
+    events: ["更新"],
+  };
+  const drive = {
+    groups,
+    unreadChanges: [
+      update,
+      { ...file("cf", "Root / 500_クラウドファンディング"), detectedAt: 1 },
+    ],
+  };
+  const before = structuredClone(drive),
+    result = homeDriveGroups(drive);
+  assert.equal(result.highlighted.length, 4);
+  assert.deepEqual(
+    result.highlighted.map((group) => group.color),
+    ["blue", "violet", "teal", "rose"],
+  );
+  assert.equal(result.highlighted[0].updates[0].lastModifiedBy, "担当者");
+  assert.equal(result.highlighted[0].updates[0].changeId, "version");
+  assert.equal(result.others[0].name, "CF");
+  assert.equal(result.others[0].pendingCount, 1);
+  assert.deepEqual(drive, before);
+});
+test("ホームの1件上限で残りを明示し、個人作業を分離して全変更を数える", () => {
+  const groups = [
+    {
+      path: "Root / 200_SNS運用",
+      name: "SNS",
+      color: "blue",
+      available: true,
+      recent: [],
+    },
+  ];
+  const updates = Array.from({ length: 5 }, (_, i) => ({
+    ...file("sns" + i, "Root / 200_SNS運用"),
+    detectedAt: i,
+  }));
+  const result = homeDriveGroups({
+    groups,
+    unreadChanges: [
+      ...updates,
+      file("private", "Root / 200_SNS運用 / 個人作業"),
+      {
+        ...file("moved", "Root / 999_旧フォルダ"),
+        events: ["対象範囲外"],
+        detectedAt: 1,
+      },
+    ],
+  });
+  assert.equal(result.highlighted[0].pendingCount, 5);
+  assert.equal(result.highlighted[0].updates.length, 1);
+  assert.equal(result.highlighted[0].remaining, 4);
+  assert.deepEqual(
+    result.highlighted[0].updates.map((file) => file.id),
+    ["sns4"],
+  );
+  assert.equal(
+    result.highlighted.reduce((sum, g) => sum + g.pendingCount, 0) +
+      result.others.reduce((sum, g) => sum + g.pendingCount, 0),
+    6,
+  );
+  assert.equal(result.others[0].pendingCount, 1);
+});
+test("未確認なしは直近の更新を区別し、未取得を更新なしや完了と推測しない", () => {
+  const recent = file("latest", "Root / 400_デザイン");
+  const result = homeDriveGroups({
+    groups: [
+      {
+        path: recent.folder,
+        name: "デザイン",
+        color: "rose",
+        available: true,
+        recent: [recent],
+      },
+    ],
+    unreadChanges: [],
+  });
+  const design = result.highlighted.find((g) => g.key === "design");
+  assert.equal(design.latest.id, "latest");
+  assert.equal(design.pendingCount, 0);
+  assert.deepEqual(design.updates, []);
+  const missing = result.highlighted.find((g) => g.key === "lp");
+  assert.equal(missing.available, false);
+  assert.equal(missing.path, null);
+  assert.equal(missing.latest, null);
+});
+
+test("チーム番号の変更後も色と版を引き継ぎ、旧フォルダが残る場合は自動統合しない", async () => {
+  const s = memory();
+  await saveDriveGroup(s, input());
+  const saved = await s.get("drive:groups");
+  // fixtureのSNS名も本番と同じ意味名に揃える。
+  saved.records[0].path = "チーム / 200_SNS運用";
+  await s.put("drive:groups", saved);
+  const nextCache = {
+    scope: "root:true",
+    files: [file("a", "チーム / 100_SNS運用")],
+    unreadChanges: [],
+  };
+  await s.put("drive:cache", nextCache);
+  const view = groupView(nextCache, saved);
+  assert.equal(view.length, 1);
+  assert.equal(view[0].color, "rose");
+  assert.equal(view[0].path, "チーム / 100_SNS運用");
+  assert.equal(view[0].name,"SNSチーム");
+  assert.equal(groupView(nextCache,{...saved,records:[{...saved.records[0],name:"200_SNS運用"}]})[0].name,"100_SNS運用");
+  await saveDriveGroup(s, {
+    ...input(),
+    path: view[0].path,
+    expectedRevision: view[0].revision,
+    color: "blue",
+  });
+  assert.equal(
+    (await s.get("drive:groups")).records[0].path,
+    "チーム / 100_SNS運用",
+  );
+  const both = groupView(
+    {
+      ...nextCache,
+      files: [...nextCache.files, file("old", "チーム / 200_SNS運用")],
+    },
+    saved,
+  );
+  assert.equal(both.length, 2);
+  assert.equal(both.find((g) => g.path.endsWith("200_SNS運用")).color, "rose");
 });

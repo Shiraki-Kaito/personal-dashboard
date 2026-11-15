@@ -75,6 +75,42 @@ export function normalizeGroupStore(value) {
     throw new InputError("グループ設定の保存上限64KiBを超えています");
   return result;
 }
+// 同じルート内で指定4チームの番号だけが変わった場合に、設定を一意に引き継ぐ。
+// 旧フォルダも残る場合や候補が複数なら、別グループを勝手に統合しない。
+function resolvedGroupRecords(cache, saved) {
+  if (!saved || !cache || saved.scope !== cache.scope) return [];
+  const paths = [
+    ...new Set(
+      (cache.files || [])
+        .filter((file) => !isPersonalWork(file))
+        .map(driveGroupPath),
+    ),
+  ];
+  return saved.records.map((record) => {
+    if (paths.includes(record.path)) return record;
+    const team = teamForPath(record.path);
+    if (
+      !team ||
+      saved.records.filter(
+        (other) =>
+          other.path.split(" / ")[0] === record.path.split(" / ")[0] &&
+          teamForPath(other.path)?.key === team.key,
+      ).length !== 1
+    )
+      return record;
+    const matches = paths.filter(
+      (path) =>
+        path.split(" / ")[0] === record.path.split(" / ")[0] &&
+        teamForPath(path)?.key === team.key,
+    );
+    if (
+      matches.length !== 1 ||
+      saved.records.some((other) => other.path === matches[0])
+    )
+      return record;
+    return { ...record, path: matches[0], name: record.name === record.path.split(" / ").at(-1) ? matches[0].split(" / ").at(-1) : record.name };
+  });
+}
 export function groupView(cache, saved) {
   const groups = new Map();
   for (const file of cache?.files || []) {
@@ -83,8 +119,7 @@ export function groupView(cache, saved) {
     if (!groups.has(path)) groups.set(path, []);
     groups.get(path).push(file);
   }
-  const records =
-    saved && cache && saved.scope === cache.scope ? saved.records : [];
+  const records = resolvedGroupRecords(cache, saved);
   // 対象外になったグループも手動の進捗記録を黙って失わない。
   for (const record of records || [])
     if (!groups.has(record.path)) groups.set(record.path, []);
@@ -121,7 +156,7 @@ export async function saveDriveGroup(storage, input) {
     const previous = await tx.get("drive:groups");
     if (previous && previous.scope !== cache.scope)
       throw new InputError("別の接続範囲のグループ設定が残っています");
-    const records = previous?.records || [];
+    const records = resolvedGroupRecords(cache, previous);
     const old = records.find((record) => record.path === input.path);
     if ((old?.revision || null) !== input.expectedRevision)
       throw new InputError(
@@ -152,4 +187,77 @@ export async function saveDriveGroup(storage, input) {
     await tx.put("drive:groups", store);
     return record;
   });
+}
+
+const homeTeams = [
+  { key: "sns", label: "SNS運用" },
+  { key: "lp", label: "LP" },
+  { key: "community", label: "コミュニティ連携" },
+  { key: "design", label: "デザイン" },
+];
+const homeUpdateLimit = 1;
+function teamForPath(path) {
+  // フォルダ番号の変更でチームを取り違えない。本人が付けた表示名とは独立させる。
+  const name = path
+    .split(" / ")
+    .at(-1)
+    .normalize("NFKC")
+    .replace(/^\d+[_\s-]*/, "")
+    .toLowerCase();
+  return homeTeams.find((team) => team.label.toLowerCase() === name);
+}
+// ホームは指定の4チームを大きく表示し、他の保存場所は省略せず小さな導線へまとめる。
+export function homeDriveGroups(drive) {
+  const files = drive.unreadChanges.filter(
+    (file) => !file.personal && !isPersonalWork(file),
+  );
+  const groups = [...(drive.groups || [])].map((group) => ({ ...group }));
+  for (const file of files) {
+    const path = driveGroupPath(file);
+    if (!groups.some((group) => group.path === path))
+      groups.push({
+        path,
+        name: path.split(" / ").at(-1) || "その他",
+        color: defaultGroupColor(path),
+        recent: [],
+        available: false,
+      });
+  }
+  const ordered = groups.sort(
+    (a, b) =>
+      Number(b.available) - Number(a.available) ||
+      a.path.localeCompare(b.path, "ja"),
+  );
+  const used = new Set();
+  const highlighted = homeTeams.map((team) => {
+    const matching = ordered.filter(
+      (group) => teamForPath(group.path)?.key === team.key,
+    );
+    matching.forEach((group) => used.add(group.path));
+    const primary = matching[0];
+    const pending = files
+      .filter((file) => teamForPath(driveGroupPath(file))?.key === team.key)
+      .sort((a, b) => b.detectedAt - a.detectedAt || a.id.localeCompare(b.id));
+    return {
+      key: team.key,
+      name: primary?.name || team.label,
+      path: primary?.path || null,
+      color: primary?.color || "slate",
+      available: matching.some((group) => group.available),
+      pendingCount: pending.length,
+      updates: pending.slice(0, homeUpdateLimit),
+      remaining: Math.max(0, pending.length - homeUpdateLimit),
+      latest: pending.length ? null : primary?.recent?.[0] || null,
+    };
+  });
+  const others = ordered
+    .filter((group) => !used.has(group.path))
+    .map((group) => ({
+      path: group.path,
+      name: group.name,
+      color: group.color,
+      pendingCount: files.filter((file) => driveGroupPath(file) === group.path)
+        .length,
+    }));
+  return { highlighted, others };
 }
