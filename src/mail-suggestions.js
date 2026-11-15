@@ -94,30 +94,44 @@ export function mailSuggestion(entry) {
   }
   return { ...suggestion, checks };
 }
+export function mailGroupingKey(entry) {
+  const company = organization(entry.title);
+  const sender = senderAddress(entry.from);
+  const year = (entry.title.match(/20\d{2}(?:年度|年卒|卒)/) || [""])[0];
+  return entry.kind === "pending"
+    ? JSON.stringify(["pending", entry.accountId, entry.messageId])
+    : company
+      ? JSON.stringify(["organization", normalize(company), year])
+      : JSON.stringify([
+          "subject",
+          subjectKey(entry.title),
+          sender || entry.accountId,
+        ]);
+}
 export function groupMailSuggestions(entries, now = Date.now()) {
   const groups = new Map();
   // 未確定操作を他メールへ吸収せず、必ず独立した復旧案として残す。
   for (const entry of entries) {
     const company = organization(entry.title);
-    const sender = senderAddress(entry.from);
-    const year = (entry.title.match(/20\d{2}(?:年度|年卒|卒)/) || [""])[0];
     const key =
-      entry.kind === "pending"
-        ? JSON.stringify(["pending", entry.accountId, entry.messageId])
-        : company
-          ? JSON.stringify(["organization", normalize(company), year])
-          : JSON.stringify([
-              "subject",
-              subjectKey(entry.title),
-              sender || entry.accountId,
-            ]);
+      entry.kind !== "pending" && entry.manualCase
+        ? JSON.stringify(["manual", entry.manualCase.id])
+        : mailGroupingKey(entry);
     if (!groups.has(key))
       groups.set(key, {
         caseKey: key,
-        label: company || entry.title,
-        basis: company
-          ? "件名に同じ組織名がある関連候補"
-          : "同じ件名と送信者の関連候補",
+        manualCaseId:
+          entry.kind !== "pending" ? entry.manualCase?.id || null : null,
+        label:
+          entry.kind !== "pending" && entry.manualCase
+            ? entry.manualCase.label
+            : company || entry.title,
+        basis:
+          entry.kind !== "pending" && entry.manualCase
+            ? "本人が選んだメールによる手動の案件"
+            : company
+              ? "件名に同じ組織名がある関連候補"
+              : "同じ件名と送信者の関連候補",
         entries: [],
       });
     groups.get(key).entries.push(entry);
@@ -162,16 +176,23 @@ export function groupMailSuggestions(entries, now = Date.now()) {
       return {
         ...group,
         suggestion,
-        timingNotices: [...latestByAccount.values()].filter(entry=>entry.timingNotice).map(entry=>({accountName:entry.accountName || entry.email,message:entry.timingNotice})),
+        timingNotices: [...latestByAccount.values()]
+          .filter((entry) => entry.timingNotice)
+          .map((entry) => ({
+            accountName: entry.accountName || entry.email,
+            message: entry.timingNotice,
+          })),
         timings,
         priority,
         latestAt: sorted[0].receivedAt || null,
         pending,
         // 宛先ごとの証跡・個別操作を維持する。古い案内を最新と同列に勧めない。
-        entries: sorted.map(({ excerpt, from, timings, timingNotice, ...entry }) => ({
-          ...entry,
-          excerpt: (excerpt || "").slice(0, 240),
-        })),
+        entries: sorted.map(
+          ({ excerpt, from, timings, timingNotice, ...entry }) => ({
+            ...entry,
+            excerpt: (excerpt || "").slice(0, 240),
+          }),
+        ),
         accountCount: new Set(sorted.map((entry) => entry.accountId)).size,
       };
     })

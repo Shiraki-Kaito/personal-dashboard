@@ -18,6 +18,7 @@ const validDate = (value) =>
   Number.isFinite(Date.parse(value + "T00:00:00Z")) &&
   new Date(value + "T00:00:00Z").toISOString().slice(0, 10) === value;
 const stateKey = (accountId) => "agenda:cases:" + accountId;
+export const mailCaseId = key => digest({version:1,key});
 
 // アカウントごとの記録だけを保持する。他のアカウントの識別子やメール本文は保存しない。
 export function normalizeCaseRecords(input) {
@@ -101,7 +102,7 @@ export async function mailCaseView(
   const decorated = await Promise.all(
     groups.map(async (group) => {
       if (group.pending) return { ...group, caseState: null };
-      const id = await digest({ version: 1, key: group.caseKey });
+      const id = await mailCaseId(group.caseKey);
       currentIds.add(id);
       const accountIds = memberIds(group);
       const sourceRevision = await digest({

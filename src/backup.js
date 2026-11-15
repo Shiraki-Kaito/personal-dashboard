@@ -246,6 +246,7 @@ export async function backupPlan(env, storage, backup) {
       (n, a) => n + (a.cache?.messages.length || 0),
       0,
     ),
+    splitMessages: (backup.agenda || []).reduce((count,item)=>count+Object.keys(item.caseSplits?.assignments || {}).length,0),
     agendaCases: (backup.agenda || []).reduce((count, item) => count + Object.keys(item.cases || {}).length, 0),
     agendaOperations: (backup.agenda || []).reduce(
       (n, a) => n + a.operations.length,

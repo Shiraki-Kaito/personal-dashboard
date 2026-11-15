@@ -1,3 +1,4 @@
+import { normalizeSplitStore, splitLabels } from "./mail-case-splits.js";
 import { normalizeCaseRecords } from "./mail-cases.js";
 import { maximumMailMessages, retrievalBackupFields } from "./mail-retrieval.js";
 import { normalizePriorityRules } from "./mail-priority-rules.js";
@@ -40,6 +41,7 @@ const namespaces = [
   "operation",
   "timingConfirmations",
   "cases",
+  "caseSplits",
 ];
 
 // 認証用キー・OAuth途中状態にはアクセスせず、アプリの保存情報だけを選ぶ。
@@ -59,6 +61,7 @@ export async function createAgendaBackup(storage) {
       account: pick(account, ["id", "email", "calendar", "label"]),
       priorityRules: (await storage.get("agenda:priorityRules:" + account.id))
         ?.rules,
+      caseSplits: await storage.get("agenda:caseSplits:" + account.id) ? normalizeSplitStore(await storage.get("agenda:caseSplits:" + account.id)) : undefined,
       cases: normalizeCaseRecords((await storage.get("agenda:cases:" + account.id)) || {}),
       timingConfirmations: normalizeTimingRecords((await storage.get("agenda:timingConfirmations:" + account.id)) || {}),
       cache: cache
@@ -151,6 +154,10 @@ export async function agendaRestoreEntries(storage, backup) {
     requireValid(
       account.label === undefined || validAccountLabel(account.label),
     );
+    if (item.caseSplits !== undefined) {
+      const splitStore = normalizeSplitStore(item.caseSplits);
+      entries.set("agenda:caseSplits:" + account.id, {...splitStore, revision:crypto.randomUUID()});
+    }
     if (item.cases !== undefined) {
       const records = normalizeCaseRecords(item.cases);
       for (const record of Object.values(records)) {
@@ -341,5 +348,6 @@ export async function agendaRestoreEntries(storage, backup) {
       });
     }
   }
+  splitLabels((await Promise.all(connected.map(async account=>entries.get("agenda:caseSplits:"+account.id) || await storage.get("agenda:caseSplits:"+account.id)))).filter(Boolean).map(normalizeSplitStore));
   return { entries, conflicts };
 }

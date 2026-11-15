@@ -2268,3 +2268,14 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 #caseEditorForm { display:grid; gap:12px; }
 #caseEditorForm > label:not(.timing-confirm) { display:grid; gap:6px; }
 #caseEditorForm > label[hidden] { display:none; }
+
+#splitEditorForm { display:grid; gap:12px; }
+#splitEditorForm > label:not(.timing-confirm) { display:grid; gap:6px; }
+#splitEditorForm > label[hidden] { display:none; }
+.split-mail-list { max-height:300px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
+.split-mail-choice { display:flex; align-items:flex-start; gap:10px; padding:12px; border-bottom:1px solid var(--line); }
+.split-mail-choice:last-child { border-bottom:0; }
+.split-mail-choice > input { flex:0 0 auto; margin-top:5px; }
+.split-mail-choice > span { min-width:0; overflow-wrap:anywhere; }
+.split-mail-choice strong, .split-mail-choice small { display:block; }
+.split-mail-choice small { color:var(--muted); margin-top:5px; }

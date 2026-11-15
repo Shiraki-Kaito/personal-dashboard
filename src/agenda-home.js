@@ -1,3 +1,4 @@
+import { splitMailEntries, writeMailSplit } from "./mail-case-splits.js";
 import { mailCaseView, writeMailCase } from "./mail-cases.js";
 import { digest } from "./agenda-rules.js";
 import { prioritySearchPlan, mailRetrievalView } from "./mail-retrieval.js";
@@ -124,10 +125,13 @@ export async function agendaHome(storage, now = Date.now()) {
       (a.kind === "pending" ? 0 : 1) - (b.kind === "pending" ? 0 : 1) ||
       (b.receivedAt || "").localeCompare(a.receivedAt || ""),
   );
+  const classified = await splitMailEntries(storage, accounts, entries);
   return {
+    splitRevision: classified.splitRevision,
+    splitCases: classified.splitCases,
     accounts,
     entries: entries.map(({ excerpt, from, timings, timingNotice, ...entry }) => entry),
-    ...await mailCaseView(storage, accounts, groupMailSuggestions(entries, now), now),
+    ...await mailCaseView(storage, accounts, groupMailSuggestions(classified.entries, now), now),
     alerts,
     complete: accounts.every(
       (a) =>
@@ -143,5 +147,13 @@ export async function saveAgendaCase(storage, input, now = Date.now()) {
     const view = await agendaHome(tx, now);
     await writeMailCase(tx, view.accounts, view, input, now);
     return agendaHome(tx, now);
+  });
+}
+
+export async function saveAgendaSplit(storage, input, now = Date.now()) {
+  return storage.transaction(async tx => {
+    const view = await agendaHome(tx, now);
+    const splitResult = await writeMailSplit(tx, view, input, now);
+    return {...await agendaHome(tx, now),splitResult};
   });
 }

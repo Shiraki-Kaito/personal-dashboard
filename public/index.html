@@ -8,14 +8,14 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/dashboard-192.png" type="image/png" />
     <title>ワークスペース | Personal Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=20261115-cases2" />
+    <link rel="stylesheet" href="/style.css?v=20261115-splits1" />
     <script type="module" src="/session-ui.js"></script>
     <script type="module" src="/ui.js"></script>
     <script type="module" src="/drive-ui.js?v=progress1"></script>
     <script type="module" src="/motion-ui.js?v=confirm1"></script>
-    <script type="module" src="/home-ui.js?v=cases1"></script>
-    <script type="module" src="/backup-ui.js?v=cases1"></script>
-    <script type="module" src="/agenda-ui.js?v=cases1"></script>
+    <script type="module" src="/home-ui.js?v=splits2"></script>
+    <script type="module" src="/backup-ui.js?v=splits1"></script>
+    <script type="module" src="/agenda-ui.js?v=splits1"></script>
     <script type="module" src="/slack-ui.js"></script>
     <script type="module" src="/notes-ui.js"></script>
     <script type="module" src="/health-ui.js"></script>
@@ -1026,6 +1026,21 @@
         <button id="sessionCheck" class="button">ログイン後に接続を確認</button>
         <p>保存・予定登録は自動再送しません。</p>
         <a href="/">入力を破棄してログイン画面へ戻る</a>
+      </div>
+    </dialog>
+    <dialog id="splitEditor" class="settings-dialog" aria-labelledby="splitEditorHeading" data-preserve-draft>
+      <div class="dialog-body">
+        <div class="dialog-top"><h2 id="splitEditorHeading">メールを別案件に分ける</h2><button id="splitEditorClose" class="icon-button" aria-label="案件の分割を閉じる">×</button></div>
+        <p id="splitEditorScope" class="home-item-meta"></p>
+        <form id="splitEditorForm">
+          <label id="splitTargetField">分割先<select id="splitTarget"></select></label>
+          <label id="splitLabelField">新しい案件名（100文字まで）<input id="splitLabel" maxlength="100" required /></label>
+          <p id="splitChoiceStatus" class="home-item-meta"></p>
+          <div id="splitMessages" class="split-mail-list" role="group" aria-label="分類を変更するメール"></div>
+          <label class="timing-confirm"><input id="splitConfirm" type="checkbox" />対象メールと変更内容を確認しました</label>
+          <p id="splitEditorStatus" role="status"></p>
+          <div class="timing-editor-actions"><button id="splitSave" class="button button-primary" type="submit" disabled>選んだメールを別案件へ保存</button><button id="splitReload" class="button" type="button">最新情報を再取得</button></div>
+        </form>
       </div>
     </dialog>
     <dialog id="caseEditor" class="settings-dialog" aria-labelledby="caseEditorHeading" data-preserve-draft>

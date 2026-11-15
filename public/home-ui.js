@@ -1,3 +1,4 @@
+import { openMailSplit } from "./mail-split-editor.js";
 import { openMailCase } from "./mail-case-editor.js";
 import { createCalendarCard } from "./calendar-cards.js";
 import { openTimingEditor } from "./timing-editor.js?v=calendar1";
@@ -242,7 +243,7 @@ function openMail(entry) {
 }
 function renderSuggestions(agenda) {
   const groups = agenda.groups || [];
-  const signature = JSON.stringify([groups, agenda.caseHistory, caseFilter, agenda.complete]);
+  const signature = JSON.stringify([groups, agenda.caseHistory, agenda.splitRevision, caseFilter, agenda.complete]);
   if (signature === agendaSignature) return;
   agendaSignature = signature;
   const rows = groups.filter(group => group.pending || (group.caseState?.status || "open") === caseFilter).map(group => {
@@ -316,6 +317,12 @@ function renderSuggestions(agenda) {
       const edit = element("button", "button button-small", "案件の対応状況を変更");
       edit.type = "button"; edit.onclick = () => openMailCase(group);
       row.append(edit);
+      const split = element("button", "button button-small", "案件を分ける・メールを移す");
+      split.type="button"; split.onclick=()=>openMailSplit(group,agenda); row.append(split);
+      if(group.manualCaseId) {
+        const reset = element("button", "button button-small", "自動のまとめ方に戻す");
+        reset.type="button"; reset.onclick=()=>openMailSplit(group,agenda,true); row.append(reset);
+      }
     }
     const details = element("details", "suggestion-sources");
     details.append(element("summary", "", `根拠・関連メール ${group.entries.length}通`));
@@ -512,3 +519,5 @@ setInterval(() => {
 
 for (const [id, status] of [["homeCaseOpen","open"],["homeCaseHold","hold"],["homeCaseDone","done"]]) el(id).onclick = () => { caseFilter = status; agendaSignature = ""; render(); };
 document.addEventListener("dashboard:case-saved", event => { el("homeCaseStatus").textContent = ({open:"未対応",hold:"保留",done:"対応済み"})[event.detail] + "の保存を確認しました"; });
+
+document.addEventListener("dashboard:split-saved",event=>{caseFilter="open"; agendaSignature=""; if(state) render(); el("homeCaseStatus").textContent=event.detail;});
