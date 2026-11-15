@@ -57,3 +57,10 @@ export function reviewChanges(cache, entries) {
   );
   return { remaining, acknowledged: before.length - remaining.length };
 }
+
+export const isPersonalWork = (file) =>
+  (file.folder || "")
+    .split(" / ")
+    .some((part) =>
+      /(?:^|[_\s-])個人作業(?:用)?$/.test(part.trim().normalize("NFKC")),
+    );

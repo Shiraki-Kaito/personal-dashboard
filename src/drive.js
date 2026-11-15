@@ -1,9 +1,6 @@
-export const isPersonalWork = (file) =>
-  (file.folder || "")
-    .split(" / ")
-    .some((part) =>
-      /(?:^|[_\s-])個人作業(?:用)?$/.test(part.trim().normalize("NFKC")),
-    );
+import { groupView } from "./drive-groups.js";
+import { isPersonalWork } from "./drive-review.js";
+export { isPersonalWork } from "./drive-review.js";
 import { driveClient, DriveError } from "./drive-http.js";
 import { nextRecovery } from "./recovery.js";
 import {
@@ -219,6 +216,7 @@ export async function driveView(env, storage, now = Date.now()) {
   const currentFiles = new Map((cache?.files || []).map(file => [file.id, file]));
   if (!config || job?.scope !== configKey(config)) job = null;
   return {
+    groups: groupView(cache, await storage.get("drive:groups")),
     configured: !!config && googleConfigured(env),
     configurationError:
       env.GOOGLE_CLIENT_ID && !googleConfigured(env)

@@ -1,3 +1,4 @@
+import { renderDriveGroups } from "./drive-groups-ui.js?v=1";
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id);
@@ -73,13 +74,16 @@ function renderFiles(force = false) {
       : tab === "personal"
         ? state.unreadChanges.filter((file) => file.personal)
         : state.files;
-  const files = source.filter((file) =>
+  const groupPath = el("driveGroupFilter").value;
+  const files = source.filter(file => !groupPath || file.folder.split(" / ").slice(0,2).join(" / ") === groupPath).filter((file) =>
     (file.name + " " + file.folder + " " + (file.lastModifiedBy || "")).toLocaleLowerCase().includes(query),
   );
   const signature = [
     state.lastSuccess,
     state.unreadChanges.map((file) => file.changeId).join(","),
     tab,
+    groupPath,
+    state.groups?.map(group=>group.path+group.color+group.name).join(","),
     query,
     files.length,
     state.configured,
@@ -99,6 +103,8 @@ function renderFiles(force = false) {
       change = changes.get(file.id),
       events = change?.events || file.events;
     row.className = "file-row";
+    const group = state.groups?.find(group=>group.path === file.folder.split(" / ").slice(0,2).join(" / "));
+    if (!file.personal && group) { row.dataset.groupColor = group.color; row.title = group.name; }
     row.type = "button";
     row.onclick = () => openFile({ ...file, events, review: change || null });
     icon.className = "file-icon";
@@ -329,7 +335,15 @@ function render() {
         : "Drive 接続済み";
   el("driveReviewAll").hidden = !["changes", "personal"].includes(tab);
   el("driveReviewAll").disabled = busy || !visibleUnread().length;
+  const selectedGroup = el("driveGroupFilter").value;
+  const optionsSignature = JSON.stringify((state.groups || []).map(group=>[group.path,group.name]));
+  if (el("driveGroupFilter").dataset.signature !== optionsSignature) {
+    el("driveGroupFilter").replaceChildren(new Option("すべてのグループ", ""), ...(state.groups || []).map(group=>new Option(group.name,group.path)));
+    if ((state.groups || []).some(group=>group.path===selectedGroup)) el("driveGroupFilter").value=selectedGroup;
+    el("driveGroupFilter").dataset.signature = optionsSignature;
+  }
   renderFiles();
+  renderDriveGroups(state, file => openFile({ ...file, review:state.unreadChanges.find(change=>change.id===file.id) || null }), group => load(false,null,group), busy, path => { el("driveGroupFilter").value=path; el("driveAllTab").click(); el("driveFiles").focus(); });
   document.dispatchEvent(
     new CustomEvent("dashboard:busy", { detail: { service: "drive", busy } }),
   );
@@ -340,10 +354,11 @@ function visibleUnread() {
     (file) =>
       (tab === "all" ||
         (tab === "personal" ? file.personal : !file.personal)) &&
+      (!el("driveGroupFilter").value || file.folder.split(" / ").slice(0,2).join(" / ")===el("driveGroupFilter").value) &&
       (file.name + " " + file.folder).toLocaleLowerCase().includes(query),
   );
 }
-async function load(refresh = false, acknowledge = null) {
+async function load(refresh = false, acknowledge = null, group = null) {
   let success = false;
   if (busy) return;
   clearTimeout(timer);
@@ -352,18 +367,18 @@ async function load(refresh = false, acknowledge = null) {
   try {
     const response = await fetch(
       "/api/drive",
-      refresh || acknowledge
+      refresh || acknowledge || group
         ? {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(
-              acknowledge ? { acknowledge } : { refresh: true, manual: true },
+              group ? { group } : acknowledge ? { acknowledge } : { refresh: true, manual: true },
             ),
           }
         : {},
     );
 
-    if (!response.ok) throw Error("Driveの状態を取得できません");
+    if (!response.ok) { const error = await response.json().catch(()=>({})); throw Error(error.error || "Driveの状態を取得できません"); }
     state = await response.json();
     success = true;
     if (acknowledge)
@@ -374,7 +389,8 @@ async function load(refresh = false, acknowledge = null) {
           ? "確認済みにしました"
           : "新しい変更は未確認で残しました";
   } catch (error) {
-    if (state) state.error = error.message;
+    if (group) { el("groupSaveResult").textContent = error.message; }
+    else if (state) state.error = error.message;
     else el("driveStatus").textContent = error.message;
   } finally {
     busy = false;
@@ -387,6 +403,7 @@ async function load(refresh = false, acknowledge = null) {
         state?.scanning ? progressPollMs : statePollMs,
       );
   }
+  if (group && !success) throw Error(el("groupSaveResult").textContent);
   return success;
 }
 for (const [id, value] of [
@@ -396,6 +413,7 @@ for (const [id, value] of [
 ]) {
   el(id).onclick = () => {
     tab = value;
+    if (tab === "personal") el("driveGroupFilter").value="";
     for (const [button, mode] of [
       ["driveAllTab", "all"],
       ["driveChangesTab", "changes"],
@@ -408,6 +426,7 @@ for (const [id, value] of [
     renderFiles(true);
   };
 }
+el("driveGroupFilter").onchange = () => { render(); renderFiles(true); };
 el("driveSearch").oninput = () => {
   render();
   renderFiles(true);

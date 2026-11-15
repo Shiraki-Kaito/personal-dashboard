@@ -1,6 +1,6 @@
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
-import { assertBackupEnvelope } from "./backup-format.js";
+import { assertBackupEnvelope } from "./backup-format.js?v=groups1";
 const fileInput = document.getElementById("backupFile"),
   status = document.getElementById("backupStatus"),
   restore = document.getElementById("restoreBackup");

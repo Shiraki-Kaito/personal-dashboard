@@ -1,3 +1,4 @@
+import { saveDriveGroup } from "./drive-groups.js";
 import { previewPriorityRules, savePriorityRules } from "./mail-priority-rules.js";
 import { readTimingConfirmation, saveTimingConfirmation } from "./timing-confirmations.js";
 import { timingCalendarSeed } from "./timing-calendar.js";
@@ -224,6 +225,7 @@ export class Dashboard extends DurableObject {
         "/backup-format.js",
         "/style.css",
         "/drive-ui.js",
+        "/drive-groups-ui.js",
         "/motion-ui.js",
         "/fonts/dm-sans-latin.woff2",
         "/fonts/OFL.txt",
@@ -357,6 +359,15 @@ export class Dashboard extends DurableObject {
             input.refresh === true,
           ),
         );
+      if (action === "drive" && Object.hasOwn(input, "group")) {
+        if (request.method !== "POST" || !input.group || typeof input.group !== "object" || input.refresh || input.acknowledge)
+          throw new InputError("グループ保存は単独で実行してください");
+        const config = await driveView(this.env, storage);
+        if (input.group.scope !== config.folderId + ":" + config.includeSubfolders)
+          throw new InputError("Driveの接続範囲が一致しません");
+        await saveDriveGroup(storage, input.group);
+        return Response.json(await driveView(this.env, storage));
+      }
       if (action === "drive" && Object.hasOwn(input, "acknowledge")) {
         if (input.refresh)
           throw new DriveReviewError(

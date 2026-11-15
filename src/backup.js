@@ -1,3 +1,4 @@
+import { normalizeGroupStore } from "./drive-groups.js";
 import { projectsFrom } from "./catalog.js";
 import { ownerId } from "./github.js";
 import { driveConfig } from "./drive.js";
@@ -93,6 +94,7 @@ export async function createBackup(env, storage) {
     scope: target,
     tasks,
     drive,
+    driveGroups: (await storage.get("drive:groups"))?.scope === target.drive ? normalizeGroupStore(await storage.get("drive:groups")) : null,
     agenda: await createAgendaBackup(storage),
   };
   checkSize(backup);
@@ -208,6 +210,11 @@ async function restoreEntries(env, storage, backup) {
       errorCode: "restored",
       retryAt: null,
     });
+  }
+  if (backup.driveGroups) {
+    const groups = normalizeGroupStore(backup.driveGroups);
+    if (groups.scope !== backup.scope.drive) throw new InputError("グループ設定の接続範囲が一致しません");
+    entries.set("drive:groups", { ...groups, records: groups.records.map(record=>({...record,revision:crypto.randomUUID()})) });
   }
   const agenda =
     backup.version === 2

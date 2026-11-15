@@ -9,6 +9,7 @@ export function assertBackupEnvelope(value) {
     "scope",
     "tasks",
     "drive",
+    "driveGroups",
     "agenda",
   ]);
   if (
