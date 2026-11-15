@@ -460,6 +460,8 @@ export async function registerAppointment(env, storage, input, send = fetch) {
         start: { dateTime: draft.start, timeZone: "Asia/Tokyo" },
         end: { dateTime: draft.end, timeZone: "Asia/Tokyo" },
         visibility: "private",
+        // カレンダー既定のリマインダーを継承せず、本人へ提示した通知なしを守る。
+        reminders: { useDefault: false, overrides: [] },
         extendedProperties: { private: { dashboardOperation: eventId } },
       },
     );

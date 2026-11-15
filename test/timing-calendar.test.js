@@ -185,6 +185,7 @@ test("確定した開始・終了を引き継ぎ、4アカウントを全ペー�
   const event = [...f.inserted.values()][0];
   assert.equal(event.visibility, "private");
   assert.equal(event.attendees, undefined);
+  assert.deepEqual(event.reminders, { useDefault: false, overrides: [] });
   assert.equal(
     view.manualRegistrations[0].timingRef.revision,
     base.timingRef.revision,
