@@ -1,3 +1,4 @@
+import { prioritySearchPlan, mailRetrievalView } from "./mail-retrieval.js";
 import { agendaConnectionStatus } from "./agenda-google.js";
 import { priorityWithRules, priorityRulesView } from "./mail-priority-rules.js";
 import { displayAccounts } from "./agenda-labels.js";
@@ -20,6 +21,7 @@ export async function agendaHome(storage, now = Date.now()) {
     const messages = cache.messages || [];
     const timingRecords = (await storage.get("agenda:timingConfirmations:" + account.id)) || {};
     const { rules } = await priorityRulesView(storage, account.id);
+    const retrievalView = mailRetrievalView(cache,await prioritySearchPlan(rules),now);
     const stale =
       !Number.isFinite(Date.parse(cache.lastSuccess)) ||
       now - Date.parse(cache.lastSuccess) > mailFreshMs;
@@ -38,6 +40,7 @@ export async function agendaHome(storage, now = Date.now()) {
       hasMore: !!cache.nextPageToken || !!cache.limited,
       unclassified,
       contentLimitedCount,
+      retrievalView,
     });
     if (!account.disconnectedAt && (!connection.connected || cache.error || stale || unclassified || contentLimitedCount))
       alerts.push({
@@ -56,6 +59,7 @@ export async function agendaHome(storage, now = Date.now()) {
                     ? "本文の一部だけを解析したメールが"+contentLimitedCount+"件あります。原文を確認してください"
                     : "1時間以上前のメール情報です")),
       });
+    if (!account.disconnectedAt && retrievalView.notice) alerts.push({service:"agenda",message:account.email+"："+retrievalView.notice});
     for (const id of pending) {
       const operation = await storage.get(
         "agenda:operation:" + account.id + ":" + id,
@@ -124,7 +128,7 @@ export async function agendaHome(storage, now = Date.now()) {
     alerts,
     complete: accounts.every(
       (a) =>
-        a.connected && !a.stale && !a.error && !a.hasMore && !a.unclassified && !a.contentLimitedCount,
+        a.connected && !a.stale && !a.error && !a.hasMore && !a.unclassified && !a.contentLimitedCount && !a.retrievalView.notice,
     ),
     pending: entries.filter((e) => e.kind === "pending").length,
     candidates: entries.filter((e) => e.kind === "mail").length,

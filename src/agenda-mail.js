@@ -1,3 +1,4 @@
+import { standardMailQuery } from "./mail-retrieval.js";
 import { agendaClient, AgendaError } from "./agenda-google.js";
 import { extractAppointment, decodeMessageContent } from "./agenda-rules.js";
 import { mailPriority } from "./agenda-priority.js";
@@ -7,10 +8,11 @@ export async function readMailPage(
   account,
   cursor,
   send = fetch,
+  query = standardMailQuery,
 ) {
   const read = await agendaClient(env, storage, account, send);
   const page = await read("gmail", "messages", {
-    q: "newer_than:14d -in:trash -in:spam",
+    q: query,
     maxResults: "20",
     ...(cursor ? { pageToken: cursor } : {}),
   });

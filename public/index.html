@@ -15,7 +15,7 @@
     <script type="module" src="/motion-ui.js?v=confirm1"></script>
     <script type="module" src="/home-ui.js?v=progress1"></script>
     <script type="module" src="/backup-ui.js?v=groups1"></script>
-    <script type="module" src="/agenda-ui.js?v=mail-limit1"></script>
+    <script type="module" src="/agenda-ui.js?v=mail-coverage2"></script>
     <script type="module" src="/slack-ui.js"></script>
     <script type="module" src="/notes-ui.js"></script>
     <script type="module" src="/health-ui.js"></script>
@@ -291,6 +291,8 @@
               予定を手入力
             </button>
           </div>
+          <p id="mailRetrievalStatus" role="status"></p>
+          <a id="mailPrioritySearchLink" target="_blank" rel="noopener noreferrer" hidden>Gmailで重要候補の検索結果・続きを確認</a>
           <p id="agendaStatus" role="status">
             未接続です。接続したアカウントだけを取得します。
           </p>
@@ -318,7 +320,7 @@
               全接続のメールを取得
             </button>
             <p>
-              メールは毎時、直近14日・各接続最大100件を取得します。重要判定は就活・学校の語句を使うルールで、誤判定があります。「すべて」から取得済みのメールを確認できます。表示名は分類ルールに影響しません。接続は5件まで。追加時は「アカウントを追加・再接続」から別のGoogleアカウントを選んでください。添付ファイルは読みません。
+              メールは毎時、直近14日の新着100件を取得し、続きがある接続には重要候補の検索枠100件を追加します。重複を除き最大200件です。検索・重要判定には漏れや誤判定があり、全重要メールの取得は保証しません。「すべて」から取得済みのメールを確認できます。表示名は分類ルールに影響しません。接続は5件まで。追加時は「アカウントを追加・再接続」から別のGoogleアカウントを選んでください。添付ファイルは読みません。
             </p>
           </details>
           <div class="agenda-columns">

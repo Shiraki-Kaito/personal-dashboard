@@ -1,3 +1,9 @@
+import { priorityRulesView } from "./mail-priority-rules.js";
+import {
+  prioritySearchPlan,
+  mergeMailLanes,
+  standardMailQuery,
+} from "./mail-retrieval.js";
 import { agendaAccounts, AgendaError } from "./agenda-google.js";
 import { readMailPage, recordMailRun } from "./agenda-mail.js";
 const batchDelayMs = 15000,
@@ -14,12 +20,15 @@ export async function queueMailSync(
       lastTriggeredAt: new Date(now).toISOString(),
     });
   if (await storage.get("agenda:mailJob")) return;
-  const accounts = (await agendaAccounts(storage)).filter(a => !a.disconnectedAt);
+  const accounts = (await agendaAccounts(storage)).filter(
+    (a) => !a.disconnectedAt,
+  );
   if (!accounts.length) return;
   await storage.put("agenda:mailJob", {
     accountIds: accounts.map((a) => a.id),
     index: 0,
     source,
+    phase: "standard",
     nextAt: now + batchDelayMs,
     messages: [],
     cursor: null,
@@ -35,6 +44,11 @@ async function advance(storage, job, now) {
   await storage.put("agenda:mailJob", {
     ...job,
     index: job.index + 1,
+    phase: "standard",
+    standardMessages: [],
+    standardNextPageToken: null,
+    standardPages: 0,
+    priorityPlan: null,
     nextAt: now + batchDelayMs,
     messages: [],
     cursor: null,
@@ -66,7 +80,25 @@ export async function runMailBatch(
   const attempt = { ...cache, lastAttempt: new Date(now).toISOString() };
   await storage.put(key, attempt);
   try {
-    const page = await readMailPage(env, storage, account, job.cursor, send);
+    const priorityPhase = job.phase === "priority";
+    if (priorityPhase) {
+      const currentPlan = await prioritySearchPlan(
+        (await priorityRulesView(storage, account.id)).rules,
+      );
+      if (currentPlan.queryHash !== job.priorityPlan.queryHash)
+        throw new AgendaError(
+          "取得中に重要メールの検索条件が変わりました。前回の一覧を保持して次回に再取得します",
+          "incomplete",
+        );
+    }
+    const page = await readMailPage(
+      env,
+      storage,
+      account,
+      job.cursor,
+      send,
+      priorityPhase ? job.priorityPlan.query : standardMailQuery,
+    );
     const messages = [...job.messages, ...page.messages];
     if (
       messages.length > maximumMessages ||
@@ -94,13 +126,63 @@ export async function runMailBatch(
       });
       return;
     }
+    if (!priorityPhase && page.nextPageToken) {
+      const plan = await prioritySearchPlan(
+        (await priorityRulesView(storage, account.id)).rules,
+      );
+      await storage.put("agenda:mailJob", {
+        ...job,
+        phase: "priority",
+        standardMessages: messages,
+        standardNextPageToken: page.nextPageToken,
+        standardPages: pages,
+        priorityPlan: plan,
+        messages: [],
+        cursor: null,
+        cursors: [],
+        pages: 0,
+        retries: 0,
+        nextAt: now + batchDelayMs,
+      });
+      return;
+    }
+    const regular = priorityPhase ? job.standardMessages : messages;
+    const supplement = priorityPhase ? messages : [];
+    const regularIds = regular.map((message) => message.id);
+    const combined = mergeMailLanes(regular, supplement);
+    const standardToken = priorityPhase
+      ? job.standardNextPageToken
+      : page.nextPageToken;
     const finishedAt = new Date(Math.max(now, Date.now())).toISOString();
     await storage.transaction(async (tx) => {
       await tx.put(key, {
         ...attempt,
-        messages,
-        nextPageToken: page.nextPageToken,
-        limited: !!page.nextPageToken,
+        messages: combined,
+        standardIds: regularIds,
+        priorityIds: supplement.map((message) => message.id),
+        retrieval: {
+          version: 1,
+          completedAt: finishedAt,
+          standard: {
+            count: regular.length,
+            pages: priorityPhase ? job.standardPages : pages,
+            hasMore: !!standardToken,
+          },
+          priority: priorityPhase
+            ? {
+                count: supplement.length,
+                pages,
+                hasMore: !!page.nextPageToken,
+                queryHash: job.priorityPlan.queryHash,
+                omittedTerms: job.priorityPlan.omittedTerms,
+                extraCount: supplement.filter(
+                  (message) => !regularIds.includes(message.id),
+                ).length,
+              }
+            : null,
+        },
+        nextPageToken: standardToken,
+        limited: !!standardToken,
         lastSuccess: finishedAt,
         retryAt: now + 60000,
         error: null,
@@ -112,10 +194,15 @@ export async function runMailBatch(
         finishedAt,
         outcome: "success",
         errorCode: null,
-        count: messages.length,
-        fetchedCount: messages.length,
-        pages,
-        hasMore: !!page.nextPageToken,
+        count: combined.length,
+        fetchedCount: regular.length + supplement.length,
+        pages: priorityPhase ? job.standardPages + pages : pages,
+        standardCount: regular.length,
+        priorityCount: supplement.length,
+        extraCount: supplement.filter(
+          (message) => !regularIds.includes(message.id),
+        ).length,
+        hasMore: !!standardToken || (priorityPhase && !!page.nextPageToken),
       });
       await advance(tx, job, now);
     });

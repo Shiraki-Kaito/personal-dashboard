@@ -133,7 +133,7 @@ test("Cronのページ完了を保持し、本文一部をホームの警告に�
   const cache = await storage.get("agenda:cache:a");
   assert.equal(cache.error, null);
   assert.equal(cache.messages.length, 2);
-  assert.equal(cache.messages[0].contentLimited, true);
+  assert.equal(cache.messages.filter(message => message.contentLimited).length, 1);
   const home = await agendaHome(storage);
   assert.equal(home.accounts[0].contentLimitedCount, 1);
   assert.equal(home.complete, false);

@@ -1,3 +1,4 @@
+import { prioritySearchPlan, mailRetrievalView, standardMessages, priorityMessages, mergeMailLanes, maximumMailMessages } from "./mail-retrieval.js";
 import { queueCalendarSync } from "./calendar-scheduler.js";
 import { disconnectAccount, clearAccountCache, previewAccountDeletion, deleteAccount } from "./agenda-management.js";
 import { readMailPage, recordMailRun } from "./agenda-mail.js";
@@ -55,6 +56,7 @@ export async function agendaView(env, storage, id) {
     : {};
   return {
     priorityRules,
+    retrievalView: await mailRetrievalView(cache,await prioritySearchPlan(priorityRules?.rules)),
     configured: googleConfigured(env),
     accountLimit: maximumAgendaAccounts,
     mailJob: (await storage.get("agenda:mailJob"))
@@ -117,6 +119,7 @@ export async function agendaView(env, storage, id) {
       })),
     ),
     maxMessages,
+    maximumCombinedMessages:maximumMailMessages,
     pageSize,
   };
 }
@@ -166,7 +169,7 @@ export async function refreshAgenda(
   if (cache.retryAt > now) return agendaView(env, storage, account.id);
   if (
     input.more &&
-    (!cache.nextPageToken || cache.messages.length >= maxMessages)
+    (!cache.nextPageToken || standardMessages(cache).length >= maxMessages)
   )
     throw new InputError(
       "続きの取得はありません。上限の場合はメール元で確認してください",
@@ -188,9 +191,11 @@ export async function refreshAgenda(
     );
     const messages = page.messages;
     fetchedCount = messages.length;
-    const combined = input.more ? [...cache.messages, ...messages] : messages;
-    const ids = new Set(combined.map((m) => m.id));
-    if (ids.size !== combined.length)
+    const regular = input.more ? [...standardMessages(cache), ...messages] : messages;
+    const supplement = page.nextPageToken ? priorityMessages(cache) : [];
+    const combined = mergeMailLanes(regular,supplement);
+    const ids = new Set(regular.map((m) => m.id));
+    if (regular.length > maxMessages || ids.size !== regular.length)
       throw new AgendaError(
         "ページ取得中にメール一覧が変化しました。最初から更新してください",
         "incomplete",
@@ -198,8 +203,10 @@ export async function refreshAgenda(
     await storage.put(key, {
       ...attempt,
       messages: combined,
+      standardIds:regular.map(message=>message.id),priorityIds:supplement.map(message=>message.id),
+      retrieval:{version:1,completedAt:cache.retrieval?.completedAt || new Date(Math.max(now,Date.now())).toISOString(),standard:{count:regular.length,pages:input.more ? (cache.retrieval?.standard?.pages || 1)+1 : 1,hasMore:!!page.nextPageToken},priority:page.nextPageToken && cache.retrieval?.priority ? {...cache.retrieval.priority,count:supplement.length,extraCount:supplement.filter(message=>!ids.has(message.id)).length} : null},
       nextPageToken: page.nextPageToken || null,
-      limited: combined.length >= maxMessages && !!page.nextPageToken,
+      limited: regular.length >= maxMessages && !!page.nextPageToken,
       lastSuccess: new Date(Math.max(now, Date.now())).toISOString(),
       error: null,
       errorCode: null,

@@ -63,7 +63,7 @@ const sender = async (url, init) => {
     },
   });
 };
-test("定期取得は分割・上限・再起動・重複開始を扱い、100件完了までは古い一覧を保持する", async () => {
+test("定期取得は分割・上限・再起動・重複開始を扱い、通常・重要候補の両枠完了までは古い一覧を保持する", async () => {
   let s = await setup();
   const now = Date.now();
   await s.put("agenda:cache:a", {
@@ -94,9 +94,9 @@ test("定期取得は分割・上限・再起動・重複開始を扱い、100�
       assert.equal((await s.get("agenda:cache:a")).messages[0].id, "old");
       s = memory(s.values);
     }
-    assert.ok(batches <= 10);
+    assert.ok(batches <= 20);
   }
-  assert.equal(batches, 10);
+  assert.equal(batches, 20);
   for (const id of ["a", "b"]) {
     const cache = await s.get("agenda:cache:" + id),
       history = await s.get("agenda:history:" + id);
@@ -105,7 +105,7 @@ test("定期取得は分割・上限・再起動・重複開始を扱い、100�
     assert.equal(cache.error, null);
     assert.equal(history.length, 1);
     assert.equal(history[0].source, "cron");
-    assert.equal(history[0].pages, 5);
+    assert.equal(history[0].pages, 10);
     assert.equal(history[0].hasMore, true);
     assert.ok(cache.messages.every((m) => m.priority.important));
   }

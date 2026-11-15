@@ -6,6 +6,29 @@ import { assertBackupEnvelope } from "../public/backup-format.js";
 import { reconcileAppointment } from "../src/agenda.js";
 
 const env = { PROJECT_CONFIG: JSON.stringify({ projects: [] }) };
+test("通常100件と補完100件をバックアップ・復元し、取得範囲を保持する", async () => {
+  const { source, target, accounts } = await fixture();
+  const key = "agenda:cache:" + accounts[0].id;
+  const cache = await source.get(key);
+  cache.messages = Array.from({ length: 200 }, (_, i) => ({ ...cache.messages[0], id: (i + 1).toString(16) }));
+  cache.standardIds = cache.messages.slice(0, 100).map(m => m.id);
+  cache.priorityIds = cache.messages.slice(100).map(m => m.id);
+  cache.retrieval = { version: 1, completedAt: cache.lastSuccess,
+    standard: { count: 100, pages: 5, hasMore: true },
+    priority: { count: 100, pages: 5, hasMore: true, queryHash: "a".repeat(64), omittedTerms: 0, extraCount: 100 } };
+  await source.put(key, cache);
+  const backup = await createBackup(env, source);
+  const plan = await backupPlan(env, target, backup);
+  assert.equal(plan.agendaMessages, 200);
+  await restoreBackup(env, target, backup, plan.checksum);
+  const restored = await target.get(key);
+  assert.equal(restored.messages.length, 200);
+  assert.deepEqual(restored.retrieval, cache.retrieval);
+  assert.equal(restored.errorCode, "restored");
+  const corrupt = structuredClone(backup);
+  corrupt.agenda[0].cache.priorityIds[0] = "ffff";
+  await assert.rejects(backupPlan(env, target, corrupt));
+});
 test("表示名と重要判定を復元し、既存の別名を上書きしない", async () => {
   const { source, target, accounts } = await fixture();
   await source.put("agenda:label:" + accounts[0].id, "就活");

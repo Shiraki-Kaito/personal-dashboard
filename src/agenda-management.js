@@ -60,7 +60,7 @@ async function removeAccountFromJob(storage, accountId, now, jobKey = "agenda:ma
     accountIds: remaining,
     index: 0,
     ...(job.accountIds[job.index] === accountId ? {
-      ...(jobKey === "agenda:mailJob" ? { messages: [], cursor: null, cursors: [], pages: 0 } : {}),
+      ...(jobKey === "agenda:mailJob" ? { messages: [], cursor: null, cursors: [], pages: 0, phase:"standard", standardMessages:[],standardNextPageToken:null,standardPages:0,priorityPlan:null } : {}),
       retries: 0,
       startedAt: new Date(now).toISOString(),
       nextAt: now + nextAccountBatchDelayMs,

@@ -96,7 +96,7 @@ test("旧判定・古い取得・認証失効を問題なしと表示しない",
   assert.match(view.alerts[0].message, /更新/);
   await s.put("agenda:credential:b", { invalid: true });
   view = await agendaHome(s, now);
-  assert.match(view.alerts[0].message, /再接続/);
+  assert.ok(view.alerts.some(alert => /再接続/.test(alert.message)));
 });
 test("予定と無関係なメールは候補なしとし、面談の日時不足は確認待ちにする", () => {
   assert.equal(

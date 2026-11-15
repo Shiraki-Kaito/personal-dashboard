@@ -1,3 +1,4 @@
+import { maximumMailMessages, retrievalBackupFields } from "./mail-retrieval.js";
 import { normalizePriorityRules } from "./mail-priority-rules.js";
 import { normalizeTimingRecords } from "./timing-confirmations.js";
 import { validTimingReference, timingOperationId } from "./timing-calendar.js";
@@ -60,6 +61,7 @@ export async function createAgendaBackup(storage) {
       cache: cache
         ? {
             ...pick(cache, cacheKeys),
+            ...retrievalBackupFields(cache),
             hasMore: !!cache.nextPageToken || !!cache.limited,
             messages: cache.messages.map((message) => ({
               ...pick(message, messageKeys),
@@ -254,7 +256,8 @@ export async function agendaRestoreEntries(storage, backup) {
       requireValid(
         cache &&
           Array.isArray(cache.messages) &&
-          cache.messages.length <= 100 &&
+          cache.messages.length <= maximumMailMessages &&
+          (cache.messages.length <=100 || cache.retrieval) &&
           typeof cache.hasMore === "boolean" &&
           (!cache.lastSuccess || date(cache.lastSuccess)) &&
           (!cache.lastAttempt || date(cache.lastAttempt)),
@@ -315,6 +318,7 @@ export async function agendaRestoreEntries(storage, backup) {
       });
       entries.set("agenda:cache:" + account.id, {
         ...pick(cache, cacheKeys),
+        ...retrievalBackupFields(cache),
         messages,
         limited: cache.hasMore,
         nextPageToken: null,

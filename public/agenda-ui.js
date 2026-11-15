@@ -175,6 +175,7 @@ function render() {
       const p = document.createElement("p");
       p.textContent =
         `${time(r.startedAt)} → ${time(r.finishedAt)} ／ ${{ cron: "自動", manual: "手動1ページ", "manual-batch": "手動・全接続" }[r.source] || r.source} ／ ${r.outcome === "success" ? "成功" : "失敗"} ／ 読取 ${r.fetchedCount ?? r.count}件・保存 ${r.count}件・${r.pages}ページ` +
+        (r.standardCount !== undefined ? ` ／ 通常 ${r.standardCount}件・重要候補 ${r.priorityCount}件（通常枠外 ${r.extraCount}件）` : "") +
         (r.hasMore ? "・未取得あり" : "") +
         (r.errorCode ? " ／ " + r.errorCode : "");
       return p;
@@ -232,6 +233,16 @@ function render() {
       return button;
     }),
   );
+  const coverage = state.retrievalView;
+  el("mailRetrievalStatus").textContent = coverage
+    ? `直近14日：通常 ${coverage.standardCount}/100件・重要候補 ${coverage.priorityCount}/100件（通常枠外 ${coverage.extraCount}件）・重複を除く保存 ${state.messages.length}件` +
+      (coverage.completedAt ? " ／ 補完判定 " + time(coverage.completedAt) : "") +
+      (coverage.standardHasMore ? " ／ 通常枠の続きあり" : " ／ 通常範囲の続きなし") +
+      (coverage.notice ? " ／ " + coverage.notice : coverage.standardHasMore ? " ／ 検索結果の補完取得済み（検索条件に合わないメールは対象外）" : "")
+    : "";
+  const searchLink = el("mailPrioritySearchLink");
+  searchLink.hidden = !connection || !coverage?.query;
+  if (!searchLink.hidden) searchLink.href = "https://mail.google.com/mail/u/" + encodeURIComponent(connection.email) + "/#search/" + encodeURIComponent(coverage.query);
   const contentLimitedCount = state.messages.filter(message=>message.contentLimited).length;
   el("agendaStatus").textContent = !state.accounts.length
     ? "未接続です。追加認可を行ったアカウントだけを取得します。"
@@ -251,7 +262,7 @@ function render() {
           ? " ／ 未取得の続きがあります。先頭から再取得してください"
           : state.nextPageToken
             ? state.limited
-              ? " ／ 上限に達しました。残りはGmailで確認してください"
+              ? " ／ 通常枠100件に達しました。重要候補の補完状況も確認してください"
               : " ／ 未取得の続きがあります"
             : " ／ この取得範囲の続きはありません");
   el("agendaMessages").replaceChildren(
@@ -273,6 +284,8 @@ function render() {
         title.title = message.priority?.reason || "判定待ち";
         meta.className = "task-meta";
         meta.textContent = `${message.review ? "確認済み・対応不要" : message.operation?.phase || (typeof message.candidate.isCandidate === "boolean" ? message.candidate.status : "候補判定の更新待ち")} · ${time(message.receivedAt)} · ${message.from}`;
+        if (state.priorityIds?.includes(message.id) && !state.standardIds?.includes(message.id))
+          meta.textContent = "通常100件の外から補完 · " + meta.textContent;
         row.append(title, meta);
         row.onclick = () => openMessage(message);
         return row;
