@@ -1,5 +1,7 @@
 import { InputError } from "./sync.js";
 import { groupView, homeDriveGroups } from "./drive-groups.js";
+import { minutesSources, normalizeWeeklySettings } from "./weekly-drive.js";
+import { minutesReadScope } from "./drive-auth.js";
 
 const storageKey = "drive:meetingReports";
 const maximumRecords = 24;
@@ -117,6 +119,10 @@ export async function meetingView(storage, scope) {
     );
   const store = normalizeMeetingStore(saved || { scope, records: [] });
   const cache = await storage.get("drive:cache");
+  const sources=cache?.scope===scope ? minutesSources(cache) : [];
+  const candidates=sources.filter(file=>/集客広報チーム定例/.test(file.name));
+  const settings=await storage.get("drive:weeklySettings");
+  const credential=await storage.get("drive:credential");
   const groups =
     cache?.scope === scope
       ? groupView(cache, await storage.get("drive:groups"))
@@ -124,6 +130,7 @@ export async function meetingView(storage, scope) {
   const teams = homeDriveGroups({ groups, unreadChanges: [] }).highlighted;
   return {
     ...store,
+    weekly:{sources,settings:settings?.scope===scope ? normalizeWeeklySettings(settings) : null,defaultMinutesId:candidates.length===1 ? candidates[0].id : "",documentsAuthorized:!!credential?.scopes?.includes(minutesReadScope)},
     records: store.records.sort((a, b) =>
       b.meetingDate.localeCompare(a.meetingDate),
     ),

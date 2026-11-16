@@ -11,6 +11,7 @@ export function assertBackupEnvelope(value) {
     "drive",
     "driveGroups",
     "driveMeetings",
+    "weeklySettings",
     "agenda",
   ]);
   if (

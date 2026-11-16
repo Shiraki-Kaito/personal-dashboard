@@ -1,5 +1,6 @@
 import { normalizeGroupStore } from "./drive-groups.js";
 import { normalizeMeetingStore } from "./drive-meetings.js";
+import { normalizeWeeklySettings } from "./weekly-drive.js";
 import { projectsFrom } from "./catalog.js";
 import { ownerId } from "./github.js";
 import { driveConfig } from "./drive.js";
@@ -97,6 +98,7 @@ export async function createBackup(env, storage) {
     drive,
     driveGroups: (await storage.get("drive:groups"))?.scope === target.drive ? normalizeGroupStore(await storage.get("drive:groups")) : null,
     driveMeetings: (await storage.get("drive:meetingReports"))?.scope === target.drive ? normalizeMeetingStore(await storage.get("drive:meetingReports")) : null,
+    weeklySettings:(await storage.get("drive:weeklySettings"))?.scope===target.drive ? normalizeWeeklySettings(await storage.get("drive:weeklySettings")) : null,
     agenda: await createAgendaBackup(storage),
   };
   checkSize(backup);
@@ -223,6 +225,7 @@ async function restoreEntries(env, storage, backup) {
     if(meetings.scope!==backup.scope.drive) throw new InputError("会議記録の接続範囲が一致しません");
     entries.set("drive:meetingReports",{...meetings,records:meetings.records.map(record=>({...record,revision:crypto.randomUUID()}))});
   }
+  if(backup.weeklySettings){const settings=normalizeWeeklySettings(backup.weeklySettings);if(settings.scope!==backup.scope.drive)throw new InputError("週報の参照設定の接続範囲が一致しません");entries.set("drive:weeklySettings",{...settings,revision:crypto.randomUUID()});}
   const agenda =
     backup.version === 2
       ? await agendaRestoreEntries(storage, backup.agenda)

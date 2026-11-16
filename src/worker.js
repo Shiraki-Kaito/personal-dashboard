@@ -1,6 +1,7 @@
 import { saveAgendaCase, saveAgendaSplit, manageAgendaSplit } from "./agenda-home.js";
 import { saveDriveGroup } from "./drive-groups.js";
 import { meetingView, saveMeeting, composeMeetingReports } from "./drive-meetings.js";
+import { configureWeekly, generateWeekly } from "./weekly-drive.js";
 import { previewPriorityRules, savePriorityRules } from "./mail-priority-rules.js";
 import { readTimingConfirmation, saveTimingConfirmation } from "./timing-confirmations.js";
 import { timingCalendarSeed } from "./timing-calendar.js";
@@ -200,7 +201,7 @@ export class Dashboard extends DurableObject {
     )
       return agendaConnect(request, this.env, storage, session);
     if (
-      (request.method === "POST" && pathname === "/auth/google/start") ||
+      (request.method === "POST" && ["/auth/google/start","/auth/google/report-start"].includes(pathname)) ||
       (request.method === "GET" && pathname === "/auth/google/callback")
     )
       return googleConnect(request, this.env, storage, session);
@@ -233,6 +234,7 @@ export class Dashboard extends DurableObject {
         "/drive-ui.js",
         "/drive-groups-ui.js",
         "/drive-meetings-ui.js",
+        "/weekly-report-ui.js",
         "/motion-ui.js",
         "/fonts/dm-sans-latin.woff2",
         "/fonts/OFL.txt",
@@ -269,6 +271,8 @@ export class Dashboard extends DurableObject {
         if(request.method==="GET") return Response.json(await meetingView(storage,scope));
         if(input.action==="compose") return Response.json({reports:composeMeetingReports(input)});
         if(input.action==="save") return Response.json(await saveMeeting(storage,scope,input));
+        if(input.action==="configureWeekly") return Response.json(await configureWeekly(storage,scope,input));
+        if(input.action==="weekly") return Response.json(await generateWeekly(this.env,storage,scope,input));
         throw new InputError("会議記録の操作が不正です");
       }
       if (action === "session") return Response.json({expiresAt:session.expires});

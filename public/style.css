@@ -2288,6 +2288,9 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 .suggestion-current-sources, .suggestion-reference-timings { margin:12px 0; }
 
 .meeting-section { padding:20px; }
+#weeklyWarnings { white-space:pre-line; }
+.weekly-evidence { margin-top:16px; }
+.weekly-evidence p { padding:8px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
 .meeting-section > summary { cursor:pointer; font-weight:700; font-size:18px; color:var(--text); }
 .meeting-section > p, #meetingForm > p { color:var(--muted); font-size:13px; }
 .meeting-date-row { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin:16px 0; }

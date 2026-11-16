@@ -13,6 +13,7 @@
     <script type="module" src="/ui.js"></script>
     <script type="module" src="/drive-ui.js?v=progress1"></script>
     <script type="module" src="/drive-meetings-ui.js?v=1"></script>
+    <script type="module" src="/weekly-report-ui.js?v=1"></script>
     <script type="module" src="/motion-ui.js?v=confirm1"></script>
     <script type="module" src="/home-ui.js?v=receipt-follow-up1"></script>
     <script type="module" src="/backup-ui.js?v=meetings1"></script>
@@ -431,8 +432,33 @@
               </button>
             </div>
           </div>
+          <details id="weeklySection" class="drive-group-section meeting-section">
+            <summary>Drive・議事録から今週の報告を作る</summary>
+            <p>週の更新と議事録の「完了」「Next Actions」から、3用途の下書きを作ります。議事録には書き込みません。</p>
+            <div class="meeting-date-row">
+              <label>週報の終了日（過去7日間・日本時間）<input id="weeklyEndDate" type="date" /></label>
+              <label>読み取る議事録<select id="weeklyMinutes"><option value="">取得中</option></select></label>
+              <label>議事録での自分の表記<input id="weeklyOwner" maxlength="40" placeholder="例：白木" /></label>
+            </div>
+            <p>本人表記は担当者の見出しと照合します。本文中で名前が言及されただけの作業を、本人の実績にはしません。</p>
+            <p id="weeklyStatus" role="status">参照設定を取得していません。</p>
+            <div id="weeklyAuthorization" hidden>
+              <p>現在はファイル名・更新日時だけを読む権限です。本文取得にはGoogle Docsの読み取り認可が必要です。Google側の権限は閲覧可能な全Googleドキュメントを対象としますが、このアプリは選択した議事録1件だけを取得します。編集権限は要求しません。</p>
+              <label><input id="weeklyConsent" type="checkbox" />本文の読み取り権限と対象を確認しました</label>
+              <button id="weeklyConnect" type="button" class="button" disabled>議事録を読む権限を認可する</button>
+            </div>
+            <div class="meeting-date-row"><button id="weeklyGenerate" type="button" class="button button-primary">この設定で週報を自動作成</button><button id="weeklyReload" type="button" class="text-button">参照設定を再取得</button></div>
+            <p id="weeklyWarnings" class="timing-caution"></p>
+            <div class="meeting-reports">
+              <details open><summary>① チームミーティング用 · 自分の週報下書き</summary><label>自分の週報<textarea id="weeklyPersonal" rows="12" maxlength="6000"></textarea></label><button type="button" class="button" data-weekly-copy="personal">自分の週報をコピー</button></details>
+              <details><summary>② Organizer向け · チーム全体の週報下書き</summary><label>Organizer向けの週報<textarea id="weeklyOrganizer" rows="14" maxlength="6000"></textarea></label><button type="button" class="button" data-weekly-copy="organizer">Organizer向け週報をコピー</button></details>
+              <details><summary>③ 全体定例用 · 短い週報下書き</summary><label>全体定例用の週報<textarea id="weeklyPlenary" rows="10" maxlength="6000"></textarea></label><button type="button" class="button" data-weekly-copy="plenary">全体定例用週報をコピー</button></details>
+            </div>
+            <details class="weekly-evidence"><summary>週報の根拠を確認</summary><div id="weeklyEvidence"></div></details>
+            <p>下書きは確認・編集してコピーできます。元の議事録・Drive文書への転記や送信は行いません。再作成・ページ離脱で編集を失わないよう、必要な内容は先にコピーしてください。</p>
+          </details>
           <details id="meetingSection" class="drive-group-section meeting-section">
-            <summary>集客広報のミーティング報告を作る</summary>
+            <summary>以前の手入力記録を開く（任意）</summary>
             <p>自分の進捗とチーム全体の進捗を分けて記録し、3種類の報告文を作成します。外部への送信やDrive文書の変更は行いません。</p>
             <div class="meeting-date-row">
               <label>会議日（日本時間）<input id="meetingDate" type="date" required /></label>
