@@ -12,9 +12,10 @@
     <script type="module" src="/session-ui.js"></script>
     <script type="module" src="/ui.js"></script>
     <script type="module" src="/drive-ui.js?v=progress1"></script>
+    <script type="module" src="/drive-meetings-ui.js?v=1"></script>
     <script type="module" src="/motion-ui.js?v=confirm1"></script>
     <script type="module" src="/home-ui.js?v=receipt-follow-up1"></script>
-    <script type="module" src="/backup-ui.js?v=splits1"></script>
+    <script type="module" src="/backup-ui.js?v=meetings1"></script>
     <script type="module" src="/agenda-ui.js?v=splits1"></script>
     <script type="module" src="/slack-ui.js"></script>
     <script type="module" src="/notes-ui.js"></script>
@@ -430,6 +431,39 @@
               </button>
             </div>
           </div>
+          <details id="meetingSection" class="drive-group-section meeting-section">
+            <summary>集客広報のミーティング報告を作る</summary>
+            <p>自分の進捗とチーム全体の進捗を分けて記録し、3種類の報告文を作成します。外部への送信やDrive文書の変更は行いません。</p>
+            <div class="meeting-date-row">
+              <label>会議日（日本時間）<input id="meetingDate" type="date" required /></label>
+              <button id="meetingOpen" type="button" class="button">この日付を開く・新規作成</button>
+              <label>保存済みの会議<select id="meetingHistory"><option value="">選択してください</option></select></label>
+              <button id="meetingReload" type="button" class="text-button">保存内容を再取得</button>
+            </div>
+            <p id="meetingStatus" role="status" aria-live="polite">まだ取得していません。</p>
+            <form id="meetingForm">
+              <div class="meeting-input-grid">
+                <fieldset><legend>自分の記録 · チームミーティング用</legend>
+                  <label>自分の進捗<textarea id="meetingOwnProgress" maxlength="1000" rows="4" placeholder="できたこと・進めたこと"></textarea></label>
+                  <label>自分のNext Action<textarea id="meetingOwnNext" maxlength="1000" rows="4" placeholder="次にすること・期限"></textarea></label>
+                </fieldset>
+                <fieldset><legend>集客広報チーム全体 · Organizer／全体定例用</legend>
+                  <button id="meetingImport" type="button" class="text-button">4チームの保存済み進捗を取り込む</button>
+                  <p id="meetingTeamSource" class="home-item-meta">取り込みは自分の記録を変更しません。</p>
+                  <label>チーム全体の進捗<textarea id="meetingTeamProgress" maxlength="1000" rows="4" placeholder="チームの成果・状況を整理"></textarea></label>
+                  <label>チーム全体のNext Action<textarea id="meetingTeamNext" maxlength="1000" rows="4" placeholder="担当・次にすること・期限"></textarea></label>
+                </fieldset>
+              </div>
+              <label>共有・相談・確認事項<textarea id="meetingRisks" maxlength="1000" rows="3" placeholder="困っていること・判断してほしいこと（任意）"></textarea></label>
+              <div class="meeting-date-row"><button id="meetingCompose" type="button" class="button">3種類の下書きを作成</button><button id="meetingSave" type="submit" class="button button-primary">会議記録と報告文を保存</button></div>
+              <p>入力内容をルールで整形します。AIによる事実推測は行いません。各欄1000文字、報告文は各6000文字まで。コピー前に内容を確認してください。</p>
+              <div class="meeting-reports">
+                <details open><summary>① チームミーティング用 · 自分の報告</summary><label>チームミーティング用の報告文<textarea id="meetingPersonalReport" rows="10" maxlength="6000"></textarea></label><button type="button" data-copy-report="personal" class="button">自分の報告をコピー</button></details>
+                <details><summary>② Organizer向け · チーム全体</summary><label>Organizer向けの報告文<textarea id="meetingOrganizerReport" rows="10" maxlength="6000"></textarea></label><button type="button" data-copy-report="organizer" class="button">Organizer向けをコピー</button></details>
+                <details><summary>③ 全体定例用 · 短い共有</summary><label>全体定例用の報告文<textarea id="meetingPlenaryReport" rows="8" maxlength="6000"></textarea></label><button type="button" data-copy-report="plenary" class="button">全体定例用をコピー</button></details>
+              </div>
+            </form>
+          </details>
           <section class="drive-group-section" aria-labelledby="driveGroupsHeading">
             <div class="group-section-heading"><div><h3 id="driveGroupsHeading">グループの進捗</h3><p>保存場所ごとに色分け。色・表示名・進捗をサイトで変更できます。</p></div></div>
             <p id="driveGroupsTime" class="group-meta"></p>

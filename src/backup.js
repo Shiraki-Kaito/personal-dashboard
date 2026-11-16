@@ -1,4 +1,5 @@
 import { normalizeGroupStore } from "./drive-groups.js";
+import { normalizeMeetingStore } from "./drive-meetings.js";
 import { projectsFrom } from "./catalog.js";
 import { ownerId } from "./github.js";
 import { driveConfig } from "./drive.js";
@@ -95,6 +96,7 @@ export async function createBackup(env, storage) {
     tasks,
     drive,
     driveGroups: (await storage.get("drive:groups"))?.scope === target.drive ? normalizeGroupStore(await storage.get("drive:groups")) : null,
+    driveMeetings: (await storage.get("drive:meetingReports"))?.scope === target.drive ? normalizeMeetingStore(await storage.get("drive:meetingReports")) : null,
     agenda: await createAgendaBackup(storage),
   };
   checkSize(backup);
@@ -216,6 +218,11 @@ async function restoreEntries(env, storage, backup) {
     if (groups.scope !== backup.scope.drive) throw new InputError("グループ設定の接続範囲が一致しません");
     entries.set("drive:groups", { ...groups, records: groups.records.map(record=>({...record,revision:crypto.randomUUID()})) });
   }
+  if (backup.driveMeetings) {
+    const meetings=normalizeMeetingStore(backup.driveMeetings);
+    if(meetings.scope!==backup.scope.drive) throw new InputError("会議記録の接続範囲が一致しません");
+    entries.set("drive:meetingReports",{...meetings,records:meetings.records.map(record=>({...record,revision:crypto.randomUUID()}))});
+  }
   const agenda =
     backup.version === 2
       ? await agendaRestoreEntries(storage, backup.agenda)
@@ -241,6 +248,7 @@ export async function backupPlan(env, storage, backup) {
   return {
     tasks: backup.tasks.length,
     driveFiles: backup.drive?.files.length || 0,
+    meetingReports: backup.driveMeetings?.records.length || 0,
     agendaAccounts: backup.agenda?.length || 0,
     agendaMessages: (backup.agenda || []).reduce(
       (n, a) => n + (a.cache?.messages.length || 0),

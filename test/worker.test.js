@@ -68,7 +68,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       },
     });
   }
-  function boot() {
+  function boot(driveConfigured=false) {
     const modules = [
       "worker",
       "notes",
@@ -101,6 +101,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "mail-priority-rules",
       "mail-suggestions",
       "mail-intent",
+      "drive-meetings",
       "mail-cases",
       "mail-case-splits",
       "mail-timing",
@@ -134,6 +135,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
           GITHUB_CLIENT_ID: "fixture",
           GITHUB_CLIENT_SECRET: "fixture",
           PROJECT_CONFIG: JSON.stringify(cfg),
+          ...(driveConfigured ? {DRIVE_CONFIG:JSON.stringify({folderId:"root",includeSubfolders:true})} : {}),
         },
         outboundService: upstream,
         serviceBindings: {
@@ -180,6 +182,9 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       assert.equal((await request(route)).status, 401);
     assert.equal((await request("/manifest.webmanifest", {})).status, 401);
     assert.equal((await request("/api/drive")).status, 401);
+    assert.equal((await request("/api/meetings")).status, 401);
+    assert.equal((await request("/api/meetings",{action:"save"})).status, 401);
+    assert.equal((await request("/drive-meetings-ui.js")).status, 401);
     assert.equal((await request("/drive-groups-ui.js")).status, 401);
     assert.equal((await request("/api/drive",{group:{}})).status,401);
     assert.equal((await request("/api/home")).status, 401);
@@ -250,6 +255,9 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       assert.equal((await request("/api/agenda",{action})).status,409);
     }
     assert.equal((await request("/api/home")).status, 200);
+    assert.equal((await request("/api/meetings")).status, 409);
+    assert.equal((await request("/api/meetings",{action:"save"},"https://other.test")).status,403);
+    assert.equal((await request("/api/meetings",{action:"save"})).status,409);
     assert.equal((await request("/api/drive",{group:{}},"https://other.test")).status,403);
     assert.equal((await request("/api/drive",{group:null})).status,409);
     assert.deepEqual(
@@ -387,7 +395,19 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       (await (await request("/api/state")).json()).remote.status,
       "b",
     );
+    await app.dispose();app=boot(true);
+    assert.equal((await request("/api/meetings")).status,200);
+    const meeting={meetingDate:"2026-11-16",ownProgress:"試験用実績",ownNext:"試験用作業",teamProgress:"試験用チーム",teamNext:"試験用予定",risks:""};
+    const generated=await (await request("/api/meetings",{action:"compose",...meeting})).json();
+    const save={action:"save",...meeting,reports:generated.reports,scope:"root:true",expectedRevision:null};
+    const saves=await Promise.all([request("/api/meetings",save),request("/api/meetings",save)]);
+    assert.deepEqual(saves.map(response=>response.status).sort(),[200,409]);
+    const persistedMeeting=(await (await request("/api/meetings")).json()).records[0];
+    await app.dispose();app=boot(true);
+    assert.deepEqual((await (await request("/api/meetings")).json()).records[0],persistedMeeting);
+    assert.equal((await request("/api/meetings",save)).status,409);
     await request("/auth/logout", {});
+    assert.equal((await request("/api/meetings")).status,401);
     assert.equal((await request("/api/state")).status, 401);
   } finally {
     await app.dispose();

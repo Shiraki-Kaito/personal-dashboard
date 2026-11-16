@@ -1,5 +1,6 @@
 import { saveAgendaCase, saveAgendaSplit, manageAgendaSplit } from "./agenda-home.js";
 import { saveDriveGroup } from "./drive-groups.js";
+import { meetingView, saveMeeting, composeMeetingReports } from "./drive-meetings.js";
 import { previewPriorityRules, savePriorityRules } from "./mail-priority-rules.js";
 import { readTimingConfirmation, saveTimingConfirmation } from "./timing-confirmations.js";
 import { timingCalendarSeed } from "./timing-calendar.js";
@@ -23,7 +24,7 @@ import {
   abandonPending,
 } from "./catalog.js";
 import { googleConnect } from "./drive-auth.js";
-import { driveView, refreshDrive, acknowledgeDrive } from "./drive.js";
+import { driveConfig, driveView, refreshDrive, acknowledgeDrive } from "./drive.js";
 import { DriveReviewError } from "./drive-review.js";
 import { homeView } from "./home.js";
 import { createBackup, backupPlan, restoreBackup } from "./backup.js";
@@ -66,6 +67,7 @@ export default {
   },
 };
 const actions = new Set([
+  "meetings",
   "session",
   "notes",
   "health",
@@ -230,6 +232,7 @@ export class Dashboard extends DurableObject {
         "/style.css",
         "/drive-ui.js",
         "/drive-groups-ui.js",
+        "/drive-meetings-ui.js",
         "/motion-ui.js",
         "/fonts/dm-sans-latin.woff2",
         "/fonts/OFL.txt",
@@ -241,7 +244,7 @@ export class Dashboard extends DurableObject {
     if (!pathname.startsWith("/api/") || !actions.has(action))
       return new Response(null, { status: 404 });
     if (
-      ["drive", "home", "backup", "agenda", "slack", "notes"].includes(action)
+      ["drive", "home", "backup", "agenda", "slack", "notes", "meetings"].includes(action)
         ? !["GET", "POST"].includes(request.method)
         : request.method !== (["state", "health", "session"].includes(action) ? "GET" : "POST")
     )
@@ -259,6 +262,15 @@ export class Dashboard extends DurableObject {
         return new Response(null, { status: 400 });
     }
     try {
+      if (action === "meetings") {
+        const config=driveConfig(this.env);
+        if(!config) throw new InputError("Driveの対象フォルダを設定してください");
+        const scope=config.folderId+":"+config.includeSubfolders;
+        if(request.method==="GET") return Response.json(await meetingView(storage,scope));
+        if(input.action==="compose") return Response.json({reports:composeMeetingReports(input)});
+        if(input.action==="save") return Response.json(await saveMeeting(storage,scope,input));
+        throw new InputError("会議記録の操作が不正です");
+      }
       if (action === "session") return Response.json({expiresAt:session.expires});
       if (action === "health") return Response.json(await healthView(this.env, storage));
       if (action === "notes") {
