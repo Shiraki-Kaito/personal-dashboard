@@ -1,3 +1,8 @@
+import {
+  analyzeMailIntent,
+  timingReferenceReason,
+  submissionTopics,
+} from "./mail-intent.js";
 import { extractMailTiming, timingPriority } from "./mail-timing.js";
 // 保存済みメールから関連候補と次の確認案を作る純粋関数。送信・登録・確認済み化は行わない。
 const normalize = (value = "") =>
@@ -21,78 +26,79 @@ function senderAddress(from = "") {
       "",
   );
 }
-function suggestionSummary(entry) {
+export function mailSuggestion(entry, intent = analyzeMailIntent(entry)) {
   if (entry.kind === "pending")
     return {
       title: "予定の登録結果を確認しませんか？",
       reason:
         "登録結果が未確認です。重複を避けるため、再登録より先に結果を照合してください。",
       category: "結果未確認",
+      checks: ["登録結果を照合し、重複登録を避ける"],
+      hasReceiptStatement: false,
+      evidence: "",
     };
-  const text = (entry.title + "\n" + (entry.excerpt || "")).normalize("NFKC");
-  // 受付通知から再提出を勧めない。引用・署名の判定を避け、まず件名の明確な受領表現を見る。
-  if (
-    /提出ありがとう|提出いただきありがとう|受領|受付完了|登録完了|提出完了/.test(
-      entry.title,
-    )
-  )
-    return {
-      title: "受付内容と、残っている手続きを確認しませんか？",
-      reason:
-        "受付・完了を示す件名です。他の宛先や手続きまで完了したとは判断していません。",
-      category: "受付の確認",
-    };
-  if (
-    /成績証明|履歴書|エントリーシート|提出書類|課題|レポート/.test(text) &&
-    /提出|アップロード|送付|締切|期限/.test(text)
-  )
-    return {
-      title: "提出が必要な書類と期限を確認しませんか？",
-      reason:
-        "書類・課題と提出に関する記載があります。最新の案内で対象書類と締切を確認してください。",
-      category: "提出の確認",
-    };
-  if (/面接|面談|説明会|ミーティング|打ち合わせ|授業|試験/.test(text))
-    return {
-      title: "日程を確認して、予定と照らし合わせませんか？",
-      reason:
-        "面接・会議などの日程に関する記載があります。日時が曖昧な場合も元メールから確認できます。",
-      category: "日程の確認",
-    };
-  if (/返信|回答|出欠|アンケート|承認|確認してください|ご確認/.test(text))
-    return {
-      title: "回答や確認が必要か、見ておきませんか？",
-      reason:
-        "返信・回答・確認を求める語句があります。対応が必要かを元メールで判断してください。",
-      category: "回答の確認",
-    };
-  return {
-    title: "この連絡で、次にすることを確認しませんか？",
-    reason:
-      "重要メールとして抽出されています。具体的な対応を断定できないため、元の案内を確認してください。",
-    category: "内容の確認",
-  };
-}
-export function mailSuggestion(entry) {
-  const suggestion = suggestionSummary(entry);
-  const text = (entry.title + "\n" + (entry.excerpt || "")).normalize("NFKC");
   const checks = [];
-  if (suggestion.category === "結果未確認")
-    checks.push("登録結果を照合し、重複登録を避ける");
-  else if (suggestion.category === "受付の確認")
-    checks.push("宛先ごとの受付内容と、残っている手続きを確認する");
-  else {
-    if (
-      /成績証明|履歴書|エントリーシート|提出書類|課題|レポート/.test(text) &&
-      /提出|アップロード|送付|締切|期限/.test(text)
-    )
-      checks.push("提出する書類・提出先・締切を元の案内で確認する");
-    if (/面接|面談|説明会|ミーティング|打ち合わせ|授業|試験/.test(text))
-      checks.push("日時を確かめ、接続したアカウントの予定と照合する");
-    if (/返信|回答|出欠|アンケート/.test(text))
-      checks.push("返信・回答が必要かを確認する");
+  let title, reason, category;
+  if (intent.receipt) {
+    category = "受付の確認";
+    title = "受付内容と、残っている手続きを確認しませんか？";
+    reason =
+      "保存された案内に受付・受領・完了の記載があります。同じ提出物の再提出は勧めません。他の宛先・別手続きまで完了したとは判断しません。";
+    checks.push("この宛先で受け付けられた提出物と、受付の範囲を確認する");
+    if (intent.remainingRequests.length) {
+      category = "受付と追加依頼の確認";
+      title = "受付済みの範囲と、追加・再提出の依頼を確認しませんか？";
+      checks.push("最新の本文に明記された追加・再提出の対象だけを確認する");
+    } else if (intent.schedule) {
+      category = "受付後の日程確認";
+      title = "受付済みの内容と、次の面接・予定の案内を確認しませんか？";
+    } else if (intent.response) {
+      category = "受付後の回答確認";
+      title = "受付済みの内容と、残っている回答を確認しませんか？";
+    }
+  } else if (intent.remainingRequests.length) {
+    category = "提出の確認";
+    title = "提出が必要な書類と期限を確認しませんか？";
+    reason =
+      "提出依頼・提出期限の記載があります。提出状況と対象書類を最新の案内で照合してください。";
+    checks.push("提出する書類・提出先・締切を元の案内で確認する");
+  } else if (intent.submissionMention) {
+    category = "提出状況の確認";
+    title = "提出状況と、最新の案内を確認しませんか？";
+    reason =
+      "提出に関する記載はありますが、保存範囲だけでは新しい提出依頼と断定できません。";
+    checks.push("提出済みか、追加の対応があるかを元の案内で確認する");
+  } else if (intent.schedule) {
+    category = "日程の確認";
+    title = "日程を確認して、予定と照らし合わせませんか？";
+    reason =
+      "面接・会議などの日程に関する記載があります。日時が曖昧な場合も元メールから確認できます。";
+  } else if (intent.response) {
+    category = "回答の確認";
+    title = "回答や確認が必要か、見ておきませんか？";
+    reason =
+      "返信・回答・確認を求める語句があります。対応が必要かを元メールで判断してください。";
+  } else {
+    category = "内容の確認";
+    title = "この連絡で、次にすることを確認しませんか？";
+    reason =
+      "重要メールとして抽出されています。具体的な対応を断定できないため、元の案内を確認してください。";
   }
-  return { ...suggestion, checks };
+  if (intent.schedule)
+    checks.push("日時を確かめ、接続したアカウントの予定と照合する");
+  if (intent.response) checks.push("返信・回答が必要かを確認する");
+  if (intent.limited)
+    reason +=
+      " 本文の一部だけの判定です。保存範囲外の追加依頼は原文で確認してください。";
+  return {
+    title,
+    reason,
+    category,
+    checks,
+    hasReceiptStatement: intent.receipt,
+    hasSubmissionRequest: intent.remainingRequests.length > 0,
+    evidence: intent.evidence,
+  };
 }
 export function mailGroupingKey(entry) {
   const company = organization(entry.title);
@@ -108,6 +114,56 @@ export function mailGroupingKey(entry) {
           sender || entry.accountId,
         ]);
 }
+const receivedTime = (entry) =>
+  Number.isFinite(Date.parse(entry.receivedAt))
+    ? Date.parse(entry.receivedAt)
+    : null;
+function currentSources(sorted) {
+  const byAccount = new Map();
+  for (const entry of sorted) {
+    if (entry.kind === "pending") continue;
+    if (!byAccount.has(entry.accountId)) byAccount.set(entry.accountId, []);
+    byAccount.get(entry.accountId).push(entry);
+  }
+  const selected = [];
+  const labels = new Map();
+  let uncertain = false;
+  for (const entries of byAccount.values()) {
+    const known = entries.map(receivedTime).filter((value) => value !== null);
+    const latest = known.length ? Math.max(...known) : null;
+    const unknown = entries.some((entry) => receivedTime(entry) === null);
+    const tied =
+      entries.filter((entry) => receivedTime(entry) === latest).length > 1;
+    if (unknown || tied) uncertain = true;
+    for (const entry of entries) {
+      const at = receivedTime(entry);
+      const current = at === null || at === latest;
+      if (current) selected.push(entry);
+      labels.set(
+        entry,
+        at === null
+          ? "受信日時不明・新旧未確定"
+          : current
+            ? unknown
+              ? "最新候補・日時不明の案内あり"
+              : tied
+                ? "同時刻の最新候補・前後未確定"
+                : "この宛先の最新案内"
+            : "過去の関連案内",
+      );
+    }
+  }
+  return { selected, labels, uncertain };
+}
+const timingSource = (entry, timing) => ({
+  ...timing,
+  accountId: entry.accountId,
+  messageId: entry.messageId,
+  accountName: entry.accountName || entry.email,
+  sourceTitle: entry.title,
+  receivedAt: entry.receivedAt,
+  sourceStale: !!entry.sourceStale,
+});
 export function groupMailSuggestions(entries, now = Date.now()) {
   const groups = new Map();
   // 未確定操作を他メールへ吸収せず、必ず独立した復旧案として残す。
@@ -138,13 +194,20 @@ export function groupMailSuggestions(entries, now = Date.now()) {
   }
   return [...groups.values()]
     .map((group) => {
-      const sorted = [...group.entries].sort((a, b) =>
-        (b.receivedAt || "").localeCompare(a.receivedAt || ""),
+      const sorted = [...group.entries].sort(
+        (a, b) =>
+          (receivedTime(b) ?? -Infinity) - (receivedTime(a) ?? -Infinity) || 0,
       );
       const latestByAccount = new Map();
       for (const entry of sorted)
         if (!latestByAccount.has(entry.accountId))
           latestByAccount.set(entry.accountId, entry);
+      const chronology = currentSources(sorted);
+      const intents = new Map(
+        sorted
+          .filter((entry) => entry.kind !== "pending")
+          .map((entry) => [entry, analyzeMailIntent(entry)]),
+      );
       const timings = [...latestByAccount.values()].flatMap((entry) =>
         (entry.timings || extractMailTiming(entry)).map((timing) => ({
           ...timing,
@@ -158,7 +221,7 @@ export function groupMailSuggestions(entries, now = Date.now()) {
       );
       const pending = sorted[0].kind === "pending";
       const kindOrder = { deadline: 0, event: 1, date: 2 };
-      timings.sort((a, b) => {
+      const compareTimings = (a, b) => {
         const first = timingPriority([a], false, now),
           second = timingPriority([b], false, now);
         return (
@@ -166,16 +229,122 @@ export function groupMailSuggestions(entries, now = Date.now()) {
           (first.at ?? Infinity) - (second.at ?? Infinity) ||
           kindOrder[a.kind] - kindOrder[b.kind]
         );
-      });
-      const suggestion = mailSuggestion(sorted[0]);
-      const priority = timingPriority(timings, pending, now);
-      if (!timings.length && suggestion.category === "受付の確認") {
+      };
+      timings.sort(compareTimings);
+      const sources = chronology.selected.map((entry) => ({
+        entry,
+        intent: intents.get(entry),
+        suggestion: mailSuggestion(entry, intents.get(entry)),
+      }));
+      let suggestion = mailSuggestion(sorted[0], intents.get(sorted[0]));
+      if (
+        sources.length > 1 &&
+        sources.some((source) => source.intent.receipt) &&
+        sources.some(
+          (source) =>
+            !source.intent.receipt && source.intent.remainingRequests.length,
+        )
+      ) {
+        const multipleAccounts =
+          new Set(sources.map((source) => source.entry.accountId)).size > 1;
+        suggestion = {
+          title: multipleAccounts
+            ? "宛先ごとの受付状況と、残る依頼を確認しませんか？"
+            : "受付通知と提出依頼の前後を確認しませんか？",
+          category: multipleAccounts ? "宛先別の確認" : "案内ごとの確認",
+          reason: multipleAccounts
+            ? "一部の宛先には受付通知がありますが、別の宛先の提出依頼まで完了したとは判断できません。"
+            : "同時刻・日時不明の案内があるため、受付と依頼の前後を断定できません。",
+          checks: [
+            "宛先・提出物・手続きごとに、最新の依頼と受付の範囲を照合する",
+          ],
+          hasReceiptStatement: true,
+          evidence: "",
+        };
+      }
+      const proposalTimings = [],
+        referenceTimings = [];
+      for (const { entry, intent } of sources)
+        for (const timing of entry.timings || extractMailTiming(entry)) {
+          const source = timingSource(entry, timing);
+          const referenceReason = timingReferenceReason(timing, intent);
+          if (referenceReason)
+            referenceTimings.push({ ...source, referenceReason });
+          else
+            proposalTimings.push({
+              ...source,
+              ...(intent.receipt && timing.manual
+                ? {
+                    receiptNotice:
+                      "本人確定日時を維持しています。最新の受付内容と照合し、不要になった場合は本人が解除してください。",
+                  }
+                : {}),
+            });
+        }
+      proposalTimings.sort(compareTimings);
+      const historyNotices = [];
+      let uncertainOlderRequest = false;
+      for (const entry of sorted) {
+        if (entry.kind === "pending" || chronology.selected.includes(entry))
+          continue;
+        const intent = intents.get(entry);
+        if (!intent.remainingRequests.length) continue;
+        const newer = sources.filter(
+          (source) =>
+            source.entry.accountId === entry.accountId &&
+            source.intent.receipt &&
+            senderAddress(source.entry.from) &&
+            senderAddress(source.entry.from) === senderAddress(entry.from),
+        );
+        if (!newer.length) continue;
+        const topics = submissionTopics(entry.title + " " + intent.body);
+        const covered = newer.some(
+          (source) =>
+            source.intent.comprehensive ||
+            (topics.length > 0 &&
+              topics.every((topic) =>
+                source.intent.receiptTopics.includes(topic),
+              )),
+        );
+        if (!covered) uncertainOlderRequest = true;
+      }
+      if (uncertainOlderRequest)
+        historyNotices.push(
+          "過去の関連案内には、最新の受付記載だけでは完了範囲を特定できない提出物があります。同じ手続きか、案件を分ける必要があるか確認してください。",
+        );
+      if (chronology.uncertain)
+        historyNotices.push(
+          "同時刻または受信日時不明の案内があり、前後関係を断定していません。候補を並べて確認してください。",
+        );
+      const priority = timingPriority(proposalTimings, pending, now);
+      if (
+        !proposalTimings.length &&
+        sources.length &&
+        sources.every((source) => source.intent.receipt)
+      ) {
         priority.rank = 7;
         priority.label = "受付内容の確認";
+        if (uncertainOlderRequest || chronology.uncertain) {
+          priority.rank = 4;
+          priority.label = "受付範囲・案内の確認が必要";
+        }
       }
       return {
         ...group,
         suggestion,
+        currentSources: sources.map(({ entry, suggestion }) => ({
+          accountId: entry.accountId,
+          messageId: entry.messageId,
+          accountName: entry.accountName || entry.email,
+          title: entry.title,
+          receivedAt: entry.receivedAt,
+          recency: chronology.labels.get(entry),
+          suggestion,
+        })),
+        historyNotices,
+        chronologyUncertain: chronology.uncertain,
+        proposalTimings,
+        referenceTimings,
         timingNotices: [...latestByAccount.values()]
           .filter((entry) => entry.timingNotice)
           .map((entry) => ({
@@ -187,12 +356,14 @@ export function groupMailSuggestions(entries, now = Date.now()) {
         latestAt: sorted[0].receivedAt || null,
         pending,
         // 宛先ごとの証跡・個別操作を維持する。古い案内を最新と同列に勧めない。
-        entries: sorted.map(
-          ({ excerpt, from, timings, timingNotice, ...entry }) => ({
+        entries: sorted.map((source) => {
+          const { excerpt, from, timings, timingNotice, ...entry } = source;
+          return {
             ...entry,
+            recency: chronology.labels.get(source) || "登録結果の照合対象",
             excerpt: (excerpt || "").slice(0, 240),
-          }),
-        ),
+          };
+        }),
         accountCount: new Set(sorted.map((entry) => entry.accountId)).size,
       };
     })

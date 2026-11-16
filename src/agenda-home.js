@@ -100,6 +100,7 @@ export async function agendaHome(storage, now = Date.now()) {
       }
       entries.push({
         kind: "mail",
+        contentLimited: !!message.contentLimited,
         caseSourceRevision: await digest({subject:message.subject,from:message.from,excerpt:message.excerpt}),
         accountId: account.id,
         messageId: message.id,

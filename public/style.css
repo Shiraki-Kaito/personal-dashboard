@@ -2283,3 +2283,6 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 #splitManagerForm { display:grid; gap:12px; }
 #splitManagerForm > label:not(.timing-confirm) { display:grid; gap:6px; }
 #splitManagerForm select { width:100%; min-width:0; }
+
+.suggestion-evidence { border-left:3px solid var(--mint); padding:8px 12px; background:#edf7f3; white-space:pre-wrap; overflow-wrap:anywhere; }
+.suggestion-current-sources, .suggestion-reference-timings { margin:12px 0; }

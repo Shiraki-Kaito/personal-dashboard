@@ -16,7 +16,7 @@ const mail = (overrides = {}) => ({
   ...overrides,
 });
 
-test("同じ組織の関連案内を宛先を保ってまとめ、最新の受付通知から再提出を勧めない", () => {
+test("同じ組織でも別宛先の提出依頼を受付済みにしない", () => {
   const entries = [
     mail(),
     mail({
@@ -32,7 +32,17 @@ test("同じ組織の関連案内を宛先を保ってまとめ、最新の受�
   assert.equal(groups[0].accountCount, 2);
   assert.equal(groups[0].entries.length, 2);
   assert.equal(groups[0].entries[0].messageId, "2");
-  assert.equal(groups[0].suggestion.category, "受付の確認");
+  assert.equal(groups[0].suggestion.category, "宛先別の確認");
+  assert.equal(
+    groups[0].currentSources.find((source) => source.accountId === "b")
+      .suggestion.hasReceiptStatement,
+    true,
+  );
+  assert.equal(
+    groups[0].currentSources.find((source) => source.accountId === "a")
+      .suggestion.hasSubmissionRequest,
+    true,
+  );
   assert.deepEqual(entries, before);
 });
 test("同じ一般件名でも異なる送信者、異なる組織・卒業年度は混ぜない", () => {
@@ -58,7 +68,12 @@ test("結果不明は関連メールへ隠さず先頭で個別の照合案を�
 });
 test("提出・日程・返信・判断不能を区別し、本文抜粋の語句も使う", () => {
   assert.equal(mailSuggestion(mail()).category, "提出の確認");
-  assert.equal(mailSuggestion(mail({excerpt:"成績証明書を提出し、面接の日程を回答してください"})).checks.length, 3);
+  assert.equal(
+    mailSuggestion(
+      mail({ excerpt: "成績証明書を提出し、面接の日程を回答してください" }),
+    ).checks.length,
+    3,
+  );
   assert.equal(
     mailSuggestion(mail({ title: "面談", excerpt: "日程を調整します" }))
       .category,

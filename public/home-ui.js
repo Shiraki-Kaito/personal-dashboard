@@ -257,18 +257,35 @@ function renderSuggestions(agenda) {
     row.append(element("p", "suggestion-case", group.label));
     row.append(element("h3", "suggestion-title", group.suggestion.title));
     row.append(element("p", "suggestion-reason", group.suggestion.reason));
+    if(group.suggestion.evidence) row.append(element("p", "suggestion-evidence", "判断に使った記載："+group.suggestion.evidence));
+    for(const notice of group.historyNotices || []) row.append(element("p", "timing-caution",notice));
+    if((group.currentSources?.length || 0)>1) {
+      const latest = element("details", "suggestion-current-sources");
+      latest.append(element("summary", "", "宛先別の最新案内・判断根拠を確認"));
+      for(const source of group.currentSources) {
+        const item = element("article", "suggestion-source");
+        item.append(element("strong", "",source.accountName || "接続アカウント"));
+        item.append(element("p", "home-item-meta", source.recency+" · "+time(source.receivedAt)));
+        item.append(element("p", "", source.title),element("p", "", source.suggestion.title));
+        if(source.suggestion.evidence) item.append(element("p", "suggestion-excerpt", "判断に使った記載："+source.suggestion.evidence));
+        const open=element("button", "text-button", "この宛先の案内を開く ↗");open.type="button";open.onclick=()=>openMail(source);item.append(open);latest.append(item);
+      }
+      row.append(latest);
+    }
+    const proposalTimings=group.proposalTimings || group.timings || [];
     for (const notice of group.timingNotices || []) row.append(element("p", "timing-caution", notice.accountName + "：" + notice.message));
-    if ((group.caseState?.status || "open") === "open" && group.timings?.length) {
+    if ((group.caseState?.status || "open") === "open" && proposalTimings.length) {
       const timings = element("div", "suggestion-timings");
       const more = element("details", "timing-more");
-      more.append(element("summary", "", `ほかの記載日時を確認（${Math.max(0,group.timings.length-visibleTimingCount)}件）`));
-      for (const [index,timing] of group.timings.entries()) {
+      more.append(element("summary", "", `ほかの記載日時を確認（${Math.max(0,proposalTimings.length-visibleTimingCount)}件）`));
+      for (const [index,timing] of proposalTimings.entries()) {
         const item = element("article", "suggestion-timing");
         item.dataset.confirmed = String(timing.confirmed);
         item.append(element("strong", "", timing.action));
         const label = timing.kind === "deadline" ? "締切" : timing.kind === "event" ? "予定日時" : "記載日時";
         item.append(element("p", "suggestion-when", `${label}：${timing.display}${timing.confirmed ? "" : " · 要確認"}`));
         item.append(element("p", "home-item-meta", timing.accountName || "接続アカウント"));
+        if(timing.receiptNotice) item.append(element("p", "timing-caution",timing.receiptNotice));
         if (timing.manual) item.append(element("p", "timing-confirmed", "本人確定 · 保存 " + time(timing.manual.confirmedAt)));
         if (timing.manual) {
           if (timing.calendarPhase) item.append(element("p", "home-item-meta", "カレンダー："+timing.calendarPhase));
@@ -295,17 +312,27 @@ function renderSuggestions(agenda) {
         }
         (index < visibleTimingCount ? timings : more).append(item);
       }
-      if (group.timings.length > visibleTimingCount) timings.append(more);
+      if (proposalTimings.length > visibleTimingCount) timings.append(more);
       row.append(timings);
     } else if (!group.pending && (group.caseState?.status || "open") === "open") row.append(element("p", "home-item-meta", "最新の保存済み案内に、採用できる具体的な締切・日時はありません。"));
+    if(group.referenceTimings?.length) {
+      const reference=element("details", "suggestion-reference-timings");
+      reference.append(element("summary", "", `受付・完了案内の参考日時（${group.referenceTimings.length}件）`));
+      for(const timing of group.referenceTimings) {
+        const item=element("article", "suggestion-source");
+        item.append(element("p", "",timing.display),element("p", "home-item-meta",timing.referenceReason));
+        const open=element("button", "text-button", "参考日時の元メールを開く ↗");open.type="button";open.onclick=()=>openMail(timing);item.append(open);reference.append(item);
+      }
+      row.append(reference);
+    }
     if ((group.caseState?.status || "open") === "open" && group.suggestion.checks?.length) {
       const checks = element("ul", "suggestion-checks");
       for (const check of group.suggestion.checks) checks.append(element("li", "", check));
       row.append(checks);
     }
-    row.append(element("p", "home-item-meta", `ルールによる提案 · 根拠：最新のメール ${time(group.latestAt)}`));
+    row.append(element("p", "home-item-meta", `ルールによる提案 · ${group.chronologyUncertain ? "最新候補（前後未確定）" : "最新の保存済み案内"} ${time(group.latestAt)}`));
     if (group.accountCount > 1) row.append(element("p", "home-item-meta", `${group.accountCount}アカウントに届いた案内です。宛先ごとに対応状況を確認してください。`));
-    const action = element("button", "button button-primary", group.pending ? "登録結果を確認する" : "最新の案内を確認する");
+    const action = element("button", "button button-primary", group.pending ? "登録結果を確認する" : group.chronologyUncertain ? "案内の候補を確認する" : "最新の案内を確認する");
     action.type = "button";
     action.onclick = () => openMail(group.entries[0]);
     row.append(action);
@@ -334,7 +361,7 @@ function renderSuggestions(agenda) {
       const item = element("article", "suggestion-source"), open = element("button", "home-task-open");
       open.type = "button";
       open.append(element("strong", "home-item-title", entry.title));
-      open.append(element("span", "home-item-meta", (entry.accountName || entry.email) + " · " + time(entry.receivedAt)));
+      open.append(element("span", "home-item-meta", (entry.accountName || entry.email || "接続アカウント") + " · " + time(entry.receivedAt) + " · " + (entry.recency || "関連案内")));
       open.onclick = () => openMail(entry);
       item.append(open);
       if (entry.excerpt) item.append(element("p", "suggestion-excerpt", "本文の抜粋：" + entry.excerpt));
