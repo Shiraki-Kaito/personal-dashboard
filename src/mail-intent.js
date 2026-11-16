@@ -29,7 +29,7 @@ const requestNegation =
 const freshRequest = /追加|改めて|再提出|差し替え|別途/;
 const scheduleWords = /面接|面談|説明会|ミーティング|打ち合わせ|会議|授業|試験/;
 const scheduleNext =
-  /(?:面接|面談|説明会|会議|授業|試験).{0,16}(?:日程|日時|予定|案内|行います|実施|開催)|(?:日程|日時|次の選考).{0,24}(?:面接|面談|会議|説明会)|次の選考ステップ/;
+  /(?:面接|面談|説明会|会議|授業|試験).{0,16}(?:日程|日時|予定|案内|行います|実施|開催)|(?:面接|面談|説明会|会議|授業|試験).{0,30}\d{1,2}[月/.-]\d{1,2}|(?:日程|日時|次の選考).{0,24}(?:面接|面談|会議|説明会)|次の選考ステップ/;
 const responseRequest =
   /(?:返信|回答|出欠).{0,20}(?:ください|お願い|必要|期限|締切)|要返信|ご返信ください/;
 
@@ -53,6 +53,21 @@ function clauses(text) {
     .split(/[。!?！？]+|\n\s*\n/)
     .map((value) => value.replace(/\s+/g, " ").trim())
     .filter(Boolean);
+}
+
+// 受付を伝える文の日時を、後続の面接・回答の日時と混ぜない。
+export function receiptFollowUpBody(entry) {
+  return currentMailText(entry.excerpt || "")
+    .split(/\r?\n/)
+    .flatMap(clauses)
+    .filter(
+      (clause) =>
+        !receiptFact.test(clause) &&
+        !/^(?:受付|受領|提出|登録)(?:完了)?(?:日|日時|時刻)\s*[:：]/.test(
+          clause,
+        ),
+    )
+    .join("\n");
 }
 
 export function analyzeMailIntent(entry) {

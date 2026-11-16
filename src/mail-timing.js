@@ -1,4 +1,9 @@
 import { readTime } from "./agenda-datetime.js";
+import {
+  analyzeMailIntent,
+  receiptFollowUpBody,
+  timingReferenceReason,
+} from "./mail-intent.js";
 
 const japanOffsetMs = 9 * 3600000;
 const soonMs = 72 * 3600000;
@@ -67,14 +72,15 @@ function parsedClock(raw, period) {
 }
 // 戻り値のstartAtは明記された年・月日・時刻だけ。時刻なしの期限に23:59を創作しない。
 export function extractMailTiming(entry) {
-  if (
-    entry.kind === "pending" ||
+  if (entry.kind === "pending") return [];
+  // 従来は件名だけで全日時を除外していた。通常メールの結果と保存IDは維持する。
+  const followUp =
     /提出ありがとう|提出いただきありがとう|受領|受付完了|登録完了|提出完了/.test(
       entry.title,
-    )
-  )
-    return [];
-  const lines = activeText(entry);
+    );
+  const lines = followUp
+    ? activeText({ ...entry, excerpt: receiptFollowUpBody(entry) }).slice(1)
+    : activeText(entry);
   const rows = [];
   let previous = "";
   for (const line of lines.flatMap((line) => line.split(/[。;；、]/))) {
@@ -207,7 +213,28 @@ export function extractMailTiming(entry) {
       reasons: ["保存済み本文から具体的な日付を取得できません"],
       evidence: lines.find((line) => deadlineWords.test(line)).slice(0, 240),
     });
-  return unique;
+  if (!followUp) return unique;
+  const intent = analyzeMailIntent(entry);
+  // 受付件名の後続手続きは、本文に行動と日時があるものだけを候補にする。
+  return unique
+    .filter(
+      (row) =>
+        (row.kind === "event" || row.kind === "deadline") &&
+        !timingReferenceReason(row, intent) &&
+        (row.kind === "event"
+          ? eventWords.test(row.evidence)
+          : /返信|回答|出欠/.test(row.evidence) ||
+            intent.remainingRequests.length > 0),
+    )
+    .map((row) => ({
+      ...row,
+      followUp: true,
+      confirmed: false,
+      reasons: [
+        ...row.reasons,
+        "受付後の別手続きの日時です。対象と最新の案内を確認してください",
+      ],
+    }));
 }
 export function timingPriority(timings, pending, now = Date.now()) {
   if (pending) return { rank: 0, label: "登録結果未確認", at: null };
