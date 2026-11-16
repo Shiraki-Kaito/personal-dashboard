@@ -4,6 +4,12 @@ let current = null;
 let saving = false;
 let apiSave = null;
 let renderedSignature = "";
+let visibilityBase = null,
+  visibilityDirty = false,
+  visibilitySignature = "",
+  latestState = null,
+  latestBusy = false,
+  saveVisibility = null;
 const dateTime = (value) =>
   value
     ? new Date(value).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
@@ -34,10 +40,97 @@ export function openDriveGroupEditor(group, state) {
     "進捗はサイト内の手動記録です。Driveのファイルは変更しません。";
   el("groupEditor").showModal();
 }
-export function renderDriveGroups(state, openFile, save, busy, filterGroup) {
+function renderVisibility(state, busy) {
+  const display = state.groupDisplay;
+  if (!display) return;
+  const signature = JSON.stringify(display);
+  if (signature !== visibilitySignature && !visibilityDirty) {
+    visibilityBase = display;
+    visibilitySignature = signature;
+    el("driveVisibilityOptions").replaceChildren(
+      ...display.groups.map((group) => {
+        const label = element("label", undefined, "drive-visibility-option"),
+          input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = group.visible;
+        input.dataset.path = group.path;
+        input.onchange = () => {
+          visibilityDirty = true;
+          el("driveVisibilityResult").textContent = "表示設定は未保存です。";
+          renderVisibility(latestState, latestBusy);
+        };
+        label.append(input, element("span", group.name));
+        return label;
+      }),
+    );
+  }
+  for (const control of el("driveVisibilityForm").elements)
+    control.disabled = busy || !display.scope;
+  el("driveVisibilitySave").disabled =
+    busy || !display.scope || !visibilityDirty;
+}
+el("driveVisibilityDefault").onclick = () => {
+  for (const input of el("driveVisibilityOptions").querySelectorAll("input"))
+    input.checked = visibilityBase.groups.find(
+      (group) => group.path === input.dataset.path,
+    ).defaultVisible;
+  visibilityDirty = true;
+  el("driveVisibilityResult").textContent =
+    "100〜400を基本の表示に戻しました。保存すると反映されます。";
+  renderVisibility(latestState, latestBusy);
+};
+el("driveVisibilityForm").onsubmit = async (event) => {
+  event.preventDefault();
+  if (latestBusy || !visibilityBase || !visibilityDirty) return;
+  const overrides = new Map(
+    visibilityBase.overrides.map((item) => [item.path, item.visible]),
+  );
+  for (const input of el("driveVisibilityOptions").querySelectorAll("input")) {
+    const group = visibilityBase.groups.find(
+      (group) => group.path === input.dataset.path,
+    );
+    if (input.checked === group.defaultVisible) overrides.delete(group.path);
+    else overrides.set(group.path, input.checked);
+  }
+  const input = {
+    scope: visibilityBase.scope,
+    expectedRevision: visibilityBase.revision,
+    overrides: [...overrides]
+      .map(([path, visible]) => ({ path, visible }))
+      .sort((a, b) => a.path.localeCompare(b.path, "ja")),
+  };
+  try {
+    const result = await saveVisibility(input);
+    if (!result)
+      throw Error(
+        "取得中のため保存していません。取得が終わってから保存してください",
+      );
+    visibilityDirty = false;
+    visibilitySignature = "";
+    renderVisibility(latestState, latestBusy);
+    el("driveVisibilityResult").textContent =
+      "表示設定を保存・照合しました。元のDriveファイルは変更していません。";
+  } catch (error) {
+    el("driveVisibilityResult").textContent =
+      error.message + " 選択は保持しています。";
+  }
+};
+export function renderDriveGroups(
+  state,
+  openFile,
+  save,
+  busy,
+  filterGroup,
+  saveDisplay,
+) {
   apiSave = save;
+  latestState = state;
+  latestBusy = busy;
+  saveVisibility = saveDisplay;
+  renderVisibility(state, busy);
   const signature = JSON.stringify([
     state.groups,
+    state.groupDisplay,
     state.lastSuccess,
     state.error,
     state.scanning,
@@ -55,82 +148,92 @@ export function renderDriveGroups(state, openFile, save, busy, filterGroup) {
         ? " · 古い情報または未取得"
         : "") +
     (state.scanning ? " · 取得中" : "");
-  const cards = (state.groups || []).map((group) => {
-    const card = element("article", undefined, "drive-group-card");
-    card.dataset.groupColor = group.color;
-    const top = element("div", undefined, "group-card-top");
-    const heading = element("h3", group.name);
-    const status = element("span", group.status, "group-status");
-    status.dataset.status = group.status;
-    top.append(heading, status);
-    card.append(top);
-    card.append(element("p", group.path, "group-path"));
-    if (!group.available)
-      card.append(
-        element(
-          "p",
-          "保存場所は現在の取得範囲外です。手動記録を保持しています。",
-          "inline-notice",
-        ),
-      );
-    if (group.nextAction)
-      card.append(element("p", group.nextAction, "group-next"));
-    const due = element(
-      "p",
-      group.due ? "期限 " + group.due + "（日本時間）" : "期限未設定",
-      "group-meta",
-    );
-    if (
-      group.due &&
-      group.status !== "完了" &&
-      group.due < new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+  const cards = (state.groups || [])
+    .filter(
+      (group) =>
+        state.groupDisplay?.groups.find((item) => item.path === group.path)
+          ?.visible ??
+        /^(?:100|200|300|400)(?:[_\s-]|$)/.test(group.path.split(" / ").at(-1)),
     )
-      due.classList.add("group-overdue");
-    if (group.due) card.append(due);
-    if (group.updatedAt && group.status !== "未設定")
-      card.append(
-        element("p", "進捗記録 " + dateTime(group.updatedAt), "group-meta"),
+    .map((group) => {
+      const card = element("article", undefined, "drive-group-card");
+      card.dataset.groupColor = group.color;
+      const top = element("div", undefined, "group-card-top");
+      const heading = element("h3", group.name);
+      const status = element("span", group.status, "group-status");
+      status.dataset.status = group.status;
+      top.append(heading, status);
+      card.append(top);
+      card.append(element("p", group.path, "group-path"));
+      if (!group.available)
+        card.append(
+          element(
+            "p",
+            "保存場所は現在の取得範囲外です。手動記録を保持しています。",
+            "inline-notice",
+          ),
+        );
+      if (group.nextAction)
+        card.append(element("p", group.nextAction, "group-next"));
+      const due = element(
+        "p",
+        group.due ? "期限 " + group.due + "（日本時間）" : "期限未設定",
+        "group-meta",
       );
-    const activity = element("details");
-    activity.append(
-      element("summary", "更新の様子 · 未確認 " + group.unread + "件"),
-    );
-    for (const file of group.recent) {
-      const row = element("div", undefined, "group-recent");
-      row.append(
-        fileLink(file, openFile),
-        element(
-          "p",
-          (file.lastModifiedBy || "更新者不明") +
-            " · " +
-            dateTime(file.modifiedTime),
-          "group-meta",
-        ),
+      if (
+        group.due &&
+        group.status !== "完了" &&
+        group.due <
+          new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+      )
+        due.classList.add("group-overdue");
+      if (group.due) card.append(due);
+      if (group.updatedAt && group.status !== "未設定")
+        card.append(
+          element("p", "進捗記録 " + dateTime(group.updatedAt), "group-meta"),
+        );
+      const activity = element("details");
+      activity.append(
+        element("summary", "更新の様子 · 未確認 " + group.unread + "件"),
       );
-      activity.append(row);
-    }
-    card.append(activity);
-    const browse = element(
-      "button",
-      "このグループのファイルを見る",
-      "group-file",
-    );
-    browse.type = "button";
-    browse.onclick = () => filterGroup(group.path);
-    card.append(browse);
-    const edit = element("button", "色・表示名・進捗を設定", "button");
-    edit.type = "button";
-    edit.disabled = busy;
-    edit.onclick = () => openDriveGroupEditor(group, state);
-    card.append(edit);
-    return card;
-  });
+      for (const file of group.recent) {
+        const row = element("div", undefined, "group-recent");
+        row.append(
+          fileLink(file, openFile),
+          element(
+            "p",
+            (file.lastModifiedBy || "更新者不明") +
+              " · " +
+              dateTime(file.modifiedTime),
+            "group-meta",
+          ),
+        );
+        activity.append(row);
+      }
+      card.append(activity);
+      const browse = element(
+        "button",
+        "このグループのファイルを見る",
+        "group-file",
+      );
+      browse.type = "button";
+      browse.onclick = () => filterGroup(group.path);
+      card.append(browse);
+      const edit = element("button", "色・表示名・進捗を設定", "button");
+      edit.type = "button";
+      edit.disabled = busy;
+      edit.onclick = () => openDriveGroupEditor(group, state);
+      card.append(edit);
+      return card;
+    });
   el("driveGroups").replaceChildren(...cards);
   if (!cards.length)
     el("driveGroups").append(
       element(
         "p",
-        "Driveの取得が完了すると、保存場所別のグループを表示します。",
+        state.groups?.length
+          ? "表示するグループがありません。「カードの表示設定」から選択できます。"
+          : "Driveの取得が完了すると、保存場所別のグループを表示します。",
       ),
     );
 }

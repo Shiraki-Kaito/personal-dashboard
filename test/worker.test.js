@@ -80,6 +80,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "catalog",
       "drive",
       "drive-groups",
+      "drive-group-display",
       "drive-review",
       "drive-history",
       "drive-auth",
@@ -192,6 +193,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     for(const action of ["weekly","configureWeekly"])assert.equal((await request("/api/meetings",{action})).status,401);
     assert.equal((await request("/drive-groups-ui.js")).status, 401);
     assert.equal((await request("/api/drive",{group:{}})).status,401);
+    assert.equal((await request("/api/drive",{display:{}})).status,401);
     assert.equal((await request("/api/home")).status, 401);
     assert.equal((await request("/home-ui.js")).status, 401);
     for (const route of ["/api/agenda", "/agenda-ui.js", "/timing-editor.js", "/mail-case-editor.js", "/mail-split-editor.js", "/mail-split-manager.js"])
@@ -266,6 +268,8 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     assert.equal((await request("/auth/google/report-start",{},"https://other.test")).status,403);
     assert.equal((await request("/api/meetings",{action:"save"})).status,409);
     assert.equal((await request("/api/drive",{group:{}},"https://other.test")).status,403);
+    assert.equal((await request("/api/drive",{display:{}},"https://other.test")).status,403);
+    assert.equal((await request("/api/drive",{display:{}})).status,409);
     assert.equal((await request("/api/drive",{group:null})).status,409);
     assert.deepEqual(
       (await (await request("/api/agenda")).json()).accounts,

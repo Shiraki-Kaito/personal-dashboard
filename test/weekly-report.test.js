@@ -247,6 +247,10 @@ test("元文書へGETだけを行い、選択元・保存版・追加認可を�
     assert.equal(options.method, undefined);
     assert.equal(new URL(url).hostname, "docs.googleapis.com");
     assert.equal(new URL(url).searchParams.get("includeTabsContent"), "true");
+    const fields=new URL(url).searchParams.get("fields");
+    assert.ok(fields.includes("dateElementProperties(timestamp,displayText)"));
+    assert.ok(fields.includes("bullet(nestingLevel)"));
+    assert.notEqual(fields,"documentId,title,revisionId,tabs");
     return Response.json(document());
   };
   const result = await generateWeekly(

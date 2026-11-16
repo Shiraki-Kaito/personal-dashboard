@@ -9,6 +9,8 @@ import { isPersonalWork } from "./drive-review.js";
 import { weeklyEvidence, composeWeeklyReports } from "./weekly-report.js";
 const key = "drive:weeklySettings";
 const maximumDocumentBytes = 2 * 1024 * 1024;
+// 本文・日付チップ・リスト階層だけを取得し、画像や全書式の大きな応答を避ける。
+const documentFields = "documentId,title,revisionId,tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,paragraph(elements(textRun(content),dateElement(dateElementProperties(timestamp,displayText))),bullet(nestingLevel),paragraphStyle(namedStyleType)),table(tableRows(tableCells(content)))))),childTabs)";
 const readRetryDelayMs = 1000;
 async function readDocument(url, token, send) {
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -151,7 +153,7 @@ export async function generateWeekly(env, storage, scope, input, send = fetch) {
     url.search = new URLSearchParams({
       includeTabsContent: "true",
       suggestionsViewMode: "PREVIEW_WITHOUT_SUGGESTIONS",
-      fields: "documentId,title,revisionId,tabs",
+      fields: documentFields,
     });
     const response = await readDocument(url, token, send);
     if (response.status === 403)

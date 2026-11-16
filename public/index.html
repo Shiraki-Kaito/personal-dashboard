@@ -8,12 +8,12 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/dashboard-192.png" type="image/png" />
     <title>ワークスペース | Personal Dashboard</title>
-    <link rel="stylesheet" href="/style.css?v=20261116-mail-guidance1" />
+    <link rel="stylesheet" href="/style.css?v=20261117-drive-cards1" />
     <script type="module" src="/session-ui.js"></script>
     <script type="module" src="/ui.js"></script>
-    <script type="module" src="/drive-ui.js?v=progress1"></script>
+    <script type="module" src="/drive-ui.js?v=cards1"></script>
     <script type="module" src="/drive-meetings-ui.js?v=1"></script>
-    <script type="module" src="/weekly-report-ui.js?v=1"></script>
+    <script type="module" src="/weekly-report-ui.js?v=cards1"></script>
     <script type="module" src="/motion-ui.js?v=confirm1"></script>
     <script type="module" src="/home-ui.js?v=receipt-follow-up1"></script>
     <script type="module" src="/backup-ui.js?v=meetings1"></script>
@@ -444,15 +444,16 @@
             <p id="weeklyStatus" role="status">参照設定を取得していません。</p>
             <div id="weeklyAuthorization" hidden>
               <p>現在はファイル名・更新日時だけを読む権限です。本文取得にはGoogle Docsの読み取り認可が必要です。Google側の権限は閲覧可能な全Googleドキュメントを対象としますが、このアプリは選択した議事録1件だけを取得します。編集権限は要求しません。</p>
-              <label><input id="weeklyConsent" type="checkbox" />本文の読み取り権限と対象を確認しました</label>
-              <button id="weeklyConnect" type="button" class="button" disabled>議事録を読む権限を認可する</button>
+              <p>認可メールは送信しません。下のチェックを入れ、Googleの画面を開いて許可してください。</p>
+              <label class="weekly-consent"><input id="weeklyConsent" type="checkbox" />本文の読み取り権限と対象を確認しました</label>
+              <button id="weeklyConnect" type="button" class="button" disabled>Googleの認可画面を開く</button>
             </div>
             <div class="meeting-date-row"><button id="weeklyGenerate" type="button" class="button button-primary">この設定で週報を自動作成</button><button id="weeklyReload" type="button" class="text-button">参照設定を再取得</button></div>
             <p id="weeklyWarnings" class="timing-caution"></p>
-            <div class="meeting-reports">
-              <details open><summary>① チームミーティング用 · 自分の週報下書き</summary><label>自分の週報<textarea id="weeklyPersonal" rows="12" maxlength="6000"></textarea></label><button type="button" class="button" data-weekly-copy="personal">自分の週報をコピー</button></details>
-              <details><summary>② Organizer向け · チーム全体の週報下書き</summary><label>Organizer向けの週報<textarea id="weeklyOrganizer" rows="14" maxlength="6000"></textarea></label><button type="button" class="button" data-weekly-copy="organizer">Organizer向け週報をコピー</button></details>
-              <details><summary>③ 全体定例用 · 短い週報下書き</summary><label>全体定例用の週報<textarea id="weeklyPlenary" rows="10" maxlength="6000"></textarea></label><button type="button" class="button" data-weekly-copy="plenary">全体定例用週報をコピー</button></details>
+            <div class="weekly-note-grid" aria-label="3種類の会議報告">
+              <article class="weekly-note" data-audience="personal"><header><p>PERSONAL</p><h3 id="weeklyPersonalHeading">集客広報 MTG</h3><span>自分の進捗・Next Action</span></header><label>自分の週報<textarea id="weeklyPersonal" rows="16" maxlength="6000" placeholder="議事録から生成した下書きを表示します"></textarea></label><button type="button" class="button" data-weekly-copy="personal">自分の週報をコピー</button></article>
+              <article class="weekly-note" data-audience="organizer"><header><p>ORGANIZER</p><h3 id="weeklyOrganizerHeading">Organizer MTG</h3><span>集客広報チーム全体の進捗・Next Action</span></header><label>Organizer向けの週報<textarea id="weeklyOrganizer" rows="16" maxlength="6000" placeholder="チーム全体の報告を表示します"></textarea></label><button type="button" class="button" data-weekly-copy="organizer">Organizer向け週報をコピー</button></article>
+              <article class="weekly-note" data-audience="plenary"><header><p>ALL HANDS</p><h3 id="weeklyPlenaryHeading">全体定例 MTG</h3><span>全体へ共有する短い報告</span></header><label>全体定例用の週報<textarea id="weeklyPlenary" rows="16" maxlength="6000" placeholder="全体定例向けの短い報告を表示します"></textarea></label><button type="button" class="button" data-weekly-copy="plenary">全体定例用週報をコピー</button></article>
             </div>
             <details class="weekly-evidence"><summary>週報の根拠を確認</summary><div id="weeklyEvidence"></div></details>
             <p>下書きは確認・編集してコピーできます。元の議事録・Drive文書への転記や送信は行いません。再作成・ページ離脱で編集を失わないよう、必要な内容は先にコピーしてください。</p>
@@ -494,6 +495,7 @@
             <div class="group-section-heading"><div><h3 id="driveGroupsHeading">グループの進捗</h3><p>保存場所ごとに色分け。色・表示名・進捗をサイトで変更できます。</p></div></div>
             <p id="driveGroupsTime" class="group-meta"></p>
             <p id="driveGroupResult" role="status"></p>
+            <details class="drive-visibility"><summary>カードの表示設定</summary><p>100〜400の4チームを基本表示します。チェックを変更して保存できます。元ファイル・取得・未確認の記録は変わりません。</p><form id="driveVisibilityForm"><div id="driveVisibilityOptions" class="drive-visibility-options"></div><div class="meeting-date-row"><button id="driveVisibilitySave" type="submit" class="button" disabled>表示設定を保存</button><button id="driveVisibilityDefault" type="button" class="text-button">4チームを基本に戻す</button></div><p id="driveVisibilityResult" role="status"></p></form></details>
             <div id="driveGroups" class="drive-groups" aria-label="グループ別の進捗"></div>
           </section>
           <div class="panel-toolbar">

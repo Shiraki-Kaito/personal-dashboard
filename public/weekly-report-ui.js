@@ -17,6 +17,12 @@ const reports = () =>
   );
 const edited = () => !!initialReports && initialReports !== reports();
 const status = (text) => (el("weeklyStatus").textContent = text);
+function reportHeadings(endDate){
+  if(!/^20\d\d-\d\d-\d\d$/.test(endDate))return;
+  const date=new Date(endDate+"T12:00:00+09:00");if(!Number.isFinite(+date))return;
+  const label=new Intl.DateTimeFormat("en-US",{month:"long",day:"numeric",timeZone:"Asia/Tokyo"}).format(date);
+  for(const [id,name] of [["weeklyPersonalHeading","集客広報 MTG"],["weeklyOrganizerHeading","Organizer MTG"],["weeklyPlenaryHeading","全体定例 MTG"]])el(id).textContent=label+" · "+name;
+}
 function controls() {
   for (const node of el("weeklySection").querySelectorAll(
     "button,input,select,textarea",
@@ -61,6 +67,7 @@ async function load() {
         .toISOString()
         .slice(0, 10);
     el("weeklyAuthorization").hidden = weekly.documentsAuthorized;
+    if(!initialReports)reportHeadings(el("weeklyEndDate").value);
     status(
       weekly.documentsAuthorized
         ? "議事録の参照設定を確認しました。対象期間の下書きを作成できます。"
@@ -156,6 +163,7 @@ async function generate() {
     for (const [key, id] of Object.entries(reportIds))
       el(id).value = result.reports[key];
     initialReports = reports();
+    reportHeadings(result.evidence.period.endDate);
     evidenceNodes(result);
     el("weeklyWarnings").textContent = result.evidence.warnings.join("\n");
     status(
@@ -175,6 +183,9 @@ el("weeklySection").addEventListener("toggle", async () => {
   }
 });
 el("weeklyReload").onclick = load;
+document.querySelector('button[data-panel="drive"]')?.addEventListener("click",()=>{el("weeklySection").open=true;});
+document.addEventListener("dashboard:show-panel",event=>{if(event.detail?.panel==="drive")el("weeklySection").open=true;});
+if(document.body.dataset.view==="drive")el("weeklySection").open=true;
 el("weeklyGenerate").onclick = generate;
 el("weeklyConsent").onchange = controls;
 el("weeklyConnect").onclick = async () => {

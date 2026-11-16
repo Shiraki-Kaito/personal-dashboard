@@ -1,4 +1,5 @@
 import { groupView } from "./drive-groups.js";
+import { groupDisplayView } from "./drive-group-display.js";
 import { isPersonalWork } from "./drive-review.js";
 export { isPersonalWork } from "./drive-review.js";
 import { driveClient, DriveError } from "./drive-http.js";
@@ -215,8 +216,10 @@ export async function driveView(env, storage, now = Date.now()) {
   let job = await storage.get("drive:job");
   const currentFiles = new Map((cache?.files || []).map(file => [file.id, file]));
   if (!config || job?.scope !== configKey(config)) job = null;
+  const groups=groupView(cache, await storage.get("drive:groups"));
   return {
-    groups: groupView(cache, await storage.get("drive:groups")),
+    groups,
+    groupDisplay:groupDisplayView(config ? configKey(config) : null,groups,await storage.get("drive:groupDisplay")),
     configured: !!config && googleConfigured(env),
     configurationError:
       env.GOOGLE_CLIENT_ID && !googleConfigured(env)

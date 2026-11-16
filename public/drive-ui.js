@@ -1,4 +1,4 @@
-import { renderDriveGroups, openDriveGroupEditor } from "./drive-groups-ui.js?v=home-progress1";
+import { renderDriveGroups, openDriveGroupEditor } from "./drive-groups-ui.js?v=display1";
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id);
@@ -343,7 +343,7 @@ function render() {
     el("driveGroupFilter").dataset.signature = optionsSignature;
   }
   renderFiles();
-  renderDriveGroups(state, file => openFile({ ...file, review:state.unreadChanges.find(change=>change.id===file.id) || null }), group => load(false,null,group), busy, path => { el("driveGroupFilter").value=path; el("driveAllTab").click(); el("driveFiles").focus(); });
+  renderDriveGroups(state, file => openFile({ ...file, review:state.unreadChanges.find(change=>change.id===file.id) || null }), group => load(false,null,group), busy, path => { el("driveGroupFilter").value=path; el("driveAllTab").click(); el("driveFiles").focus(); },display=>load(false,null,null,display));
   document.dispatchEvent(
     new CustomEvent("dashboard:busy", { detail: { service: "drive", busy } }),
   );
@@ -358,7 +358,7 @@ function visibleUnread() {
       (file.name + " " + file.folder).toLocaleLowerCase().includes(query),
   );
 }
-async function load(refresh = false, acknowledge = null, group = null) {
+async function load(refresh = false, acknowledge = null, group = null, display = null) {
   let success = false;
   if (busy) return;
   clearTimeout(timer);
@@ -367,12 +367,12 @@ async function load(refresh = false, acknowledge = null, group = null) {
   try {
     const response = await fetch(
       "/api/drive",
-      refresh || acknowledge || group
+      refresh || acknowledge || group || display
         ? {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(
-              group ? { group } : acknowledge ? { acknowledge } : { refresh: true, manual: true },
+              display ? {display} : group ? { group } : acknowledge ? { acknowledge } : { refresh: true, manual: true },
             ),
           }
         : {},
@@ -380,6 +380,7 @@ async function load(refresh = false, acknowledge = null, group = null) {
 
     if (!response.ok) { const error = await response.json().catch(()=>({})); throw Error(error.error || "Driveの状態を取得できません"); }
     state = await response.json();
+    if(display && (!state.groupDisplay || state.groupDisplay.revision===display.expectedRevision || JSON.stringify(state.groupDisplay.overrides)!==JSON.stringify(display.overrides)))throw Error("表示設定の保存結果を照合できません。再送せず再取得して確認してください");
     if (group) {
       const saved = state.groups.find(saved=>saved.path === group.path);
       if (!saved || saved.revision === group.expectedRevision || ["name","color","status","nextAction","due"].some(key=>saved[key] !== group[key]))
@@ -395,7 +396,8 @@ async function load(refresh = false, acknowledge = null, group = null) {
           ? "確認済みにしました"
           : "新しい変更は未確認で残しました";
   } catch (error) {
-    if (group) { el("groupSaveResult").textContent = error.message; }
+    if (display) { el("driveVisibilityResult").textContent=error.message; }
+    else if (group) { el("groupSaveResult").textContent = error.message; }
     else if (state) state.error = error.message;
     else el("driveStatus").textContent = error.message;
   } finally {
@@ -410,6 +412,7 @@ async function load(refresh = false, acknowledge = null, group = null) {
       );
   }
   if (group && !success) throw Error(el("groupSaveResult").textContent);
+  if (display && !success) throw Error(el("driveVisibilityResult").textContent);
   return success;
 }
 for (const [id, value] of [

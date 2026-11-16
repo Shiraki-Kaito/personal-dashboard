@@ -1,5 +1,6 @@
 import { saveAgendaCase, saveAgendaSplit, manageAgendaSplit } from "./agenda-home.js";
 import { saveDriveGroup } from "./drive-groups.js";
+import { saveGroupDisplay } from "./drive-group-display.js";
 import { meetingView, saveMeeting, composeMeetingReports } from "./drive-meetings.js";
 import { configureWeekly, generateWeekly } from "./weekly-drive.js";
 import { previewPriorityRules, savePriorityRules } from "./mail-priority-rules.js";
@@ -382,6 +383,12 @@ export class Dashboard extends DurableObject {
             input.refresh === true,
           ),
         );
+      if (action === "drive" && Object.hasOwn(input, "display")) {
+        if(request.method!=="POST" || !input.display || input.group || input.refresh || input.acknowledge)throw new InputError("表示設定は単独で保存してください");
+        const config=driveConfig(this.env);if(!config)throw new InputError("Driveの接続範囲が未設定です");
+        await saveGroupDisplay(storage,config.folderId+":"+config.includeSubfolders,input.display);
+        return Response.json(await driveView(this.env,storage));
+      }
       if (action === "drive" && Object.hasOwn(input, "group")) {
         if (request.method !== "POST" || !input.group || typeof input.group !== "object" || input.refresh || input.acknowledge)
           throw new InputError("グループ保存は単独で実行してください");
