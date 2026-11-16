@@ -289,6 +289,7 @@ function renderSuggestions(agenda) {
         item.append(element("p", "suggestion-when", `${label}：${timing.display}${timing.confirmed ? "" : " · 要確認"}`));
         item.append(element("p", "home-item-meta", timing.accountName || "接続アカウント"));
         if(timing.receiptNotice) item.append(element("p", "timing-caution",timing.receiptNotice));
+        if(timing.changeNotice) item.append(element("p", "timing-caution",timing.changeNotice));
         if (timing.manual) item.append(element("p", "timing-confirmed", "本人確定 · 保存 " + time(timing.manual.confirmedAt)));
         if (timing.manual) {
           if (timing.calendarPhase) item.append(element("p", "home-item-meta", "カレンダー："+timing.calendarPhase));
@@ -320,7 +321,7 @@ function renderSuggestions(agenda) {
     } else if (!group.pending && (group.caseState?.status || "open") === "open") row.append(element("p", "home-item-meta", "最新の保存済み案内に、採用できる具体的な締切・日時はありません。"));
     if(group.referenceTimings?.length) {
       const reference=element("details", "suggestion-reference-timings");
-      reference.append(element("summary", "", `受付・完了案内の参考日時（${group.referenceTimings.length}件）`));
+      reference.append(element("summary", "", `受付済み・変更前などの参考日時（${group.referenceTimings.length}件）`));
       for(const timing of group.referenceTimings) {
         const item=element("article", "suggestion-source");
         item.append(element("p", "",timing.display),element("p", "home-item-meta",timing.referenceReason));

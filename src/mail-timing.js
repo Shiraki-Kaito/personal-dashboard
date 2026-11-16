@@ -236,6 +236,62 @@ export function extractMailTiming(entry) {
       ],
     }));
 }
+// 抽出値や保存IDを変更せず、同じ根拠内の明示された新旧ラベルだけを読む。
+export function timingRevisionNotice(timing) {
+  const original = timing.original || timing;
+  const evidence = (original.evidence || "").normalize("NFKC");
+  const labels = [
+    ...evidence.matchAll(/変更前|変更後|旧(?:日程|締切|期限)|新(?:日程|締切|期限)/g),
+  ];
+  if (!labels.length) return null;
+  const ambiguous = {
+    state: "ambiguous",
+    message: "変更前・変更後の対応を断定できません。元の案内で最新日時を確認してください。",
+  };
+  if (
+    /場合|もし|例えば|記入例|記載例|ではなく|ではない|変更なし|変更ありません|変更はありません|同じ/.test(evidence)
+  )
+    return ambiguous;
+  const target = [...(original.display || "").matchAll(datePattern)][0];
+  if (!target) return ambiguous;
+  const dateKey = (match) =>
+    [match[1] || "", Number(match[2]), Number(match[3])].join(":");
+  const targetClock = [
+    ...original.display.slice(target.index + target[0].length).matchAll(clockPattern),
+  ][0];
+  const dates = [...evidence.matchAll(datePattern)];
+  const states = [];
+  for (const [index, date] of dates.entries()) {
+    if (dateKey(date) !== dateKey(target)) continue;
+    const tail = evidence.slice(
+      date.index + date[0].length,
+      dates[index + 1]?.index,
+    );
+    const clock = [...tail.matchAll(clockPattern)][0];
+    if (
+      targetClock &&
+      (!clock || parsedClock(clock[0])?.clock !== parsedClock(targetClock[0])?.clock)
+    )
+      continue;
+    const label = labels
+      .filter((item) =>
+        item.index < date.index &&
+        (!index || item.index > dates[index - 1].index),
+      )
+      .at(-1);
+    // ラベルと日付の間に別の文章がある場合、何を変更したのか推測しない。
+    const directlyLabeled = label && /^[\s:：【】\[\]()（）]*$/.test(
+      evidence.slice(label.index + label[0].length, date.index),
+    );
+    states.push(!directlyLabeled ? "unknown" : /変更前|^旧/.test(label[0]) ? "previous" : "revised");
+  }
+  if (!states.length || new Set(states).size !== 1 || states[0] === "unknown")
+    return ambiguous;
+  return states[0] === "previous"
+    ? { state: "previous", message: "変更前・旧日程と明記された参考日時です。現在の締切・予定として優先しません。" }
+    : { state: "revised", message: "変更後・新日程と明記された日時候補です。元の案内で確認してから確定してください。" };
+}
+
 export function timingPriority(timings, pending, now = Date.now()) {
   if (pending) return { rank: 0, label: "登録結果未確認", at: null };
   const today = new Date(now + japanOffsetMs).toISOString().slice(0, 10);

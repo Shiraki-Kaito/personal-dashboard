@@ -3,7 +3,11 @@ import {
   timingReferenceReason,
   submissionTopics,
 } from "./mail-intent.js";
-import { extractMailTiming, timingPriority } from "./mail-timing.js";
+import {
+  extractMailTiming,
+  timingPriority,
+  timingRevisionNotice,
+} from "./mail-timing.js";
 // 保存済みメールから関連候補と次の確認案を作る純粋関数。送信・登録・確認済み化は行わない。
 const normalize = (value = "") =>
   value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
@@ -267,12 +271,29 @@ export function groupMailSuggestions(entries, now = Date.now()) {
       for (const { entry, intent } of sources)
         for (const timing of entry.timings || extractMailTiming(entry)) {
           const source = timingSource(entry, timing);
-          const referenceReason = timingReferenceReason(timing, intent);
+          const change = timingRevisionNotice(timing);
+          const referenceReason =
+            !timing.manual && change?.state === "previous"
+              ? change.message
+              : timingReferenceReason(timing, intent);
           if (referenceReason)
             referenceTimings.push({ ...source, referenceReason });
           else
             proposalTimings.push({
               ...source,
+              ...(change
+                ? {
+                    changeNotice: timing.manual
+                      ? "本人確定日時を維持しています。元の案内に新旧の記載があります。必要なら本人が編集・解除してください。"
+                      : change.message,
+                    ...(!timing.manual
+                      ? {
+                          confirmed: false,
+                          reasons: [...timing.reasons, "変更案内の最新日時を確認してください"],
+                        }
+                      : {}),
+                  }
+                : {}),
               ...(intent.receipt && timing.manual
                 ? {
                     receiptNotice:
@@ -317,10 +338,18 @@ export function groupMailSuggestions(entries, now = Date.now()) {
           "同時刻または受信日時不明の案内があり、前後関係を断定していません。候補を並べて確認してください。",
         );
       const priority = timingPriority(proposalTimings, pending, now);
+      const hasPreviousTiming = referenceTimings.some(
+        (timing) => timingRevisionNotice(timing)?.state === "previous",
+      );
+      if (!pending && !proposalTimings.length && hasPreviousTiming) {
+        priority.rank = 4;
+        priority.label = "変更後の日時を確認";
+      }
       if (
         !proposalTimings.length &&
         sources.length &&
-        sources.every((source) => source.intent.receipt)
+        sources.every((source) => source.intent.receipt) &&
+        !hasPreviousTiming
       ) {
         priority.rank = 7;
         priority.label = "受付内容の確認";
