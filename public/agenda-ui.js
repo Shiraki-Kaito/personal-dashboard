@@ -108,7 +108,7 @@ function openMessage(message) {
     message.candidate.status +
     "：" +
     (message.candidate.reasons.join("・") ||
-      "抽出結果と原文を確認してください") + (message.contentLimited ? " ／ 本文の一部だけを解析しています。Gmailの原文を確認してください。" : "");
+      "抽出結果と原文を確認してください") + (message.bodyNotice ? " ／ " + message.bodyNotice : message.contentLimited ? " ／ 本文の一部だけを解析しています。Gmailの原文を確認してください。" : "");
   el("appointmentExcerpt").textContent = message.excerpt;
   el("appointmentMailLink").href = message.url;
   el("appointmentMailLink").hidden = !!message.manual && !message.timingRef;

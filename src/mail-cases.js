@@ -117,7 +117,7 @@ export async function mailCaseView(
           .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
         timings: group.timings
           // 抽出改善だけでは対応済みを解除しない。新しい後続候補を本人が確定した時は再確認する。
-          .filter(timing => !timing.followUp || timing.manual)
+          .filter(timing => (!timing.followUp && !timing.additional) || timing.manual)
           .map((timing) => [
             timing.accountId,
             timing.messageId,

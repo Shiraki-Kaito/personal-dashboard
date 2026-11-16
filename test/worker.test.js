@@ -108,6 +108,8 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "mail-cases",
       "mail-case-splits",
       "mail-timing",
+      "mail-body-coverage",
+      "mail-additional-timing",
       "timing-confirmations",
       "timing-calendar",
       "agenda-labels",

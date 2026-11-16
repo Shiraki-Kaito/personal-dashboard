@@ -8,6 +8,7 @@ import { displayAccounts } from "./agenda-labels.js";
 import { groupMailSuggestions } from "./mail-suggestions.js";
 import { messageTimingView } from "./timing-confirmations.js";
 import { timingOperationId } from "./timing-calendar.js";
+import { mailBodyNotice } from "./mail-body-coverage.js";
 const mailFreshMs = 60 * 60 * 1000;
 // 保存済みのメール候補・確認記録・未確定操作を集約する。Googleへの通信は行わない。
 export async function agendaHome(storage, now = Date.now()) {
@@ -28,7 +29,7 @@ export async function agendaHome(storage, now = Date.now()) {
     const stale =
       !Number.isFinite(Date.parse(cache.lastSuccess)) ||
       now - Date.parse(cache.lastSuccess) > mailFreshMs;
-    const contentLimitedCount = messages.filter(message=>message.contentLimited).length;
+    const contentLimitedCount = messages.filter(message => !!mailBodyNotice(message)).length;
     const unclassified = messages.filter(
       (message) => typeof message.candidate?.isCandidate !== "boolean",
     ).length;
@@ -112,7 +113,7 @@ export async function agendaHome(storage, now = Date.now()) {
         from: message.from || "",
         excerpt: message.excerpt || "",
         timings: timingView.timings,
-        timingNotice: [timingView.notice, message.contentLimited ? "本文の一部だけを解析しています。提案・日時はGmailの原文で確認してください" : ""].filter(Boolean).join("・"),
+        timingNotice: timingView.notice,
         sourceStale: stale || !!cache.error || !connection.connected,
         reason:
           operation?.error ||

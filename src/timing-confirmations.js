@@ -1,11 +1,14 @@
 import { extractMailTiming } from "./mail-timing.js";
 import { digest } from "./agenda-rules.js";
 import { InputError } from "./sync.js";
+import { additionalMailTimings } from "./mail-additional-timing.js";
+import { mailBodyNotice } from "./mail-body-coverage.js";
 
 const parserVersion = 1;
 const maximumRecords = 100;
 const maximumBytes = 64 * 1024;
 const maximumEventMs = 7 * 86400000;
+const maximumAdditionalTimings = 20;
 const hash = /^[a-f0-9]{64}$/;
 const mailId = /^[a-f0-9]{1,64}$/;
 const revisionPattern = /^[a-f0-9-]{36}$/;
@@ -139,13 +142,22 @@ export async function messageTimingView(message, records = {}) {
     receivedAt: message.receivedAt || "",
     excerpt: message.excerpt || "",
   });
-  const timings = await Promise.all(
-    extractMailTiming({
+  const baseline = extractMailTiming({
       kind: "mail",
       title: message.subject || "件名なし",
       excerpt: message.excerpt || "",
-    }).map(async (original) => {
-      const timingId = await digest(original);
+    });
+  const additional = additionalMailTimings(message, baseline);
+  const candidates = [
+    ...baseline.map(original => ({ original, supplemental: false })),
+    ...additional.slice(0, maximumAdditionalTimings).map(original => ({ original, supplemental: true })),
+  ];
+  const timings = await Promise.all(
+    candidates.map(async ({ original, supplemental }) => {
+      // 追加本文が変わった場合は追加候補のIDだけを更新し、既存の確定IDを維持する。
+      const timingId = await digest(supplemental
+        ? { version: 1, original, text: message.timingText || message.excerpt }
+        : original);
       const record = records[message.id + ":" + timingId];
       const applied =
         !!record?.value && record.sourceRevision === sourceRevision;
@@ -157,6 +169,7 @@ export async function messageTimingView(message, records = {}) {
         editValue: applied ? record.value : originalValue(original),
         original,
         manual: applied ? { confirmedAt: record.updatedAt } : null,
+        ...(supplemental ? { additional: true } : {}),
       };
     }),
   );
@@ -171,9 +184,12 @@ export async function messageTimingView(message, records = {}) {
   return {
     sourceRevision,
     timings,
-    notice: inactive
-      ? "元メールまたは抽出結果が変わったため、以前の確定日時は適用していません。再確認してください。"
-      : null,
+    notice: [
+      inactive ? "元メールまたは抽出結果が変わったため、以前の確定日時は適用していません。再確認してください。" : "",
+      mailBodyNotice(message),
+      additional.length > maximumAdditionalTimings
+        ? `追加日時は${maximumAdditionalTimings}件まで表示し、ほか${additional.length - maximumAdditionalTimings}件は省略しています。Gmailの原文で全件を確認してください。` : "",
+    ].filter(Boolean).join("・") || null,
   };
 }
 async function selectedMessage(storage, input) {

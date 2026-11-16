@@ -15,6 +15,7 @@ import {
   agendaConnectionStatus,
 } from "./agenda-google.js";
 import { googleConfigured } from "./drive-auth.js";
+import { mailBodyNotice } from "./mail-body-coverage.js";
 import {
   validateAppointment,
   compareAppointments,
@@ -106,8 +107,9 @@ export async function agendaView(env, storage, id) {
         )
       : [],
     messages: await Promise.all(
-      (cache.messages || []).map(async (message) => ({
+      (cache.messages || []).map(async ({ timingText, ...message }) => ({
         ...message,
+        bodyNotice: mailBodyNotice({ ...message, timingText }),
         priority: priorityWithRules(message, priorityRules.rules),
         review: reviews[message.id] || null,
         operation:

@@ -4,8 +4,32 @@ import { createBackup, backupPlan, restoreBackup } from "../src/backup.js";
 import { digest, extractAppointment } from "../src/agenda-rules.js";
 import { assertBackupEnvelope } from "../public/backup-format.js";
 import { reconcileAppointment } from "../src/agenda.js";
+import { messageTimingView } from "../src/timing-confirmations.js";
 
 const env = { PROJECT_CONFIG: JSON.stringify({ projects: [] }) };
+test("日時追加本文のバックアップ・復元で候補IDを保ち、過大本文と不正な範囲を拒否する", async () => {
+  const { source, target, accounts } = await fixture();
+  const key = "agenda:cache:" + accounts[0].id;
+  const cache = await source.get(key);
+  const message = cache.messages[0];
+  message.excerpt = "連絡\n".repeat(600).slice(0,1600);
+  message.timingText = message.excerpt + "\n面接日時：2026/12/1 10:00";
+  message.bodyCoverage = "complete";
+  message.contentLimited = true;
+  await source.put(key, cache);
+  const before = await messageTimingView(message);
+  const backup = await createBackup(env,source);
+  const plan = await backupPlan(env,target,backup);
+  await restoreBackup(env,target,backup,plan.checksum);
+  const restored = (await target.get(key)).messages[0];
+  assert.equal(restored.timingText,message.timingText);
+  assert.deepEqual((await messageTimingView(restored)).timings.map(row=>row.timingId),before.timings.map(row=>row.timingId));
+  for (const timingText of ["x".repeat(6001),"別の本文"]) {
+    const invalid = structuredClone(backup);
+    invalid.agenda[0].cache.messages[0].timingText = timingText;
+    await assert.rejects(backupPlan(env,target,invalid));
+  }
+});
 test("通常100件と補完100件をバックアップ・復元し、取得範囲を保持する", async () => {
   const { source, target, accounts } = await fixture();
   const key = "agenda:cache:" + accounts[0].id;

@@ -33,9 +33,9 @@ const scheduleNext =
 const responseRequest =
   /(?:返信|回答|出欠).{0,20}(?:ください|お願い|必要|期限|締切)|要返信|ご返信ください/;
 
-export function currentMailText(excerpt = "") {
+export function currentMailText(excerpt = "", maximumCharacters = 1600) {
   const lines = [];
-  for (const raw of excerpt.slice(0, 1600).normalize("NFKC").split(/\r?\n/)) {
+  for (const raw of excerpt.slice(0, maximumCharacters).normalize("NFKC").split(/\r?\n/)) {
     const line = raw.trim();
     if (
       /^-{2,}\s*(?:Original Message|Forwarded message|転送|元のメッセージ)|^On .+wrote:|^.*さんは書きました[:：]|^(?:From|Sent|差出人|送信日時)\s*[:：]|^--$/i.test(
@@ -56,8 +56,8 @@ function clauses(text) {
 }
 
 // 受付を伝える文の日時を、後続の面接・回答の日時と混ぜない。
-export function receiptFollowUpBody(entry) {
-  return currentMailText(entry.excerpt || "")
+export function receiptFollowUpBody(entry, maximumCharacters = 1600) {
+  return currentMailText(entry.excerpt || "", maximumCharacters)
     .split(/\r?\n/)
     .flatMap(clauses)
     .filter(

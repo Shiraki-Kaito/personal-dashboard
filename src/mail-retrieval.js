@@ -1,5 +1,6 @@
 import { digest } from "./agenda-rules.js";
 import { InputError } from "./sync.js";
+import { limitTimingText } from "./mail-body-coverage.js";
 export const standardMailQuery = "newer_than:14d -in:trash -in:spam";
 export const maximumLaneMessages = 100;
 export const maximumMailMessages = 200;
@@ -96,10 +97,10 @@ export function priorityMessages(cache) {
 export function mergeMailLanes(standard, priority) {
   const messages = new Map(priority.map((message) => [message.id, message]));
   for (const message of standard) messages.set(message.id, message);
-  return [...messages.values()].sort(
+  return limitTimingText([...messages.values()].sort(
     (a, b) =>
       b.receivedAt.localeCompare(a.receivedAt) || a.id.localeCompare(b.id),
-  );
+  ));
 }
 export function mailRetrievalView(cache, plan, now = Date.now()) {
   const standardCount = standardMessages(cache).length;

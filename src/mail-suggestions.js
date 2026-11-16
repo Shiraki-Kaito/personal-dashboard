@@ -275,7 +275,7 @@ export function groupMailSuggestions(entries, now = Date.now()) {
           const referenceReason =
             !timing.manual && change?.state === "previous"
               ? change.message
-              : timingReferenceReason(timing, intent);
+              : timing.additional ? "" : timingReferenceReason(timing, intent);
           if (referenceReason)
             referenceTimings.push({ ...source, referenceReason });
           else

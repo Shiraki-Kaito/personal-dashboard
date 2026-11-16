@@ -2,6 +2,7 @@ import { standardMailQuery } from "./mail-retrieval.js";
 import { agendaClient, AgendaError } from "./agenda-google.js";
 import { extractAppointment, decodeMessageContent } from "./agenda-rules.js";
 import { mailPriority } from "./agenda-priority.js";
+import { maximumTimingTextCharacters, maximumPageTimingBytes, limitTimingText } from "./mail-body-coverage.js";
 export async function readMailPage(
   env,
   storage,
@@ -68,7 +69,9 @@ export async function readMailPage(
     const subject = header("subject").slice(0, 300),
       text =
         content.text || (typeof mail.snippet === "string" ? mail.snippet : "");
-    const contentLimited = content.limited || (!content.text && !!mail.snippet);
+    const bodyCoverage = !content.text ? "unavailable"
+      : content.limited || text.length > maximumTimingTextCharacters ? "partial" : "complete";
+    const contentLimited = bodyCoverage !== "complete" || text.length > 1600;
     const candidate = extractAppointment(subject, text);
     if (contentLimited && candidate.isCandidate) {
       candidate.reasons.push(
@@ -84,6 +87,9 @@ export async function readMailPage(
       excerpt: text.slice(0, 1600),
       candidate,
       contentLimited,
+      bodyCoverage,
+      ...(content.text && text.length > 1600
+        ? { timingText: text.slice(0, maximumTimingTextCharacters) } : {}),
       priority: mailPriority({ subject, from: header("from") }, text),
       url:
         "https://mail.google.com/mail/u/" +
@@ -93,7 +99,7 @@ export async function readMailPage(
     });
   }
   return {
-    messages,
+    messages: limitTimingText(messages, maximumPageTimingBytes),
     nextPageToken: page.nextPageToken || null,
     estimate: Number.isFinite(page.resultSizeEstimate)
       ? page.resultSizeEstimate

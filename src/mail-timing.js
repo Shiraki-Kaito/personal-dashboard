@@ -29,9 +29,9 @@ function actionFor(kind, context, title) {
       : "面接に向けた手続きを確認する";
   return kind === "deadline" ? "必要な手続きを行う" : "予定の内容を確認する";
 }
-function activeText(entry) {
+function activeText(entry, maximumCharacters = 1600) {
   // 引用メールの古い期限や転送ヘッダーを、新しい指示として採用しない。
-  const body = (entry.excerpt || "").slice(0, 1600).normalize("NFKC");
+  const body = (entry.excerpt || "").slice(0, maximumCharacters).normalize("NFKC");
   const lines = [];
   for (const line of body.split(/\r?\n/)) {
     if (
@@ -71,7 +71,7 @@ function parsedClock(raw, period) {
   );
 }
 // 戻り値のstartAtは明記された年・月日・時刻だけ。時刻なしの期限に23:59を創作しない。
-export function extractMailTiming(entry) {
+export function extractMailTiming(entry, maximumCharacters = 1600) {
   if (entry.kind === "pending") return [];
   // 従来は件名だけで全日時を除外していた。通常メールの結果と保存IDは維持する。
   const followUp =
@@ -79,8 +79,8 @@ export function extractMailTiming(entry) {
       entry.title,
     );
   const lines = followUp
-    ? activeText({ ...entry, excerpt: receiptFollowUpBody(entry) }).slice(1)
-    : activeText(entry);
+    ? activeText({ ...entry, excerpt: receiptFollowUpBody(entry, maximumCharacters) }, maximumCharacters).slice(1)
+    : activeText(entry, maximumCharacters);
   const rows = [];
   let previous = "";
   for (const line of lines.flatMap((line) => line.split(/[。;；、]/))) {

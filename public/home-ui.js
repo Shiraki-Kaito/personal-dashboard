@@ -273,8 +273,8 @@ function renderSuggestions(agenda) {
       row.append(latest);
     }
     const proposalTimings=group.proposalTimings || group.timings || [];
-    if ((group.caseState?.status || "open") !== "open" && proposalTimings.some(timing => timing.followUp)) {
-      row.append(element("p", "timing-caution", "受付後の日時候補があります。保存済みの対応状態を維持しています。元の案内を確認し、必要なら未対応へ戻して日時を確定してください。"));
+    if ((group.caseState?.status || "open") !== "open" && proposalTimings.some(timing => timing.followUp || timing.additional)) {
+      row.append(element("p", "timing-caution", "受付後・追加範囲・別書式の日時候補があります。保存済みの対応状態を維持しています。元の案内を確認し、必要なら未対応へ戻して日時を確定してください。"));
     }
     for (const notice of group.timingNotices || []) row.append(element("p", "timing-caution", notice.accountName + "：" + notice.message));
     if ((group.caseState?.status || "open") === "open" && proposalTimings.length) {

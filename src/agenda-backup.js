@@ -8,6 +8,7 @@ import { mailPriorityVersion } from "./agenda-priority.js";
 import { InputError } from "./sync.js";
 import { digest } from "./agenda-rules.js";
 import { displayAccounts, validAccountLabel } from "./agenda-labels.js";
+import { validBodyCoverage, maximumCachedTimingBytes } from "./mail-body-coverage.js";
 
 const maximumAccounts = 5,
   maximumOperations = 1000;
@@ -23,7 +24,7 @@ const pick = (value, keys) =>
     keys.filter((k) => value?.[k] !== undefined).map((k) => [k, value[k]]),
   );
 const cacheKeys = ["lastAttempt", "lastSuccess", "limited"];
-const messageKeys = ["id", "subject", "from", "receivedAt", "excerpt", "contentLimited"];
+const messageKeys = ["id", "subject", "from", "receivedAt", "excerpt", "contentLimited", "bodyCoverage", "timingText"];
 const operationKeys = [
   "eventId",
   "targetAccountId",
@@ -290,6 +291,7 @@ export async function agendaRestoreEntries(storage, backup) {
             text(message.subject, 300) &&
             text(message.from, 300) &&
             text(message.excerpt, 1600) &&
+            validBodyCoverage(message) &&
             (message.contentLimited === undefined || typeof message.contentLimited === "boolean") &&
             date(message.receivedAt) &&
             validCandidate(message.candidate),
@@ -335,6 +337,7 @@ export async function agendaRestoreEntries(storage, backup) {
             message.id,
         };
       });
+      requireValid(new TextEncoder().encode(messages.map(message => message.timingText || "").join("")).length <= maximumCachedTimingBytes);
       entries.set("agenda:cache:" + account.id, {
         ...pick(cache, cacheKeys),
         ...retrievalBackupFields(cache),
