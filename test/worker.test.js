@@ -216,6 +216,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     for (const action of ["configure", "refresh", "addChannel", "review", "stop"])
       assert.equal((await request("/api/slack", {action})).status, 401);
     assert.equal((await request("/auth/slack/start", {})).status, 401);
+    for(const action of ["configure","refresh","read","stop"]) assert.equal((await request("/api/notes",{action})).status,401);
     for (const action of ["previewPriorityRules", "savePriorityRules", "label", "syncMail", "disconnect", "clearCache", "previewDelete", "deleteAccount", "cleanupReferences"])
       assert.equal((await request("/api/agenda", { action })).status, 401);
     assert.equal(
@@ -254,6 +255,9 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
         401,
       );
     assert.equal((await authenticate()).status, 403);
+    cookie = "__Host-dashboard_session=" + "A".repeat(43);
+    for (const route of ["/api/notes", "/api/home", "/api/drive", "/api/agenda", "/api/health"])
+      assert.equal((await request(route)).status,401);
     viewer = ownerId;
     const signedIn = await authenticate();
     assert.equal(signedIn.status, 303);

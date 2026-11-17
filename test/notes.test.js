@@ -7,6 +7,7 @@ import {
   configureNotes,
   notesView,
   refreshNotes,
+  refreshScheduledNotes,
   readNote,
   stopNotes,
 } from "../src/notes.js";
@@ -375,4 +376,53 @@ test("結果不明・再起動でも以前の一覧が残り、未確認削除�
   assert.equal((await notesView(restarted)).configured, false);
   assert.deepEqual(await restarted.get("unrelated"), { safe: true });
   assert.equal(await restarted.get("notes:token"), undefined);
+});
+
+
+test("設定済みノートの毎時更新は新しい一覧だけを取得し本文や他サービスを変更しない", async () => {
+  const storage = memory(), remote = fixture();
+  await refreshScheduledNotes(storage, remote.send, now);
+  assert.equal(remote.calls.length, 0);
+  await configureNotes(storage, settings, remote.send, now);
+  await storage.put("unrelated", { safe: true });
+  await refreshScheduledNotes(storage, remote.send, now + 3600000);
+  const view = await notesView(storage, now + 3600000);
+  assert.equal(view.lastSuccess, new Date(now + 3600000).toISOString());
+  assert.equal(view.automatic.result, "success");
+  assert.equal(remote.calls.some(call => call.url.includes("/git/blobs/")), false);
+  assert.deepEqual(await storage.get("unrelated"), {safe:true});
+  assert.equal(JSON.stringify(view).includes("秘密_L.md"), false);
+});
+
+test("定期更新失敗でも前回一覧・成功時刻を保持し、再起動後の更新で復旧する", async () => {
+  const storage = memory(), remote = fixture({privateRepo:true});
+  await configureNotes(storage, {...settings, private:true, token}, remote.send, now);
+  remote.setFailure(401);
+  await refreshScheduledNotes(storage, remote.send, now + 3600000);
+  let view = await notesView(storage, now + 3600000);
+  assert.equal(view.automatic.result, "failed");
+  assert.equal(view.lastSuccess, new Date(now).toISOString());
+  assert.equal(view.files.length, 1);
+  assert.equal(view.stale, true);
+  assert.equal(JSON.stringify(view).includes(token), false);
+  const restarted = memory(structuredClone(storage.values));
+  remote.setFailure(null);
+  await refreshScheduledNotes(restarted, remote.send, now + 7200000);
+  view = await notesView(restarted, now + 7200000);
+  assert.equal(view.automatic.result, "success");
+  assert.equal(view.stale, false);
+  await stopNotes(restarted, {confirm:true});
+  assert.equal(await restarted.get("notes:automatic"), undefined);
+});
+
+test("直前の手動取得とGitHubの待機期限がある時は定期取得を重ねない", async () => {
+  const storage = memory(), remote = fixture();
+  await configureNotes(storage, settings, remote.send, now);
+  const count = remote.calls.length;
+  await refreshScheduledNotes(storage, remote.send, now + 30000);
+  assert.equal(remote.calls.length, count);
+  await storage.put("notes:cache", {...await storage.get("notes:cache"),retryAt:now+7200000});
+  await refreshScheduledNotes(storage, remote.send, now + 3600000);
+  assert.equal(remote.calls.length, count);
+  assert.equal((await storage.get("notes:automatic")).result, "skipped");
 });

@@ -8,7 +8,7 @@ import { readTimingConfirmation, saveTimingConfirmation } from "./timing-confirm
 import { timingCalendarSeed } from "./timing-calendar.js";
 import { prepareTimingCleanup, cleanupTimings } from "./timing-cleanup.js";
 import { healthView } from "./health.js";
-import { notesView, configureNotes, refreshNotes, readNote, stopNotes } from "./notes.js";
+import { notesView, configureNotes, refreshNotes, refreshScheduledNotes, readNote, stopNotes } from "./notes.js";
 import { NotesError } from "./notes-http.js";
 import { selectedSlackStore } from "./slack-store.js";
 import { slackConnect, configureSlackApplication } from "./slack-auth.js";
@@ -101,6 +101,7 @@ export class Dashboard extends DurableObject {
         await queueMailSync(this.ctx.storage);
         await queueCalendarSync(this.ctx.storage);
         await queueAllSlackSync(this.ctx.storage);
+        await refreshScheduledNotes(this.ctx.storage);
         await runHourlyDrive(this.env, this.ctx.storage);
       } finally {
         await scheduleAlarm(this.ctx.storage);

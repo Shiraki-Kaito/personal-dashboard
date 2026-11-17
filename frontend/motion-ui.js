@@ -37,6 +37,8 @@ document
     (button) => (button.onclick = () => button.closest("dialog").close()),
   );
 function showPanel(panel, focusId) {
+  // 現行版ではインストール未完了のSlackを提供しない。
+  if (panel === "slack") return;
   document.body.dataset.view = panel;
   const titles = {
     home: ["ホーム", "今、確認したいことをひと目で。"],

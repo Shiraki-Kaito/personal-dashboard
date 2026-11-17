@@ -2,7 +2,7 @@ import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 const time = (value) =>
-  value ? new Date(value).toLocaleString("ja-JP") : "未取得";
+  value ? new Date(value).toLocaleString("ja-JP", {timeZone:"Asia/Tokyo"}) : "未取得";
 let state = null,
   busy = false,
   selected = null,
@@ -101,13 +101,15 @@ function renderList() {
   }
 }
 function render() {
+  el("notesWorkspace").hidden = !state.configured;
+  el("notesSearchBar").hidden = !state.configured;
   el("homeNotesStatus").textContent =
     " ／ " +
     (state.configured
       ? "ノート " + state.files.length + "件" + (state.stale ? "・要更新" : "")
       : "ノート未設定");
   el("notesStatus").textContent = !state.configured
-    ? "取得対象は未設定です。設定欄でリポジトリとフォルダを指定してください。"
+    ? "接続準備中です。下の設定で、対象リポジトリ専用の読み取りトークンを登録してください。"
     : state.config.owner +
       "/" +
       state.config.repo +
@@ -119,7 +121,8 @@ function render() {
       time(state.lastSuccess) +
       (state.stale ? " ／ 古い一覧・本文取得は更新後に可能" : "") +
       (state.error ? " ／ " + state.error : "") +
-      (state.retryAt ? " ／ 再試行可能 " + time(state.retryAt) : "");
+      (state.retryAt ? " ／ 再試行可能 " + time(state.retryAt) : "") +
+      (state.automatic ? " ／ 毎時取得の起動 " + time(state.automatic.lastTriggeredAt) + (state.automatic.result === "failed" ? "・取得失敗" : state.automatic.result === "skipped" ? "・待機条件により見送り" : "") : " ／ 毎時取得の初回待ち");
   renderList();
   controls();
 }
@@ -182,4 +185,14 @@ run(async () => {
     el("notesPrivate").checked = view.config.private;
   } else el("notesSettings").open = true;
   return view;
+});
+
+// 画面を開き直したときも、Cron後の一覧と認証失効を再確認する。
+document.addEventListener("dashboard:view", event => {
+  if (event.detail !== "notes" || busy) return;
+  void run(async () => {
+    const view = await api();
+    return view.configured && view.stale && (!view.retryAt || view.retryAt <= Date.now())
+      ? api({ action: "refresh" }) : view;
+  });
 });

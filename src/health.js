@@ -229,7 +229,8 @@ export async function healthView(env, storage, now = Date.now()) {
       cache: notes,
       count: notes.files?.length ?? null,
       connected: !!notesConfig,
-      freshnessMs: 60 * 60 * 1000,
+      freshnessMs: hourlyFreshnessMs,
+      cron: (await storage.get("notes:automatic"))?.lastTriggeredAt || null,
       now,
     }),
   );

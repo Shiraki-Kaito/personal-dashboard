@@ -106,3 +106,6 @@
 
 .compact-enabled #weeklySection:not([open]),.compact-enabled #meetingSection:not([open]) {margin:4px 20px 10px;padding:10px 0;}
 .compact-enabled .drive-group-section {margin-bottom:14px;}
+
+/* 未提供の導線を通常画面へ出さない。非表示は認可の代わりにしない。 */
+.nav-button[hidden],#homeSlackStatus[hidden],#notesWorkspace[hidden],#notesSearchBar[hidden] {display:none!important;}

@@ -175,6 +175,7 @@ export async function notesView(storage, now = Date.now()) {
     error: cache?.error || null,
     errorCode: cache?.errorCode || null,
     retryAt: cache?.retryAt || null,
+    automatic: (await storage.get("notes:automatic")) || null,
     stale:
       !!config &&
       (!cache?.lastSuccess ||
@@ -265,6 +266,30 @@ export async function refreshNotes(storage, send = fetch, now = Date.now()) {
   }
   return notesView(storage, now);
 }
+
+// 本文は定期取得せず、設定済みの対象の一覧だけを毎時更新する。
+export async function refreshScheduledNotes(storage, send = fetch, now = Date.now()) {
+  if (!(await storage.get("notes:config"))) return;
+  const cache = (await storage.get("notes:cache")) || {};
+  const automatic = { lastTriggeredAt: new Date(now).toISOString(), result: "skipped" };
+  if (cache.retryAt > now || now - Date.parse(cache.lastAttempt) < refreshIntervalMs) {
+    await storage.put("notes:automatic", automatic);
+    return;
+  }
+  try {
+    const view = await refreshNotes(storage, send, now);
+    automatic.result = view.error ? "failed" : "success";
+  } catch {
+    // 別サービスのCronを止めず、予期しない失敗も状態として残す。
+    await storage.put("notes:cache", {
+      ...((await storage.get("notes:cache")) || cache),
+      error: "ノートの定期取得を完了できませんでした。設定と取得状況を確認してください",
+      errorCode: "interrupted",
+    });
+    automatic.result = "failed";
+  }
+  await storage.put("notes:automatic", automatic);
+}
 export async function readNote(storage, input, send = fetch) {
   if (!validPath(input.path) || excludedNotePath(input.path))
     throw new InputError("対象外のノートです");
@@ -338,7 +363,7 @@ export async function stopNotes(storage, input) {
   if (input.confirm !== true)
     throw new InputError("ノート接続の停止を確認してください");
   await storage.transaction(async (tx) => {
-    for (const key of ["notes:token", "notes:config", "notes:cache"])
+    for (const key of ["notes:token", "notes:config", "notes:cache", "notes:automatic"])
       await tx.delete(key);
   });
   return notesView(storage);

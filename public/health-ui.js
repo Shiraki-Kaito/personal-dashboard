@@ -33,6 +33,10 @@ function openButton(source) {
         : { panel: source.panel } },
     ));
   };
+  if (source.service === "slack" && source.state === "disconnected") {
+    button.disabled = true;
+    button.textContent = "現行版では保留中";
+  }
   return button;
 }
 function gmailLink(url, label) {
