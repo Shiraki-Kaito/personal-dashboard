@@ -10,6 +10,8 @@ let state = null,
   busy = false,
   current = null,
   preview = null;
+let pendingConnectionTarget = null;
+let connectionTargetSequence = 0;
 let editingAccountId = null;
 let deletionPlan = null, deletingAccountId = null;
 let mailFilter = "important";
@@ -369,16 +371,49 @@ async function run(body = null, accountId) {
       const updated = state.messages.find((m) => m.id === current.id);
       if (updated) openMessage(updated);
     }
+    return true;
   } catch (error) {
     el("agendaStatus").textContent =
       error.message + "。表示中の情報は最新とは限りません。";
     if (el("appointmentDialog").open)
       el("appointmentResult").textContent = error.message;
+    return false;
   } finally {
     busy = false;
     controls();
+    if (pendingConnectionTarget) void openConnectionTarget();
   }
 }
+async function openConnectionTarget() {
+  if (busy || !pendingConnectionTarget) return;
+  const target = pendingConnectionTarget;
+  pendingConnectionTarget = null;
+  current = null;
+  const loaded = await run(null, target.accountId);
+  if (!loaded || target.sequence !== connectionTargetSequence || state?.accountId !== target.accountId) return;
+  if (target.recoveryKind === "reconnect") {
+    renderAccountManager();
+    el("accountManagerStatus").textContent = accountName(state.accounts.find(account => account.id === target.accountId)) + " の再接続・権限を確認してください。認可は自動で開始しません。";
+    if (!el("accountManager").open) el("accountManager").showModal();
+  } else if (target.recoveryKind === "reconcile") {
+    el("agendaPending").closest("details").open = true;
+    el("agendaPending").scrollIntoView({ block: "nearest" });
+  } else if (target.service === "calendar") {
+    el("calendarAccounts").closest("details").open = true;
+    el("calendarHeading").scrollIntoView({ block: "nearest" });
+  } else {
+    el("agendaConnectionStatus").closest("details").open = true;
+    el("agendaAccount").focus();
+    el("mailRetrievalStatus").scrollIntoView({ block: "nearest" });
+  }
+}
+document.addEventListener("dashboard:open-connection", event => {
+  const { accountId, service, recoveryKind } = event.detail || {};
+  if (typeof accountId !== "string" || !["mail", "calendar"].includes(service)) return;
+  pendingConnectionTarget = { accountId, service, recoveryKind, sequence: ++connectionTargetSequence };
+  document.dispatchEvent(new CustomEvent("dashboard:show-panel", { detail: { panel: "agenda" } }));
+  void openConnectionTarget();
+});
 function input() {
   return {
     accountId: state.accountId,

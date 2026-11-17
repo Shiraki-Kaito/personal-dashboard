@@ -3,6 +3,10 @@ import { displayAccounts } from "./agenda-labels.js";
 import { upcomingCalendarView } from "./agenda-calendar.js";
 import { driveView } from "./drive.js";
 import { slackWorkspaces, slackWorkspaceStore } from "./slack-store.js";
+import { prioritySearchPlan, mailRetrievalView, standardMailQuery } from "./mail-retrieval.js";
+import { priorityRulesView } from "./mail-priority-rules.js";
+import { mailBodyNotice } from "./mail-body-coverage.js";
+import { connectionRecovery } from "./connection-recovery.js";
 
 const hourlyFreshnessMs = 90 * 60 * 1000;
 const githubFreshnessMs = 2 * 60 * 1000;
@@ -20,6 +24,7 @@ const sourceGuidance = {
   never: "まだ取得に成功していません",
   stale: "保存情報が古くなっています。元の画面で更新してください",
   ok: "取得成功を記録しています",
+  limited: "取得成功ですが、未取得・未確認の範囲があります",
 };
 
 // 本文・秘密値・保存されたエラーの生文字列を応答へ含めず、復旧の行き先を示す。
@@ -37,22 +42,27 @@ function sourceStatus({
   stale = false,
   cron = null,
   test = false,
+  accountId = null,
+  stopped = false,
+  coverage = null,
+  progress = null,
 }) {
   const success = Date.parse(cache.lastSuccess);
   const old = stale || !Number.isFinite(success) || now - success > freshnessMs;
-  const progress = activity || (active ? "running" : null);
+  const activityState = activity || (active ? "running" : null);
   const incomplete =
     Number.isFinite(Date.parse(cache.lastAttempt)) &&
     (!Number.isFinite(success) || Date.parse(cache.lastAttempt) > success);
   let state;
   if (!connected) state = "disconnected";
-  else if (cache.error) state = progress === "running" ? "retrying" : "error";
-  else if (progress) state = progress;
+  else if (cache.error) state = activityState === "running" ? "retrying" : activityState === "queued" ? "queued" : "error";
+  else if (activityState) state = activityState;
   else if (incomplete) state = "interrupted";
   else if (!Number.isFinite(success)) state = "never";
-  else state = old ? "stale" : "ok";
+  else state = old ? "stale" : coverage?.limited ? "limited" : "ok";
   return {
     service,
+    accountId,
     test,
     label,
     panel,
@@ -64,6 +74,9 @@ function sourceStatus({
     retryAt: cache.retryAt || null,
     cron,
     guidance: sourceGuidance[state],
+    coverage,
+    progress,
+    recovery: connectionRecovery(state, cache.errorCode, cache.retryAt, now, stopped),
   };
 }
 
@@ -138,9 +151,31 @@ export async function healthView(env, storage, now = Date.now()) {
       !account.disconnectedAt && !!credential && !credential.invalid;
     const label = account.label || account.email;
     const mail = (await storage.get("agenda:cache:" + account.id)) || {};
+    const rules = await priorityRulesView(storage, account.id);
+    const coverage = mailRetrievalView(mail, await prioritySearchPlan(rules.rules), now);
+    const bodyLimitedCount = (mail.messages || []).filter(message => !!mailBodyNotice(message)).length;
+    const mailCoverage = {
+      hasSnapshot: Number.isFinite(Date.parse(mail.lastSuccess)),
+      snapshotAt: mail.lastSuccess || null,
+      standardCount: coverage.standardCount,
+      priorityCount: coverage.priorityCount,
+      extraCount: coverage.extraCount,
+      standardHasMore: coverage.standardHasMore,
+      priorityHasMore: coverage.priorityHasMore,
+      supplementCurrent: coverage.current,
+      bodyLimitedCount,
+      limited: coverage.standardHasMore || coverage.priorityHasMore || bodyLimitedCount > 0 || !!coverage.notice,
+      notice: coverage.notice,
+      standardUrl: "https://mail.google.com/mail/u/" + encodeURIComponent(account.email) + "/#search/" + encodeURIComponent(standardMailQuery),
+      priorityUrl: "https://mail.google.com/mail/u/" + encodeURIComponent(account.email) + "/#search/" + encodeURIComponent(coverage.query),
+    };
     sources.push(
       sourceStatus({
         service: "mail",
+        accountId: account.id,
+        stopped: !!account.disconnectedAt,
+        coverage: mailCoverage,
+        progress: accountProgress(mailJob, account.id),
         activity: jobActivity(mailJob, account.id, "accountIds"),
         label: label + " · メール",
         panel: "agenda",
@@ -155,6 +190,9 @@ export async function healthView(env, storage, now = Date.now()) {
     sources.push(
       sourceStatus({
         service: "calendar",
+        accountId: account.id,
+        stopped: !!account.disconnectedAt,
+        progress: accountProgress(calendarJob, account.id),
         activity: jobActivity(calendarJob, account.id, "accountIds"),
         label: label + " · 予定",
         panel: "agenda",
@@ -173,10 +211,12 @@ export async function healthView(env, storage, now = Date.now()) {
         service: "calendar",
         label,
         panel: "agenda",
+        accountId: account.id,
         count: unresolved.length,
         limited: false,
         guidance:
           "予定の登録結果が未確認です。メール・予定画面で結果を照合してください。自動再登録しません",
+        recovery: { kind: "reconcile", label: "登録結果の照合へ" },
       });
   }
   const notesConfig = await storage.get("notes:config");
@@ -261,4 +301,16 @@ function jobActivity(job, id, field) {
   const position = job[field].indexOf(id);
   if (position < 0 || position < job.index) return null;
   return position === job.index ? "running" : "queued";
+}
+
+function accountProgress(job, id) {
+  if (!jobActivity(job, id, "accountIds")) return null;
+  const position = job.accountIds.indexOf(id);
+  return {
+    position: position + 1,
+    total: job.accountIds.length,
+    phase: position === job.index ? (job.phase === "priority" ? "重要候補の補完" : "通常取得") : "順番待ち",
+    pages: position === job.index ? (job.standardPages || 0) + (job.pages || 0) : 0,
+    nextAt: position === job.index ? job.nextAt || null : null,
+  };
 }
