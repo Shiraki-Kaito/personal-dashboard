@@ -3,6 +3,7 @@ const el = (id) => document.getElementById(id);
 let current = null;
 let saving = false;
 let apiSave = null;
+let openGroupFile = null, browseGroup = null;
 let renderedSignature = "";
 let visibilityBase = null,
   visibilityDirty = false,
@@ -38,6 +39,24 @@ export function openDriveGroupEditor(group, state) {
   el("groupColor").value = group.color;
   el("groupSaveResult").textContent =
     "進捗はサイト内の手動記録です。Driveのファイルは変更しません。";
+  const updates = el("groupEditorUpdates");
+  updates.replaceChildren(element("p", group.path, "group-path"));
+  if (!group.available || state.error) updates.append(element("p", "保存情報です。取得状況を確認してください。", "inline-notice"));
+  updates.append(element("h3", "最近のファイル更新"));
+  for (const file of group.recent || []) {
+    const row = element("div", undefined, "group-recent");
+    row.append(fileLink(file, openGroupFile), element("p", (file.lastModifiedBy || "更新者不明") + " · " + dateTime(file.modifiedTime), "group-meta"));
+    updates.append(row);
+  }
+  const browse = element("button", "チームのファイル一覧を開く", "button");
+  browse.type = "button";
+  browse.onclick = async () => {
+    await closeGroupEditor();
+    if (el("groupEditor").open) return;
+    document.dispatchEvent(new CustomEvent("dashboard:show-panel", {detail:{panel:"drive"}}));
+    browseGroup(group.path);
+  };
+  updates.append(browse);
   el("groupEditor").showModal();
 }
 function renderVisibility(state, busy) {
@@ -124,6 +143,8 @@ export function renderDriveGroups(
   saveDisplay,
 ) {
   apiSave = save;
+  openGroupFile = openFile;
+  browseGroup = filterGroup;
   latestState = state;
   latestBusy = busy;
   saveVisibility = saveDisplay;
@@ -158,72 +179,16 @@ export function renderDriveGroups(
     .map((group) => {
       const card = element("article", undefined, "drive-group-card");
       card.dataset.groupColor = group.color;
+      const block = element("button", undefined, "group-block");
+      block.type = "button";
+      block.disabled = busy;
+      block.setAttribute("aria-label", group.name + "の進捗を編集");
       const top = element("div", undefined, "group-card-top");
-      const heading = element("h3", group.name);
-      const status = element("span", group.status, "group-status");
-      status.dataset.status = group.status;
-      top.append(heading, status);
-      card.append(top);
-      card.append(element("p", group.path, "group-path"));
-      if (!group.available)
-        card.append(
-          element(
-            "p",
-            "保存場所は現在の取得範囲外です。手動記録を保持しています。",
-            "inline-notice",
-          ),
-        );
-      if (group.nextAction)
-        card.append(element("p", group.nextAction, "group-next"));
-      const due = element(
-        "p",
-        group.due ? "期限 " + group.due + "（日本時間）" : "期限未設定",
-        "group-meta",
-      );
-      if (
-        group.due &&
-        group.status !== "完了" &&
-        group.due <
-          new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
-      )
-        due.classList.add("group-overdue");
-      if (group.due) card.append(due);
-      if (group.updatedAt && group.status !== "未設定")
-        card.append(
-          element("p", "進捗記録 " + dateTime(group.updatedAt), "group-meta"),
-        );
-      const activity = element("details");
-      activity.append(
-        element("summary", "更新の様子 · 未確認 " + group.unread + "件"),
-      );
-      for (const file of group.recent) {
-        const row = element("div", undefined, "group-recent");
-        row.append(
-          fileLink(file, openFile),
-          element(
-            "p",
-            (file.lastModifiedBy || "更新者不明") +
-              " · " +
-              dateTime(file.modifiedTime),
-            "group-meta",
-          ),
-        );
-        activity.append(row);
-      }
-      card.append(activity);
-      const browse = element(
-        "button",
-        "このグループのファイルを見る",
-        "group-file",
-      );
-      browse.type = "button";
-      browse.onclick = () => filterGroup(group.path);
-      card.append(browse);
-      const edit = element("button", "色・表示名・進捗を設定", "button");
-      edit.type = "button";
-      edit.disabled = busy;
-      edit.onclick = () => openDriveGroupEditor(group, state);
-      card.append(edit);
+      top.append(element("h3", group.name), element("span", group.status, "group-status"));
+      block.append(top, element("p", group.nextAction || "次にすることは未設定", "group-next"));
+      block.append(element("p", group.due ? "期限 " + group.due : "期限未設定", "group-meta"));
+      block.onclick = () => openDriveGroupEditor(group, state);
+      card.append(block);
       return card;
     });
   el("driveGroups").replaceChildren(...cards);

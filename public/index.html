@@ -9,15 +9,16 @@
     <link rel="icon" href="/icons/dashboard-192.png" type="image/png" />
     <title>ワークスペース | Personal Dashboard</title>
     <link rel="stylesheet" href="/style.css?v=20261117-drive-cards1" />
+    <link rel="stylesheet" href="/compact-ui.css?v=1" />
     <script type="module" src="/session-ui.js"></script>
     <script type="module" src="/ui.js"></script>
-    <script type="module" src="/drive-ui.js?v=cards1"></script>
+    <script type="module" src="/drive-ui.js?v=compact1"></script>
     <script type="module" src="/drive-meetings-ui.js?v=1"></script>
-    <script type="module" src="/weekly-report-ui.js?v=cards1"></script>
+    <script type="module" src="/weekly-report-ui.js?v=compact1"></script>
     <script type="module" src="/motion-ui.js?v=confirm1"></script>
-    <script type="module" src="/home-ui.js?v=timing-cleanup1"></script>
+    <script type="module" src="/home-ui.js?v=compact1"></script>
     <script type="module" src="/backup-ui.js?v=meetings1"></script>
-    <script type="module" src="/agenda-ui.js?v=timing-cleanup1"></script>
+    <script type="module" src="/agenda-ui.js?v=compact1"></script>
     <script type="module" src="/slack-ui.js"></script>
     <script type="module" src="/notes-ui.js"></script>
     <script type="module" src="/health-ui.js?v=recovery1"></script>
@@ -718,7 +719,7 @@
         </section>
       </div>
     </main>
-    <dialog id="groupEditor" class="settings-dialog" aria-labelledby="groupEditorHeading">
+    <dialog id="groupEditor" class="settings-dialog" aria-labelledby="groupEditorHeading" data-preserve-draft>
       <div class="panel-heading"><h2 id="groupEditorHeading">グループを設定</h2><button id="groupEditorClose" class="icon-button" type="button" aria-label="グループ設定を閉じる">×</button></div>
       <form id="groupForm" class="group-form">
         <label>グループ表示名<input id="groupName" maxlength="80" required></label>
@@ -729,6 +730,7 @@
         <p id="groupSaveResult" role="status"></p>
         <button id="groupSave" class="primary-button" type="submit">グループ設定を保存</button>
       </form>
+      <div id="groupEditorUpdates"></div>
     </dialog>
     <dialog id="fileDialog" class="detail-dialog">
       <div class="dialog-body">

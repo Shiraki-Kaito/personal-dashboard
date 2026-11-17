@@ -1,4 +1,4 @@
-import { renderDriveGroups, openDriveGroupEditor } from "./drive-groups-ui.js?v=display1";
+import { renderDriveGroups, openDriveGroupEditor } from "./drive-groups-ui.js?v=blocks1";
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id);

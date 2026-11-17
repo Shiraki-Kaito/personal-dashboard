@@ -5,6 +5,7 @@ import { createCalendarCard } from "./calendar-cards.js";
 import { openTimingEditor } from "./timing-editor.js?v=cleanup1";
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmDiscard } from "./confirm.js";
+import { updateOverview } from "./overview-ui.js";
 const el = (id) => document.getElementById(id);
 const pollMs = 60000;
 const visibleTimingCount = 3;
@@ -193,38 +194,16 @@ function renderDrive() {
       const card = element("section", "home-drive-team");
       card.dataset.groupColor = group.color;
       card.setAttribute("aria-label", group.name + "の更新");
-      const header = element("div", "home-team-heading");
-      header.append(element("h3", "", group.name),element("span", "home-team-count", "未確認 " + group.pendingCount));
-      card.append(header);
-      const progress = element("div", "home-team-progress");
-      const status = element("span", "group-status", "進捗：" + group.status);
-      status.dataset.status = group.status;
-      const next = element("p", "home-team-next", group.nextAction || "次にすることは未設定です");
-      next.title = group.nextAction || "";
-      const due = element("p", "home-team-due", group.due ? "期限 " + group.due.replaceAll("-","/") + "（日本時間）" : "期限未設定");
-      if (group.due && group.status !== "完了") {
-        const today = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
-        if (group.due < today) { due.classList.add("group-overdue"); due.append(" · 期限超過"); }
-        else if (group.due === today) due.append(" · 今日が期限");
-      }
-      if (group.updatedAt) progress.title = "設定保存 " + time(group.updatedAt);
-      progress.append(status,next,due);
-      card.append(progress);
-      for (const file of group.updates) card.append(driveFileRow(file));
-      if (!group.updates.length) {
-        card.append(element("p", "home-team-empty", state.drive.stale || !state.drive.connected ? "保存情報です。最新の取得状況を確認してください。" : state.drive.scanning ? "取得中・前回の未確認なし" : "未確認の更新はありません"));
-        if (group.latest) {
-          card.append(element("p", "home-team-caption", "直近の更新（確認済みも含む）"),driveFileRow(group.latest,false));
-        } else if (!group.available) card.append(element("p", "home-team-caption", "現在の取得範囲にファイルはありません"));
-      }
-      const more = element("button", "home-team-more", group.remaining ? "ほか" + group.remaining + "件・一覧を開く ↗" : "チームの一覧を開く ↗");
-      more.type = "button"; more.onclick = () => openDriveGroup(group.path);
-      const edit = element("button", "home-team-edit", "進捗を編集");
-      edit.type="button"; edit.dataset.homeGroupEdit="true";
-      edit.dataset.editable=String(!!group.path);
-      edit.setAttribute("aria-label",group.name+"の進捗を編集");
-      edit.onclick=()=>emit("dashboard:edit-drive-group",{path:group.path});
-      card.append(more,edit); grid.append(card);
+      const block = element("button", "group-block");
+      block.type="button"; block.dataset.homeGroupEdit="true";
+      block.dataset.editable=String(!!group.path);
+      block.setAttribute("aria-label",group.name+"の進捗を編集");
+      const header = element("div", "group-card-top");
+      header.append(element("h3", "", group.name),element("span", "group-status", group.status));
+      block.append(header, element("p", "group-next", group.nextAction || "次にすることは未設定"));
+      block.append(element("p", "group-meta", group.due ? "期限 " + group.due : "期限未設定"));
+      block.onclick=()=>emit("dashboard:edit-drive-group",{path:group.path});
+      card.append(block); grid.append(card);
     }
     const other = element("details", "home-drive-other");
     other.append(element("summary", "", "その他のグループ（"+(state.drive.groups?.others.length || 0)+"）"));
@@ -466,6 +445,7 @@ function render() {
   }
   renderTasks();
   renderDrive();
+  updateOverview(state);
 }
 async function load(refresh = false) {
   if (busy) return;
@@ -525,6 +505,7 @@ document.addEventListener("dashboard:refresh", () => {
 });
 document.addEventListener("dashboard:view", (event) => {
   if (event.detail === "home") load(true);
+  else if (event.detail === "agenda") load(false);
 });
 document.addEventListener("dashboard:drive-reviewed", () => load(false));
 document.addEventListener("dashboard:drive-group-saved", event => {

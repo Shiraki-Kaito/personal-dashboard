@@ -388,6 +388,7 @@ async function run(body = null, accountId) {
 }
 async function openConnectionTarget() {
   if (busy || !pendingConnectionTarget) return;
+  if(el("agendaTools")) el("agendaTools").open=true;
   const target = pendingConnectionTarget;
   pendingConnectionTarget = null;
   current = null;
@@ -398,9 +399,11 @@ async function openConnectionTarget() {
     el("accountManagerStatus").textContent = accountName(state.accounts.find(account => account.id === target.accountId)) + " の再接続・権限を確認してください。認可は自動で開始しません。";
     if (!el("accountManager").open) el("accountManager").showModal();
   } else if (target.recoveryKind === "reconcile") {
+    document.dispatchEvent(new Event("dashboard:open-mail-list"));
     el("agendaPending").closest("details").open = true;
     el("agendaPending").scrollIntoView({ block: "nearest" });
   } else if (target.service === "calendar") {
+    document.dispatchEvent(new Event("dashboard:open-calendar-status"));
     el("calendarAccounts").closest("details").open = true;
     el("calendarHeading").scrollIntoView({ block: "nearest" });
   } else {
@@ -489,6 +492,13 @@ el("agendaManual").onclick = () =>
       reasons: [],
     },
   });
+document.addEventListener("dashboard:compose-appointment",async()=>{
+  document.dispatchEvent(new CustomEvent("dashboard:show-panel",{detail:{panel:"agenda"}}));
+  if(busy){el("agendaStatus").textContent="取得中です。完了後に「予定を手入力」を押してください。";return;}
+  if(!state?.accountId)await run();
+  if(state?.accountId)el("agendaManual").click();
+  else el("agendaStatus").textContent="予定を入力するには、先にGoogleアカウントを接続してください。";
+});
 el("agendaMore").onclick = () =>
   run({ action: "refresh", more: true, accountId: state.accountId });
 el("agendaAccount").onchange = () => {

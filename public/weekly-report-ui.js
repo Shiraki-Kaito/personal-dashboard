@@ -183,9 +183,6 @@ el("weeklySection").addEventListener("toggle", async () => {
   }
 });
 el("weeklyReload").onclick = load;
-document.querySelector('button[data-panel="drive"]')?.addEventListener("click",()=>{el("weeklySection").open=true;});
-document.addEventListener("dashboard:show-panel",event=>{if(event.detail?.panel==="drive")el("weeklySection").open=true;});
-if(document.body.dataset.view==="drive")el("weeklySection").open=true;
 el("weeklyGenerate").onclick = generate;
 el("weeklyConsent").onchange = controls;
 el("weeklyConnect").onclick = async () => {
