@@ -3,6 +3,7 @@ import { finishDriveRun } from "./drive-history.js";
 
 export const driveScope =
   "https://www.googleapis.com/auth/drive.metadata.readonly";
+export const sheetsReadScope = "https://www.googleapis.com/auth/spreadsheets.readonly";
 export const minutesReadScope = "https://www.googleapis.com/auth/documents.readonly";
 const testingAuthorizationLifetimeMs = 7 * 24 * 60 * 60 * 1000;
 // 公開設定の変更と、既存トークンを発行した時点の設定を区別する。
@@ -155,8 +156,9 @@ export async function googleConnect(
     );
   const url = new URL(request.url);
   const redirectUri = url.origin + "/auth/google/callback";
-  if (["/auth/google/start", "/auth/google/report-start"].includes(url.pathname)) {
-    const minutesRead=url.pathname==="/auth/google/report-start";
+  if (["/auth/google/start", "/auth/google/report-start", "/auth/google/progress-start"].includes(url.pathname)) {
+    const sheetsRead=url.pathname==="/auth/google/progress-start";
+    const minutesRead=sheetsRead || url.pathname==="/auth/google/report-start";
     const state = random(),
       verifier = random();
     await storage.put("drive:flow", {
@@ -165,6 +167,7 @@ export async function googleConnect(
       sessionKey: session.key,
       publishingStatus: googleAuthorizationStatus(env, null).publishingStatus,
       minutesRead,
+      sheetsRead,
       expires: Date.now() + flowLifetimeMs,
     });
     const authorization = new URL(
@@ -174,7 +177,7 @@ export async function googleConnect(
       client_id: env.GOOGLE_CLIENT_ID,
       redirect_uri: redirectUri,
       response_type: "code",
-      scope: minutesRead ? driveScope+" "+minutesReadScope : driveScope,
+      scope: [driveScope,...(minutesRead?[minutesReadScope]:[]),...(sheetsRead?[sheetsReadScope]:[])].join(" "),
       access_type: "offline",
       prompt: "consent",
       state,
@@ -215,6 +218,7 @@ export async function googleConnect(
         "Driveメタデータの読み取りと継続接続の認可が必要です",
       );
     if(flow.minutesRead && !grant.scope.split(" ").includes(minutesReadScope)) throw new DriveError("議事録の本文読み取りが認可されていません。既存のDrive接続は変更していません","permission");
+    if(flow.sheetsRead && !grant.scope.split(" ").includes(sheetsReadScope)) throw new DriveError("スプレッドシートの読み取りが認可されていません。既存の接続は変更していません","permission");
     const fingerprint = await accountFingerprint(grant.access_token, send);
     const previous = await storage.get("drive:credential");
     const cache = await storage.get("drive:cache");

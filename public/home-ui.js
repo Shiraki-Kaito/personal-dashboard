@@ -197,12 +197,12 @@ function renderDrive() {
       const block = element("button", "group-block");
       block.type="button"; block.dataset.homeGroupEdit="true";
       block.dataset.editable=String(!!group.path);
-      block.setAttribute("aria-label",group.name+"の進捗を編集");
+      block.setAttribute("aria-label",group.name+"の進捗報告を作成");
       const header = element("div", "group-card-top");
-      header.append(element("h3", "", group.name),element("span", "group-status", group.status));
-      block.append(header, element("p", "group-next", group.nextAction || "次にすることは未設定"));
-      block.append(element("p", "group-meta", group.due ? "期限 " + group.due : "期限未設定"));
-      block.onclick=()=>emit("dashboard:edit-drive-group",{path:group.path});
+      header.append(element("h3", "", group.name));
+      block.append(header, element("p", "group-next", group.latest?.name || "資料から進捗報告を作成"));
+      block.append(element("p", "group-meta", group.latest ? (group.latest.lastModifiedBy || "更新者不明")+" · "+time(group.latest.modifiedTime) : "押して報告の下書きを作る"));
+      block.onclick=()=>emit("dashboard:open-progress-report",{kind:"organizer",path:group.path});
       card.append(block); grid.append(card);
     }
     const other = element("details", "home-drive-other");

@@ -182,12 +182,12 @@ export function renderDriveGroups(
       const block = element("button", undefined, "group-block");
       block.type = "button";
       block.disabled = busy;
-      block.setAttribute("aria-label", group.name + "の進捗を編集");
+      block.setAttribute("aria-label", group.name + "の進捗報告を作成");
       const top = element("div", undefined, "group-card-top");
-      top.append(element("h3", group.name), element("span", group.status, "group-status"));
-      block.append(top, element("p", group.nextAction || "次にすることは未設定", "group-next"));
-      block.append(element("p", group.due ? "期限 " + group.due : "期限未設定", "group-meta"));
-      block.onclick = () => openDriveGroupEditor(group, state);
+      top.append(element("h3", group.name));
+      block.append(top, element("p", group.recent?.[0]?.name || "資料から報告を作成", "group-next"));
+      block.append(element("p", group.recent?.[0] ? (group.recent[0].lastModifiedBy || "更新者不明")+" · "+dateTime(group.recent[0].modifiedTime) : "元の資料を読み取り専用で参照", "group-meta"));
+      block.onclick = () => document.dispatchEvent(new CustomEvent("dashboard:open-progress-report",{detail:{kind:"organizer",path:group.path}}));
       card.append(block);
       return card;
     });

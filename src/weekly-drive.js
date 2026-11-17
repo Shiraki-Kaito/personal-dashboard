@@ -10,9 +10,9 @@ import { weeklyEvidence, composeWeeklyReports } from "./weekly-report.js";
 const key = "drive:weeklySettings";
 const maximumDocumentBytes = 2 * 1024 * 1024;
 // 本文・日付チップ・リスト階層だけを取得し、画像や全書式の大きな応答を避ける。
-const documentFields = "documentId,title,revisionId,tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,paragraph(elements(textRun(content),dateElement(dateElementProperties(timestamp,displayText))),bullet(nestingLevel),paragraphStyle(namedStyleType)),table(tableRows(tableCells(content)))))),childTabs)";
+export const documentFields = "documentId,title,revisionId,tabs(tabProperties(tabId,title),documentTab(body(content(startIndex,paragraph(elements(textRun(content),dateElement(dateElementProperties(timestamp,displayText))),bullet(nestingLevel),paragraphStyle(namedStyleType)),table(tableRows(tableCells(content)))))),childTabs)";
 const readRetryDelayMs = 1000;
-async function readDocument(url, token, send) {
+export async function readDocument(url, token, send) {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const response = await googleRequest(
@@ -93,7 +93,7 @@ export async function configureWeekly(storage, scope, input) {
     return candidate;
   });
 }
-async function documentJson(response) {
+export async function documentJson(response) {
   const reader = response.body.getReader();
   let length = 0,
     parts = [];

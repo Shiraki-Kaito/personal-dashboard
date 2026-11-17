@@ -1,3 +1,4 @@
+import { progressReportView, generateProgressReport, loadProgressReport, saveProgressReport } from "./progress-reports.js";
 import { saveAgendaCase, saveAgendaSplit, manageAgendaSplit } from "./agenda-home.js";
 import { saveDriveGroup } from "./drive-groups.js";
 import { saveGroupDisplay } from "./drive-group-display.js";
@@ -204,7 +205,7 @@ export class Dashboard extends DurableObject {
     )
       return agendaConnect(request, this.env, storage, session);
     if (
-      (request.method === "POST" && ["/auth/google/start","/auth/google/report-start"].includes(pathname)) ||
+      (request.method === "POST" && ["/auth/google/start","/auth/google/report-start","/auth/google/progress-start"].includes(pathname)) ||
       (request.method === "GET" && pathname === "/auth/google/callback")
     )
       return googleConnect(request, this.env, storage, session);
@@ -242,6 +243,8 @@ export class Dashboard extends DurableObject {
         "/drive-groups-ui.js",
         "/drive-meetings-ui.js",
         "/weekly-report-ui.js",
+        "/progress-reports-ui.js",
+        "/progress-reports.css",
         "/motion-ui.js",
         "/fonts/dm-sans-latin.woff2",
         "/fonts/OFL.txt",
@@ -276,6 +279,10 @@ export class Dashboard extends DurableObject {
         if(!config) throw new InputError("Driveの対象フォルダを設定してください");
         const scope=config.folderId+":"+config.includeSubfolders;
         if(request.method==="GET") return Response.json(await meetingView(storage,scope));
+        if(input.action==="reportView") return Response.json(await progressReportView(storage,scope));
+        if(input.action==="reportGenerate") return Response.json(await generateProgressReport(this.env,storage,scope,input));
+        if(input.action==="reportLoad") return Response.json(await loadProgressReport(storage,scope,input.id));
+        if(input.action==="reportSave") return Response.json(await saveProgressReport(storage,scope,input));
         if(input.action==="compose") return Response.json({reports:composeMeetingReports(input)});
         if(input.action==="save") return Response.json(await saveMeeting(storage,scope,input));
         if(input.action==="configureWeekly") return Response.json(await configureWeekly(storage,scope,input));

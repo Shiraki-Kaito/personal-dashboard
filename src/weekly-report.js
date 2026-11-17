@@ -61,6 +61,7 @@ export function minutesParagraphs(document) {
           tabTitle,
           index: item.startIndex || 0,
           level: p.bullet ? p.bullet.nestingLevel || 0 : null,
+          tableCell: depth > 0,
           heading: p.paragraphStyle?.namedStyleType || "NORMAL_TEXT",
         });
       }

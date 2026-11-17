@@ -102,7 +102,8 @@ document.querySelector('[data-panel="home"]').dataset.focus="overview-tasks";
 document.addEventListener("dashboard:open-calendar-status",()=>openOverview("calendarData"));
 document.addEventListener("dashboard:open-mail-list",()=>openOverview("rawmail"));
 // 作業の入口を先に置き、報告作成は必要なときだけ展開する。
-el("weeklySection").before(el("driveGroups").closest("section"));
+if(el("progressReportsSection"))el("progressReportsSection").after(el("driveGroups").closest("section"));
+else el("weeklySection").before(el("driveGroups").closest("section"));
 document.body.classList.add("compact-enabled");
 
 export function updateOverview(state) {

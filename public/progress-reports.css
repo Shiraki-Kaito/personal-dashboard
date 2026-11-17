@@ -1,0 +1,208 @@
+.progress-section {
+  padding: 20px 22px 8px;
+}
+.progress-section h3 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+.report-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.report-type-card {
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: #f7faf9;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+}
+.report-type-card span,
+.report-type-card small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.report-type-card:hover {
+  border-color: #087f70;
+  background: #f0f8f5;
+}
+.report-type-card:focus-visible {
+  outline: 3px solid #087f70;
+  outline-offset: 3px;
+}
+.progress-dialog {
+  width: min(1100px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  color: var(--text);
+}
+.progress-dialog::backdrop {
+  background: #142a3566;
+  backdrop-filter: blur(3px);
+}
+.progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  position: sticky;
+  top: -22px;
+  background: white;
+  padding: 12px 0;
+  z-index: 2;
+}
+.progress-header h2 {
+  font-size: 21px;
+  margin: 0;
+}
+.progress-controls,
+.progress-actions {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+.progress-dialog label {
+  display: flex;
+  gap: 7px;
+  font-size: 13px;
+  align-items: center;
+}
+.progress-controls > label,
+.progress-actions > label {
+  display: grid;
+}
+.progress-dialog input:not([type="checkbox"]),
+.progress-dialog select {
+  font: inherit;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-width: 100%;
+}
+.progress-dialog p {
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.progress-dialog summary {
+  cursor: pointer;
+  font-size: 13px;
+  padding: 10px 0;
+}
+.progress-dialog details {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+}
+.progress-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr));
+  gap: 16px;
+}
+.progress-result {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.progress-result h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.progress-result small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.progress-result textarea {
+  box-sizing: border-box;
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.8;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  resize: vertical;
+}
+.progress-source-list {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+.progress-source {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 10px;
+  align-items: center;
+}
+.progress-source label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.progress-evidence-item {
+  padding: 0 8px;
+  background: #f8faf9;
+}
+#progressChecks {
+  padding: 10px 14px;
+  background: #fff8ef;
+  border: 1px solid #e3c29b;
+  border-radius: 10px;
+}
+#progressSettings {
+  margin-top: 22px;
+}
+#progressTeamPicker {
+  max-width: 100%;
+}
+#progressTeams {
+  display: grid;
+  gap: 8px;
+}
+#progressSaveControls > label {
+  padding: 12px 0;
+}
+#weeklySection[hidden],
+#meetingSection[hidden],
+.progress-dialog [hidden],
+.progress-source[hidden] {
+  display: none !important;
+}
+.compact-enabled .drive-visibility {
+  margin: 18px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 650px) {
+  .report-type-grid {
+    grid-template-columns: 1fr;
+  }
+  .report-type-card {
+    padding: 15px;
+  }
+  .progress-source {
+    grid-template-columns: 1fr;
+  }
+  .progress-dialog {
+    padding: 14px;
+  }
+  .progress-header {
+    top: -14px;
+  }
+}
