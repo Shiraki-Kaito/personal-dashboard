@@ -112,6 +112,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "mail-body-coverage",
       "mail-additional-timing",
       "timing-confirmations",
+      "timing-cleanup",
       "timing-calendar",
       "agenda-labels",
       "agenda-account-rules",
@@ -199,9 +200,9 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     assert.equal((await request("/api/drive",{display:{}})).status,401);
     assert.equal((await request("/api/home")).status, 401);
     assert.equal((await request("/home-ui.js")).status, 401);
-    for (const route of ["/api/agenda", "/agenda-ui.js", "/timing-editor.js", "/mail-case-editor.js", "/mail-split-editor.js", "/mail-split-manager.js"])
+    for (const route of ["/api/agenda", "/agenda-ui.js", "/timing-editor.js", "/timing-cleanup-ui.js", "/mail-case-editor.js", "/mail-split-editor.js", "/mail-split-manager.js"])
       assert.equal((await request(route)).status, 401);
-    for (const action of ["timingView","saveTiming","timingCalendar","saveCase","splitCase","manageSplit"])
+    for (const action of ["timingView","saveTiming","timingCalendar","timingCleanupView","cleanupTimings","saveCase","splitCase","manageSplit"])
       assert.equal((await request("/api/agenda",{action})).status,401);
     assert.equal(
       (await request("/api/agenda", { action: "register", confirmed: true }))
@@ -260,7 +261,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       .find((x) => x.startsWith("__Host-dashboard_session"))
       .split(";")[0];
     assert.equal(await (await request("/")).text(), "private dashboard");
-    for (const action of ["timingView","saveTiming","timingCalendar","saveCase","splitCase","manageSplit"]) {
+    for (const action of ["timingView","saveTiming","timingCalendar","timingCleanupView","cleanupTimings","saveCase","splitCase","manageSplit"]) {
       assert.equal((await request("/api/agenda",{action},"https://other.test")).status,403);
       assert.equal((await request("/api/agenda",{action})).status,409);
     }

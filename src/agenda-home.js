@@ -24,6 +24,7 @@ export async function agendaHome(storage, now = Date.now()) {
     const pending = (await storage.get("agenda:pending:" + account.id)) || [];
     const messages = cache.messages || [];
     const timingRecords = (await storage.get("agenda:timingConfirmations:" + account.id)) || {};
+    const timingCollection = (await storage.get("agenda:timingCollection:" + account.id)) || null;
     const { rules } = await priorityRulesView(storage, account.id);
     const retrievalView = mailRetrievalView(cache,await prioritySearchPlan(rules),now);
     const stale =
@@ -93,7 +94,7 @@ export async function agendaHome(storage, now = Date.now()) {
         "agenda:operation:" + account.id + ":" + message.id,
       );
       if (operation?.phase === "登録確認済み") continue;
-      const timingView = await messageTimingView(message,timingRecords);
+      const timingView = await messageTimingView(message,timingRecords,timingCollection);
       for (const timing of timingView.timings) if (timing.manual) {
         const operationId = await timingOperationId({messageId:message.id,timingId:timing.timingId});
         const operation = await storage.get("agenda:operation:"+account.id+":"+operationId);

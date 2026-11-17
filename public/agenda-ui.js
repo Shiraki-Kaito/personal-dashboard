@@ -26,6 +26,7 @@ function controls() {
     "agendaLabelSave",
     "agendaLabel",
     "agendaSync",
+    "timingCleanupOpen",
     "accountManagerAdd",
     "accountNameSave",
     "accountNameInput",
@@ -55,6 +56,7 @@ function controls() {
   el("agendaSync").disabled ||=
     !state?.accounts.length || state?.mailJob?.active;
   el("agendaLabelSave").disabled ||= !state?.accountId;
+  el("timingCleanupOpen").disabled ||= !state?.accountId;
   el("agendaManual").disabled ||= !state?.accountId;
   el("calendarRefresh").disabled ||= !state?.accounts.length || state?.calendar?.job?.active;
   el("agendaMore").disabled ||= !state?.nextPageToken || state?.limited;
@@ -446,6 +448,13 @@ el("agendaLabelSave").onclick = () =>
   });
 el("agendaSync").onclick = () =>
   run({ action: "syncMail", accountId: state.accountId });
+el("timingCleanupOpen").onclick = () => {
+  if (busy || !state?.accountId) return;
+  document.dispatchEvent(new CustomEvent("dashboard:manage-timings", { detail: {
+    accountId:state.accountId,
+    accountName:accountName(state.accounts.find(account=>account.id===state.accountId)),
+  } }));
+};
 setInterval(() => {
   if (
     document.body.dataset.view === "agenda" &&

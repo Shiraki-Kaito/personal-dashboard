@@ -2,7 +2,7 @@ import { openSplitManager } from "./mail-split-manager.js";
 import { openMailSplit } from "./mail-split-editor.js";
 import { openMailCase } from "./mail-case-editor.js";
 import { createCalendarCard } from "./calendar-cards.js";
-import { openTimingEditor } from "./timing-editor.js?v=calendar1";
+import { openTimingEditor } from "./timing-editor.js?v=cleanup1";
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);

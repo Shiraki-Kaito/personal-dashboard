@@ -353,9 +353,13 @@ export async function previewAppointment(env, storage, input, send = fetch) {
     checkedAccountIds:checked.accountIds,
     ...(timingRef ? {timingRef} : {}),
   });
-  await storage.put("agenda:preview:" + source.id + ":" + message.id, {
-    checksum,
-    expires: Date.now() + 600000,
+  await storage.transaction(async tx => {
+    // 外部照合中に確定日時が整理された場合、関連プレビューを後から作らない。
+    if (timingRef) await validateTimingDraft(tx,source.id,message.id,timingRef,draft);
+    await tx.put("agenda:preview:" + source.id + ":" + message.id, {
+      checksum,
+      expires: Date.now() + 600000,
+    });
   });
   return {
     checksum,

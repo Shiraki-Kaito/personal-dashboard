@@ -142,6 +142,7 @@ async function save(reset) {
       timingId: current.timingId,
       sourceRevision: current.sourceRevision,
       expectedRevision: current.revision,
+      collectionRevision: current.collectionRevision,
       confirm: true,
       reset,
       value: value(),

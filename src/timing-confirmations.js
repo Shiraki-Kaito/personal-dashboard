@@ -5,7 +5,7 @@ import { additionalMailTimings } from "./mail-additional-timing.js";
 import { mailBodyNotice } from "./mail-body-coverage.js";
 
 const parserVersion = 1;
-const maximumRecords = 100;
+export const maximumTimingRecords = 100;
 const maximumBytes = 64 * 1024;
 const maximumEventMs = 7 * 86400000;
 const maximumAdditionalTimings = 20;
@@ -66,7 +66,7 @@ export function normalizeTimingRecords(input) {
     !input ||
     typeof input !== "object" ||
     Array.isArray(input) ||
-    Object.keys(input).length > maximumRecords
+    Object.keys(input).length > maximumTimingRecords
   )
     throw new InputError("日時の確定記録の形式または保存件数が不正です");
   const result = {};
@@ -133,7 +133,7 @@ function confirmedTiming(original, value) {
   };
 }
 // 認可済みメールのスナップショットと抽出結果にだけ確定値を適用する。
-export async function messageTimingView(message, records = {}) {
+export async function messageTimingView(message, records = {}, collectionRevision = null) {
   const sourceRevision = await digest({
     version: parserVersion,
     id: message.id,
@@ -165,6 +165,7 @@ export async function messageTimingView(message, records = {}) {
         ...(applied ? confirmedTiming(original, record.value) : original),
         timingId,
         sourceRevision,
+        collectionRevision,
         revision: record?.revision || null,
         editValue: applied ? record.value : originalValue(original),
         original,
@@ -183,6 +184,7 @@ export async function messageTimingView(message, records = {}) {
   );
   return {
     sourceRevision,
+    collectionRevision,
     timings,
     notice: [
       inactive ? "元メールまたは抽出結果が変わったため、以前の確定日時は適用していません。再確認してください。" : "",
@@ -213,6 +215,7 @@ export async function readTimingConfirmation(storage, input) {
   return messageTimingView(
     message,
     (await storage.get(stateKey(input.accountId))) || {},
+    (await storage.get("agenda:timingCollection:" + input.accountId)) || null,
   );
 }
 export async function saveTimingConfirmation(storage, input, now = Date.now()) {
@@ -229,6 +232,9 @@ export async function saveTimingConfirmation(storage, input, now = Date.now()) {
     throw new InputError("確定する日時の内容を確認してください");
   const value = input.reset === true ? null : normalizeTimingValue(input.value);
   return storage.transaction(async (tx) => {
+    const collectionRevision = (await tx.get("agenda:timingCollection:" + input.accountId)) || null;
+    if ((input.collectionRevision ?? null) !== collectionRevision)
+      throw new InputError("確定日時の整理・復元後に開いた最新の画面から保存してください");
     const message = await selectedMessage(tx, input);
     const operations = await tx.list({prefix:"agenda:operation:"+input.accountId+":",limit:1001});
     if (operations.size > 1000) throw new InputError("登録記録の照合上限です。日時は変更せず停止しました");
@@ -236,7 +242,7 @@ export async function saveTimingConfirmation(storage, input, now = Date.now()) {
       throw new InputError("この日時の予定登録結果が未確認です。先に登録結果を照合してください");
     const key = stateKey(input.accountId),
       records = (await tx.get(key)) || {};
-    const view = await messageTimingView(message, records);
+    const view = await messageTimingView(message, records, collectionRevision);
     const timing = view.timings.find(
       (timing) => timing.timingId === input.timingId,
     );
@@ -268,6 +274,6 @@ export async function saveTimingConfirmation(storage, input, now = Date.now()) {
     });
     // 解除後も版を残し、保存前→解除後の古いフォームによる上書きを止める。
     await tx.put(key, updated);
-    return messageTimingView(message, updated);
+    return messageTimingView(message, updated, collectionRevision);
   });
 }

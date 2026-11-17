@@ -41,6 +41,7 @@ const namespaces = [
   "manualHistory",
   "operation",
   "timingConfirmations",
+  "timingCollection",
   "cases",
   "caseSplits",
 ];
@@ -178,6 +179,7 @@ export async function agendaRestoreEntries(storage, backup) {
       const records = normalizeTimingRecords(item.timingConfirmations);
       for (const record of Object.values(records)) record.revision = crypto.randomUUID();
       entries.set("agenda:timingConfirmations:" + account.id, records);
+      entries.set("agenda:timingCollection:" + account.id, crypto.randomUUID());
     }
     if (account.label) {
       const key = "agenda:label:" + account.id,

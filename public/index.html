@@ -15,12 +15,13 @@
     <script type="module" src="/drive-meetings-ui.js?v=1"></script>
     <script type="module" src="/weekly-report-ui.js?v=cards1"></script>
     <script type="module" src="/motion-ui.js?v=confirm1"></script>
-    <script type="module" src="/home-ui.js?v=body-coverage1"></script>
+    <script type="module" src="/home-ui.js?v=timing-cleanup1"></script>
     <script type="module" src="/backup-ui.js?v=meetings1"></script>
-    <script type="module" src="/agenda-ui.js?v=recovery1"></script>
+    <script type="module" src="/agenda-ui.js?v=timing-cleanup1"></script>
     <script type="module" src="/slack-ui.js"></script>
     <script type="module" src="/notes-ui.js"></script>
     <script type="module" src="/health-ui.js?v=recovery1"></script>
+    <script type="module" src="/timing-cleanup-ui.js"></script>
     <script type="module" src="/mail-rules-ui.js?v=3"></script>
     <script type="module" src="/desktop-ui.js"></script>
   </head>
@@ -328,6 +329,7 @@
             <button id="agendaSync" class="button button-small">
               全接続のメールを取得
             </button>
+            <button id="timingCleanupOpen" class="button button-small">一覧外の確定日時を整理</button>
             <p>
               メールは毎時、直近14日の新着100件を取得し、続きがある接続には重要候補の検索枠100件を追加します。重複を除き最大200件です。検索・重要判定には漏れや誤判定があり、全重要メールの取得は保証しません。「すべて」から取得済みのメールを確認できます。表示名は分類ルールに影響しません。接続は5件まで。追加時は「アカウントを追加・再接続」から別のGoogleアカウントを選んでください。添付ファイルは読みません。
             </p>
@@ -912,6 +914,23 @@
           Googleの認可画面へ
         </button>
       </form>
+    </dialog>
+    <dialog id="timingCleanupDialog" class="settings-dialog" data-preserve-draft>
+      <div class="dialog-body">
+        <div class="dialog-top"><h2>一覧外の確定日時を整理</h2><button id="timingCleanupClose" class="icon-button" aria-label="日時の整理を閉じる">×</button></div>
+        <p id="timingCleanupAccount"></p>
+        <p>このサイトの確定日時だけを整理します。Gmailのメール・Googleカレンダーの予定は変更しません。保存済み一覧にあるメール、予定登録・照合プレビュー・履歴・結果未確認の索引に関連する記録は保護します。</p>
+        <p>整理した記録はこの画面から元に戻せません。必要な場合は、先に「接続と設定」でバックアップしてください。</p>
+        <p id="timingCleanupStatus" role="status"></p>
+        <button id="timingCleanupReload" class="button button-small">最新の記録と保護状態を再取得</button>
+        <div id="timingCleanupRows"></div>
+        <button id="timingCleanupPreview" class="button">選択した記録の確認画面へ</button>
+        <section id="timingCleanupConfirmation" hidden>
+          <h3>整理する記録の最終確認</h3><div id="timingCleanupSelected"></div>
+          <label><input id="timingCleanupAcknowledge" type="checkbox">選択した一覧外の確定日時を、このサイトから削除することを確認しました</label>
+          <div class="actions"><button id="timingCleanupBack" class="button button-small">選択に戻る</button><button id="timingCleanupApply" class="button">確認した記録だけを整理</button></div>
+        </section>
+      </div>
     </dialog>
     <dialog id="appointmentDialog" class="settings-dialog">
       <div class="dialog-body">

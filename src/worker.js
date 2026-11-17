@@ -6,6 +6,7 @@ import { configureWeekly, generateWeekly } from "./weekly-drive.js";
 import { previewPriorityRules, savePriorityRules } from "./mail-priority-rules.js";
 import { readTimingConfirmation, saveTimingConfirmation } from "./timing-confirmations.js";
 import { timingCalendarSeed } from "./timing-calendar.js";
+import { prepareTimingCleanup, cleanupTimings } from "./timing-cleanup.js";
 import { healthView } from "./health.js";
 import { notesView, configureNotes, refreshNotes, readNote, stopNotes } from "./notes.js";
 import { NotesError } from "./notes-http.js";
@@ -218,6 +219,7 @@ export class Dashboard extends DurableObject {
         "/mail-split-editor.js",
         "/mail-split-manager.js",
         "/timing-editor.js",
+        "/timing-cleanup-ui.js",
         "/calendar-cards.js",
         "/agenda-ui.js",
         "/slack-ui.js",
@@ -318,6 +320,8 @@ export class Dashboard extends DurableObject {
           splitCase: (_env, storage, input) => saveAgendaSplit(storage,input),
           saveCase: (_env, storage, input) => saveAgendaCase(storage,input),
           timingView: (_env, storage, input) => readTimingConfirmation(storage,input),
+          timingCleanupView: (_env, storage, input) => prepareTimingCleanup(storage,input),
+          cleanupTimings: (_env, storage, input) => cleanupTimings(storage,input),
           timingCalendar: (_env, storage, input) => timingCalendarSeed(storage,input),
           saveTiming: (_env, storage, input) => saveTimingConfirmation(storage,input),
           previewPriorityRules: (_env, storage, input) => previewPriorityRules(storage, input),
