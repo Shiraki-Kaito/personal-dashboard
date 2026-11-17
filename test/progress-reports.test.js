@@ -694,3 +694,94 @@ test("本文の完了日と次の期限を混同せず、前回の定例日と�
   assert.equal(parsed.facts[1].due, "2026-11-22");
   assert.deepEqual(parsed.dates, ["2026-11-17"]);
 });
+
+async function readSheetFixture(valueRanges, errorBody = null) {
+  const f = fixture();
+  await f.storage.put("drive:credential", {
+    token: "fixture",
+    expires: Date.now() + 3600000,
+    accountFingerprint: "fixture",
+    scopes: [driveScope, sheetsReadScope],
+  });
+  const sheet = {
+    ...source,
+    id: "sheet",
+    mimeType: "application/vnd.google-apps.spreadsheet",
+  };
+  return (
+    await readProgressSources(
+      {},
+      f.storage,
+      [sheet],
+      ["白木海斗"],
+      async (url) => {
+        if (errorBody) return Response.json(errorBody, { status: 403 });
+        if (new URL(url).pathname.endsWith("batchGet"))
+          return Response.json({ spreadsheetId: "sheet", valueRanges });
+        return Response.json({
+          spreadsheetId: "sheet",
+          sheets: valueRanges.map((_, index) => ({
+            properties: {
+              sheetId: index,
+              title: "管理" + index,
+              gridProperties: { rowCount: 1000, columnCount: 32 },
+            },
+          })),
+        });
+      },
+    )
+  )[0];
+}
+
+test("Sheetsの空白の確保領域を合算せず、返却データで上限を検証する", async () => {
+  const result = await readSheetFixture([
+    {
+      values: [
+        ["タスク", "状態", "担当者", "完了日"],
+        ["草案作成", "完了", "白木海斗", "2026/11/17"],
+      ],
+    },
+    { values: [] },
+  ]);
+  assert.equal(result.status, "read");
+  assert.equal(result.facts.length, 1);
+  assert.equal(result.facts[0].text.includes("草案作成"), true);
+});
+
+test("Sheetsの実データ超過や指定範囲外の応答は部分実績を作らず停止する", async () => {
+  const fullSheet = {
+    values: Array.from({ length: 1000 }, () => Array(32).fill("x")),
+  };
+  for (const [ranges, expected] of [
+    [[fullSheet, { values: [["x"]] }], /32000セル/],
+    [
+      [{ values: Array.from({ length: 1001 }, () => ["x"]) }],
+      /指定した読み取り範囲/,
+    ],
+    [[{ values: [Array(33).fill("x")] }], /指定した読み取り範囲/],
+    [[{ values: ["invalid row"] }], /指定した読み取り範囲/],
+  ]) {
+    const result = await readSheetFixture(ranges);
+    assert.equal(result.status, "unread");
+    assert.deepEqual(result.facts, []);
+    assert.match(result.checks[0].message, expected);
+  }
+});
+
+test("Google APIの無効・利用制限・権限不足を区別し、生のエラーを表示しない", async () => {
+  for (const [details, errors, expected] of [
+    [[{ reason: "SERVICE_DISABLED" }], [], /API.*無効/],
+    [[], [{ reason: "accessNotConfigured" }], /API.*無効/],
+    [[{ reason: "RATE_LIMIT_EXCEEDED" }], [], /利用制限/],
+    [[], [{ reason: "userRateLimitExceeded" }], /利用制限/],
+    [{ malformed: true }, [], /閲覧権限/],
+    [[], [{ reason: "insufficientPermissions" }], /閲覧権限/],
+  ]) {
+    const result = await readSheetFixture([], {
+      error: { message: "private raw diagnostic", details, errors },
+    });
+    assert.equal(result.status, "unread");
+    assert.match(result.checks[0].message, expected);
+    assert.ok(!JSON.stringify(result).includes("private raw diagnostic"));
+  }
+});

@@ -111,10 +111,44 @@ export function expandReportSources(catalog, request) {
 async function readJson(url, token, send) {
   const response = await readDocument(url, token, send);
   if (!response.ok) {
-    await response.body?.cancel();
+    // Googleの生メッセージには識別子などが入るため、既知の理由だけを安全な表示に変換する。
+    const body = await documentJson(response).catch(() => ({}));
+    const reasons = [body.error?.details, body.error?.errors].flatMap(
+      (entries) =>
+        Array.isArray(entries) ? entries.map((entry) => entry?.reason) : [],
+    );
+    if (
+      response.status === 403 &&
+      reasons.some((reason) =>
+        ["SERVICE_DISABLED", "accessNotConfigured"].includes(reason),
+      )
+    ) {
+      const failure = new InputError(
+        "この資料のGoogle APIが専用Cloudプロジェクトで無効です。APIを有効にしてから再取得してください",
+      );
+      failure.code = "api_disabled";
+      throw failure;
+    }
+    if (
+      response.status === 403 &&
+      reasons.some((reason) =>
+        [
+          "RATE_LIMIT_EXCEEDED",
+          "rateLimitExceeded",
+          "userRateLimitExceeded",
+          "dailyLimitExceeded",
+        ].includes(reason),
+      )
+    ) {
+      const failure = new InputError(
+        "Google APIの利用制限です。時間を置いて再取得してください",
+      );
+      failure.code = "rate_limit";
+      throw failure;
+    }
     const messages = {
       401: "Googleへの再認可が必要です",
-      403: "APIの有効化・閲覧権限・読み取り認可を確認してください",
+      403: "この資料の閲覧権限・読み取り認可を確認してください",
       404: "資料が見つからないか閲覧権限がありません",
       429: "利用制限です。時間を置いて再取得してください",
     };
@@ -144,7 +178,6 @@ async function readSheet(file, token, send) {
         sheet.properties?.title || "",
       ),
   );
-  let cells = 0;
   const checks = [];
   const url = new URL(base + "/values:batchGet");
   for (const sheet of eligible) {
@@ -158,11 +191,6 @@ async function readSheet(file, token, send) {
       throw new InputError("シートの読み取り範囲を確認できません");
     const rows = Math.min(grid.rowCount, maximumSheetRows),
       columns = Math.min(grid.columnCount, maximumSheetColumns);
-    cells += rows * columns;
-    if (cells > maximumCells)
-      throw new InputError(
-        "シートの読み取り上限32000セルを超えます。省略せず停止しました",
-      );
     const column =
       columns > 26
         ? "A" + String.fromCharCode(64 + columns - 26)
@@ -189,6 +217,25 @@ async function readSheet(file, token, send) {
     values.valueRanges?.length !== eligible.length
   )
     throw new InputError("シートの読み取り結果が不足しています");
+  // gridPropertiesは空白の確保領域も含む。返却された有効範囲のセル数を検証する。
+  // 応答自体はdocumentJsonで2MiB、各リクエスト範囲も1000行・32列までに制限済み。
+  let cells = 0;
+  for (const range of values.valueRanges) {
+    const rows = range.values || [];
+    if (
+      !Array.isArray(rows) ||
+      rows.length > maximumSheetRows ||
+      rows.some(
+        (row) => !Array.isArray(row) || row.length > maximumSheetColumns,
+      )
+    )
+      throw new InputError("シートの応答が指定した読み取り範囲を超えています");
+    cells += rows.reduce((sum, row) => sum + row.length, 0);
+    if (cells > maximumCells)
+      throw new InputError(
+        "取得したシートデータが32000セルを超えました。省略して実績を作らず停止しました",
+      );
+  }
   return {
     sheets: eligible.map((sheet, index) => ({
       title: sheet.properties.title,
