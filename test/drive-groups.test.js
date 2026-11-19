@@ -116,7 +116,7 @@ test("不正な色・日付・過大入力・対象外や個人作業のグル�
 });
 test("バックアップに色と進捗を含め、復元後の旧版保存・既存設定の上書きを防ぐ", async () => {
   const s = memory();
-  await saveDriveGroup(s, input());
+  await saveDriveGroup(s, {...input(),importantFileIds:["a"]});
   const env = {
     PROJECT_CONFIG: JSON.stringify({
       projects: [{ project: "p", status_field: "s", due_field: "d" }],
@@ -132,6 +132,7 @@ test("バックアップに色と進捗を含め、復元後の旧版保存・�
   assert.deepEqual(plan.conflicts, []);
   await restoreBackup(env, empty, backup, plan.checksum);
   const restored = await empty.get("drive:groups");
+  assert.deepEqual(restored.records[0].importantFileIds,["a"]);
   assert.notEqual(
     restored.records[0].revision,
     backup.driveGroups.records[0].revision,
@@ -367,4 +368,45 @@ test("保存した手動進捗・次の対応・期限をホームへ渡し、�
   assert.equal(missing.status, "未設定");
   assert.equal(missing.nextAction, "");
   assert.equal(missing.due, "");
+});
+
+
+test("重要資料は既存の取得範囲から選択し、再取得後もIDで新しい名前と更新者を参照する",async()=>{
+ const s=memory();await saveDriveGroup(s,{...input(),importantFileIds:['a','b']});
+ let saved=await s.get('drive:groups'),cache=await s.get('drive:cache');
+ assert.deepEqual(normalizeGroupStore(saved).records[0].importantFileIds,['a','b']);
+ cache.files[0]={...cache.files[0],name:'新しい資料名',lastModifiedBy:'別の担当者'};
+ await s.put('drive:cache',cache);
+ let group=groupView(cache,saved).find(group=>group.path===input().path);
+ assert.equal(group.importantFiles[0].name,'新しい資料名');assert.equal(group.importantFiles[0].lastModifiedBy,'別の担当者');
+ await saveDriveGroup(s,{...input(),expectedRevision:group.revision});
+ saved=await s.get('drive:groups');assert.deepEqual(saved.records[0].importantFileIds,['a','b'],'旧画面からの保存でも選択を落とさない');
+ cache.files=cache.files.filter(file=>file.id!=='a');
+ cache.files[0]={...cache.files[0],folder:'チーム / LP / 個人作業'};
+ group=groupView(cache,saved).find(group=>group.path===input().path);
+ assert.equal(group.importantFiles.every(file=>file.unavailable),true);
+ assert.equal(JSON.stringify(group.importantFiles).includes('新しい資料名'),false);
+});
+
+test("重要資料の対象外・個人作業・重複・上限超過を拒否し、元の記録を保持する",async()=>{
+ const s=memory();
+ for(const ids of [['missing'],['private'],['a','a'],['a','b','c','d','e','f'],['https://example.test']]) {
+  await assert.rejects(saveDriveGroup(s,{...input(),importantFileIds:ids}));
+  assert.equal(await s.get('drive:groups'),undefined);
+ }
+ const record=await saveDriveGroup(s,{...input(),importantFileIds:['a']});
+ await saveDriveGroup(s,{...input(),expectedRevision:record.revision,importantFileIds:[]});
+ assert.deepEqual((await s.get('drive:groups')).records[0].importantFileIds,[]);
+});
+
+test("重要資料はバックアップの正規化を通り、ホームのチーム情報にも含まれる",async()=>{
+ const s=memory();await saveDriveGroup(s,{...input(),path:'チーム / SNS',importantFileIds:['a']});
+ const saved=await s.get('drive:groups');
+ const restored=normalizeGroupStore(JSON.parse(JSON.stringify(saved)));
+ assert.deepEqual(restored.records[0].importantFileIds,['a']);
+ const group=groupView(await s.get('drive:cache'),restored).find(group=>group.path===input().path);
+ const home=homeDriveGroups({unreadChanges:[],groups:[{...group,path:'Root / 100_SNS運用'}]});
+ assert.equal(home.highlighted[0].importantFiles[0].id,'a');
+ const legacy=structuredClone(saved);delete legacy.records[0].importantFileIds;
+ assert.deepEqual(normalizeGroupStore(legacy).records[0].importantFileIds,[]);
 });

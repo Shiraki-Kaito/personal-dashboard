@@ -197,12 +197,17 @@ function renderDrive() {
       const block = element("button", "group-block");
       block.type="button"; block.dataset.homeGroupEdit="true";
       block.dataset.editable=String(!!group.path);
-      block.setAttribute("aria-label",group.name+"の進捗報告を作成");
+      block.setAttribute("aria-label",group.name+"の状況と重要資料を確認");
+      const latestUpdate = group.updates?.[0] || group.latest;
       const header = element("div", "group-card-top");
-      header.append(element("h3", "", group.name));
-      block.append(header, element("p", "group-next", group.latest?.name || "資料から進捗報告を作成"));
-      block.append(element("p", "group-meta", group.latest ? (group.latest.lastModifiedBy || "更新者不明")+" · "+time(group.latest.modifiedTime) : "押して報告の下書きを作る"));
-      block.onclick=()=>emit("dashboard:open-progress-report",{kind:"organizer",path:group.path});
+      header.append(element("h3", "", group.name), element("span", "group-status", group.status === "未設定" ? "状況メモなし" : group.status));
+      block.append(header);
+      if (group.nextAction) block.append(element("p", "group-next", group.nextAction));
+      block.append(element("p", "group-next", latestUpdate?.name || "更新情報は未取得"));
+      block.append(element("p", "group-meta", latestUpdate ? (latestUpdate.lastModifiedBy || "更新者不明")+" · "+time(latestUpdate.modifiedTime) : "押して状況・重要資料を確認"));
+      if (group.due) block.append(element("p", "group-meta", "期限 " + group.due));
+      block.append(element("p", "group-next", group.importantFiles?.length ? "重要資料：" + group.importantFiles.map(file=>file.name).slice(0,2).join("・") : "重要資料を選択できます"));
+      block.onclick=()=>emit("dashboard:edit-drive-group",{path:group.path});
       card.append(block); grid.append(card);
     }
     const other = element("details", "home-drive-other");

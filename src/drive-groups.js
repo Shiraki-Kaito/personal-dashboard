@@ -3,6 +3,12 @@ import { isPersonalWork, unreadChanges } from "./drive-review.js";
 
 export const groupStatuses = ["未設定", "進行中", "確認待ち", "要対応", "完了"];
 const maximumGroups = 80;
+export const maximumImportantFiles = 5;
+function importantIds(value = []) {
+  if (!Array.isArray(value) || value.length > maximumImportantFiles || new Set(value).size !== value.length || value.some(id => typeof id !== "string" || !/^[A-Za-z0-9_-]{1,160}$/.test(id)))
+    throw new InputError("重要資料は重複なしで最大5件まで選択してください");
+  return [...value];
+}
 export const groupColors = [
   "teal",
   "blue",
@@ -57,7 +63,7 @@ export function normalizeGroupStore(value) {
     )
       throw new InputError("グループ設定の入力値が不正です");
     seen.add(record.path);
-    return Object.fromEntries(
+    return { importantFileIds: importantIds(record.importantFileIds), ...Object.fromEntries(
       [
         "path",
         "name",
@@ -68,7 +74,7 @@ export function normalizeGroupStore(value) {
         "revision",
         "updatedAt",
       ].map((key) => [key, record[key]]),
-    );
+    ) };
   });
   const result = { scope: value.scope, records };
   if (new TextEncoder().encode(JSON.stringify(result)).length > maximumBytes)
@@ -135,6 +141,11 @@ export function groupView(cache, saved) {
       return {
         path,
         name: record?.name || path.split(" / ").at(-1),
+        importantFileIds: record?.importantFileIds || [],
+        importantFiles: (record?.importantFileIds || []).map(id => {
+          const file = (cache?.files || []).find(file => file.id === id && !isPersonalWork(file));
+          return file || {id, name:"取得範囲で参照できない資料", unavailable:true};
+        }),
         status: record?.status || "未設定",
         nextAction: record?.nextAction || "",
         due: record?.due || "",
@@ -167,7 +178,11 @@ export async function saveDriveGroup(storage, input) {
     );
     if (!old && !files.length)
       throw new InputError("取得済みのグループを選択してください");
+    const selectedIds = importantIds(input.importantFileIds ?? old?.importantFileIds);
+    if (selectedIds.some(id => !(old?.importantFileIds || []).includes(id) && !cache.files.some(file => file.id === id && !isPersonalWork(file))))
+      throw new InputError("重要資料は現在の取得範囲から選択してください（個人作業は対象外）");
     const record = {
+      importantFileIds: selectedIds,
       path: input.path,
       name: input.name,
       status: input.status,
@@ -244,6 +259,7 @@ export function homeDriveGroups(drive) {
       path: primary?.path || null,
       color: primary?.color || "slate",
       available: matching.some((group) => group.available),
+      importantFiles: primary?.importantFiles || [],
       status: primary?.status || "未設定",
       nextAction: primary?.nextAction || "",
       due: primary?.due || "",

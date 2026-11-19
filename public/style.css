@@ -2329,3 +2329,8 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 
 #notesSearchBar { flex-wrap:wrap; }
 #notesSearchBar .notes-search { min-width:min(100%, 220px); }
+
+.group-important, #groupEditDetails { margin:16px 0; }
+#groupEditDetails summary { cursor:pointer; font-weight:600; }
+#groupEditDetails .group-form { margin-top:16px; }
+#groupImportantSelection .group-recent { display:flex; align-items:center; justify-content:space-between; gap:12px; }

@@ -383,7 +383,7 @@ async function load(refresh = false, acknowledge = null, group = null, display =
     if(display && (!state.groupDisplay || state.groupDisplay.revision===display.expectedRevision || JSON.stringify(state.groupDisplay.overrides)!==JSON.stringify(display.overrides)))throw Error("表示設定の保存結果を照合できません。再送せず再取得して確認してください");
     if (group) {
       const saved = state.groups.find(saved=>saved.path === group.path);
-      if (!saved || saved.revision === group.expectedRevision || ["name","color","status","nextAction","due"].some(key=>saved[key] !== group[key]))
+      if (!saved || saved.revision === group.expectedRevision || ["name","color","status","nextAction","due"].some(key=>saved[key] !== group[key]) || JSON.stringify(saved.importantFileIds || []) !== JSON.stringify(group.importantFileIds || []))
         throw Error("保存結果を照合できません。保存内容を再読込して確認してください");
       document.dispatchEvent(new CustomEvent("dashboard:drive-group-saved",{detail:{name:saved.name}}));
     }

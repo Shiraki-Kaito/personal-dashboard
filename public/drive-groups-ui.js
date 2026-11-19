@@ -2,6 +2,7 @@ import { confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 let current = null;
 let saving = false;
+let selectedImportantIds = [], availableFiles = [];
 let apiSave = null;
 let openGroupFile = null, browseGroup = null;
 let renderedSignature = "";
@@ -31,18 +32,26 @@ function fileLink(file, openFile) {
 export function openDriveGroupEditor(group, state) {
   if (saving) return;
   current = { ...group, scope: state.folderId + ":" + state.includeSubfolders };
-  el("groupEditorHeading").textContent = group.name + "の色と進捗";
+  el("groupEditorHeading").textContent = group.name + "の状況";
+  selectedImportantIds = [...(group.importantFileIds || [])];
+  availableFiles = (state.files || []).filter(file => !file.personal);
+  el("groupFileSearch").value = "";
+  el("groupEditDetails").open = false;
+  renderImportantFiles();
+  renderFileChoices();
   el("groupName").value = group.name;
   el("groupStatus").value = group.status;
   el("groupNext").value = group.nextAction;
   el("groupDue").value = group.due;
   el("groupColor").value = group.color;
   el("groupSaveResult").textContent =
-    "進捗はサイト内の手動記録です。Driveのファイルは変更しません。";
+    "自分用メモと資料の選択を保存します。Driveの元ファイルは変更しません。";
   const updates = el("groupEditorUpdates");
   updates.replaceChildren(element("p", group.path, "group-path"));
   if (!group.available || state.error) updates.append(element("p", "保存情報です。取得状況を確認してください。", "inline-notice"));
-  updates.append(element("h3", "最近のファイル更新"));
+  updates.append(element("p", "把握している状況：" + group.status + (group.due ? " · 期限 " + group.due : ""), "group-meta"));
+  if (group.nextAction) updates.append(element("p", group.nextAction, "group-next"));
+  updates.append(element("h3", "誰が何を更新したか"));
   for (const file of group.recent || []) {
     const row = element("div", undefined, "group-recent");
     row.append(fileLink(file, openGroupFile), element("p", (file.lastModifiedBy || "更新者不明") + " · " + dateTime(file.modifiedTime), "group-meta"));
@@ -182,12 +191,16 @@ export function renderDriveGroups(
       const block = element("button", undefined, "group-block");
       block.type = "button";
       block.disabled = busy;
-      block.setAttribute("aria-label", group.name + "の進捗報告を作成");
+      block.setAttribute("aria-label", group.name + "の状況と重要資料を確認");
       const top = element("div", undefined, "group-card-top");
-      top.append(element("h3", group.name));
-      block.append(top, element("p", group.recent?.[0]?.name || "資料から報告を作成", "group-next"));
+      top.append(element("h3", group.name), element("span", group.status === "未設定" ? "状況メモなし" : group.status, "group-status"));
+      block.append(top);
+      if (group.nextAction) block.append(element("p", group.nextAction, "group-next"));
+      block.append(element("p", group.recent?.[0]?.name || "更新情報は未取得", "group-next"));
       block.append(element("p", group.recent?.[0] ? (group.recent[0].lastModifiedBy || "更新者不明")+" · "+dateTime(group.recent[0].modifiedTime) : "元の資料を読み取り専用で参照", "group-meta"));
-      block.onclick = () => document.dispatchEvent(new CustomEvent("dashboard:open-progress-report",{detail:{kind:"organizer",path:group.path}}));
+      if (group.due) block.append(element("p", "期限 " + group.due, "group-meta"));
+      block.append(element("p", group.importantFiles?.length ? "重要資料：" + group.importantFiles.map(file=>file.name).slice(0,2).join("・") + (group.importantFiles.length > 2 ? " ほか" : "") : "重要資料を選択できます", "group-next"));
+      block.onclick = () => openDriveGroupEditor(group, state);
       card.append(block);
       return card;
     });
@@ -212,6 +225,7 @@ function groupDraft() {
     nextAction: el("groupNext").value.trim(),
     due: el("groupDue").value,
     color: el("groupColor").value,
+    importantFileIds: [...selectedImportantIds],
   };
 }
 async function closeGroupEditor() {
@@ -221,7 +235,7 @@ async function closeGroupEditor() {
     draft &&
     ["name", "status", "nextAction", "due", "color"].some(
       (key) => draft[key] !== current[key],
-    );
+    ) || !!draft && JSON.stringify(draft.importantFileIds) !== JSON.stringify(current.importantFileIds || []);
   if (
     dirty &&
     !(await confirmDiscard("未保存のグループ設定を破棄して閉じますか？"))
@@ -255,4 +269,39 @@ el("groupForm").onsubmit = async (event) => {
     for (const control of el("groupForm").elements) control.disabled = false;
     el("groupEditorClose").disabled = false;
   }
+};
+
+
+function renderImportantFiles() {
+  el("groupImportantLinks").replaceChildren();
+  el("groupImportantSelection").replaceChildren();
+  if (!selectedImportantIds.length) el("groupImportantLinks").append(element("p", "重要資料は未選択です。下の編集欄から選べます。", "group-meta"));
+  for (const id of selectedImportantIds) {
+    const file = availableFiles.find(file=>file.id === id) || {id,name:"取得範囲で参照できない資料",unavailable:true};
+    const linkRow = element("div", undefined, "group-recent");
+    linkRow.append(fileLink(file,openGroupFile));
+    if (!file.unavailable) linkRow.append(element("p", (file.lastModifiedBy || "更新者不明") + " · " + dateTime(file.modifiedTime), "group-meta"));
+    el("groupImportantLinks").append(linkRow);
+    const row = element("div",undefined,"group-recent");
+    const remove = element("button","選択から外す","text-button");
+    remove.type="button";
+    remove.onclick=()=>{ selectedImportantIds=selectedImportantIds.filter(value=>value!==id); importantChanged(); };
+    row.append(element("span",file.name),remove);el("groupImportantSelection").append(row);
+  }
+}
+function renderFileChoices() {
+  const query = el("groupFileSearch").value.trim().toLocaleLowerCase();
+  const files = availableFiles.filter(file=>!selectedImportantIds.includes(file.id) && (file.name+" "+file.folder).toLocaleLowerCase().includes(query));
+  el("groupFileChoice").replaceChildren(new Option("資料を選択", ""), ...files.map(file=>new Option(file.name+" — "+file.folder,file.id)));
+  el("groupFileAdd").disabled=saving || selectedImportantIds.length >= 5 || !files.length;
+}
+function importantChanged() {
+  renderImportantFiles();renderFileChoices();
+  el("groupSaveResult").textContent="重要資料の選択は未保存です。保存するとカードにも反映されます。";
+}
+el("groupFileSearch").oninput=renderFileChoices;
+el("groupFileAdd").onclick=()=>{
+  const id=el("groupFileChoice").value;
+  if(saving || selectedImportantIds.length>=5 || !availableFiles.some(file=>file.id===id) || selectedImportantIds.includes(id)) return;
+  selectedImportantIds.push(id);importantChanged();
 };

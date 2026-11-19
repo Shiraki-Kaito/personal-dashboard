@@ -494,11 +494,11 @@
             </form>
           </details>
           <section class="drive-group-section" aria-labelledby="driveGroupsHeading">
-            <div class="group-section-heading"><div><h3 id="driveGroupsHeading">チーム別の資料・報告</h3><p>保存場所ごとに色分け。色・表示名・進捗をサイトで変更できます。</p></div></div>
+            <div class="group-section-heading"><div><h3 id="driveGroupsHeading">チームの状況</h3><p>4チームの状況と更新を確認。カードから重要資料や自分用メモを開けます。</p></div></div>
             <p id="driveGroupsTime" class="group-meta"></p>
             <p id="driveGroupResult" role="status"></p>
-            <details class="drive-visibility"><summary>カードの表示設定</summary><p>100〜400の4チームを基本表示します。チェックを変更して保存できます。元ファイル・取得・未確認の記録は変わりません。</p><form id="driveVisibilityForm"><div id="driveVisibilityOptions" class="drive-visibility-options"></div><div class="meeting-date-row"><button id="driveVisibilitySave" type="submit" class="button" disabled>表示設定を保存</button><button id="driveVisibilityDefault" type="button" class="text-button">4チームを基本に戻す</button></div><p id="driveVisibilityResult" role="status"></p></form></details>
             <div id="driveGroups" class="drive-groups" aria-label="グループ別の進捗"></div>
+            <details class="drive-visibility"><summary>カードの表示設定</summary><p>100〜400の4チームを基本表示します。チェックを変更して保存できます。元ファイル・取得・未確認の記録は変わりません。</p><form id="driveVisibilityForm"><div id="driveVisibilityOptions" class="drive-visibility-options"></div><div class="meeting-date-row"><button id="driveVisibilitySave" type="submit" class="button" disabled>表示設定を保存</button><button id="driveVisibilityDefault" type="button" class="text-button">4チームを基本に戻す</button></div><p id="driveVisibilityResult" role="status"></p></form></details>
           </section>
           <div class="panel-toolbar">
             <div class="segmented" aria-label="ファイル表示">
@@ -720,16 +720,23 @@
     </main>
     <dialog id="groupEditor" class="settings-dialog" aria-labelledby="groupEditorHeading" data-preserve-draft>
       <div class="panel-heading"><h2 id="groupEditorHeading">グループを設定</h2><button id="groupEditorClose" class="icon-button" type="button" aria-label="グループ設定を閉じる">×</button></div>
+      <p class="group-path">自分がチームの状況を把握するための画面です。報告の下書きは「進捗報告」から作成できます。</p>
+      <div id="groupEditorUpdates"></div>
+      <section class="group-important"><h3>重要資料</h3><p>チームでよく確認する資料を最大5件。選択はこのサイトだけに保存します。</p><div id="groupImportantLinks"></div></section>
+      <details id="groupEditDetails"><summary>重要資料を選ぶ・自分用メモを編集</summary>
       <form id="groupForm" class="group-form">
+        <label>資料を探す<input id="groupFileSearch" type="search" placeholder="ファイル名・保存場所" autocomplete="off"></label>
+        <label>取得済みの資料<select id="groupFileChoice"></select></label><button type="button" id="groupFileAdd" class="button">重要資料に追加</button>
+        <div id="groupImportantSelection"></div>
         <label>グループ表示名<input id="groupName" maxlength="80" required></label>
-        <label>進捗<select id="groupStatus"><option>未設定</option><option>進行中</option><option>確認待ち</option><option>要対応</option><option>完了</option></select></label>
-        <label>次にすること<textarea id="groupNext" maxlength="500" rows="3"></textarea></label>
+        <label>自分が把握している状況<select id="groupStatus"><option>未設定</option><option>進行中</option><option>確認待ち</option><option>要対応</option><option>完了</option></select></label>
+        <label>確認したいこと・次の動き（自分用メモ）<textarea id="groupNext" maxlength="500" rows="3"></textarea></label>
         <label>期限（日本時間・任意）<input id="groupDue" type="date"></label>
         <label>グループの色<select id="groupColor"><option value="teal">ティール</option><option value="blue">ブルー</option><option value="violet">パープル</option><option value="amber">オレンジ</option><option value="rose">ピンク</option><option value="green">グリーン</option><option value="slate">グレー</option></select></label>
         <p id="groupSaveResult" role="status"></p>
-        <button id="groupSave" class="primary-button" type="submit">グループ設定を保存</button>
+        <button id="groupSave" class="primary-button" type="submit">状況・重要資料を保存</button>
       </form>
-      <div id="groupEditorUpdates"></div>
+      </details>
     </dialog>
     <dialog id="fileDialog" class="detail-dialog">
       <div class="dialog-body">
