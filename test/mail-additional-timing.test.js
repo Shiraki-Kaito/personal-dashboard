@@ -20,7 +20,7 @@ function memory(messageValue) {
   const values = new Map([
     ["agenda:accounts", [{ id: "a", email: "a@example.test", calendar: "primary" }]],
     ["agenda:credential:a", { token: "fixture", expires: Date.now() + 3600000 }],
-    ["agenda:cache:a", { messages: [messageValue] }],
+    ["agenda:cache:a", { messages: messageValue ? [messageValue] : [] }],
   ]);
   const storage = {
     get: async key => structuredClone(values.get(key)),

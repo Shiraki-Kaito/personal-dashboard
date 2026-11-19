@@ -313,3 +313,21 @@ test("本文を整理したメールのバックアップ復元で未保存状�
   invalid.agenda[0].cache.messages[0].timingText="隠した本文";
   await assert.rejects(backupPlan(env,target,invalid));
 });
+
+
+test("個別本文保存の本人指定と取得時刻をバックアップ復元する",async()=>{
+  const {source,target,accounts}=await fixture();
+  const key="agenda:cache:"+accounts[0].id;
+  const cache=await source.get(key);
+  Object.assign(cache.messages[0],{keepBody:true,bodyRetrievedAt:new Date().toISOString(),bodyRetention:"protected"});
+  await source.put(key,cache);
+  const backup=await createBackup(env,source);
+  const plan=await backupPlan(env,target,backup);
+  await restoreBackup(env,target,backup,plan.checksum);
+  const restored=(await target.get(key)).messages[0];
+  assert.equal(restored.keepBody,true);
+  assert.equal(restored.bodyRetrievedAt,cache.messages[0].bodyRetrievedAt);
+  const invalid=structuredClone(backup);
+  invalid.agenda[0].cache.messages[0].keepBody="true";
+  await assert.rejects(backupPlan(env,target,invalid));
+});

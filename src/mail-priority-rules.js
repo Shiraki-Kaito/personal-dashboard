@@ -71,6 +71,8 @@ function matchesSender(address, entries) {
 // カスタム設定は保存済み件名・抜粋だけを使う。差出人の真正性は保証しない。
 export function priorityWithRules(message, rules = emptyPriorityRules()) {
   const builtin = currentMailPriority(message);
+  if (message.keepBody === true)
+    return {...builtin,important:true,reason:"本人がこのメールを重要として本文保存"};
   // 本文整理後に除外語句だけ消えて重要扱いへ戻ることを防ぐ。設定変更は再取得時に適用する。
   if (message.bodyCoverage === "excluded")
     return { ...builtin, important: false, reason: "本文未保存（優先設定の反映にはメールを再取得）" };

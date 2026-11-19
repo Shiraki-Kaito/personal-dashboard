@@ -1,3 +1,4 @@
+import { reviewMailBody } from "./mail-body-review.js";
 import { previewProgressRestore, restoreProgressReports, archiveProgressReport, exportProgressReports, progressReportView, generateProgressReport, loadProgressReport, saveProgressReport } from "./progress-reports.js";
 import { saveAgendaCase, saveAgendaSplit, manageAgendaSplit } from "./agenda-home.js";
 import { saveDriveGroup } from "./drive-groups.js";
@@ -356,6 +357,10 @@ export class Dashboard extends DurableObject {
           },
           calendar: refreshAgendaCalendar,
           refresh: refreshAgenda,
+          reviewBody: async (env,storage,input) => {
+            await reviewMailBody(env,storage,input);
+            return agendaView(env,storage,input.accountId);
+          },
           preview: previewAppointment,
           register: registerAppointment,
           reconcile: reconcileAppointment,

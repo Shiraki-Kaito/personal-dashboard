@@ -31,6 +31,9 @@ export function limitTimingText(messages, budget = maximumCachedTimingBytes) {
 export function validBodyCoverage(message) {
   return (message.bodyCoverage === undefined ||
     ["complete", "partial", "unavailable", "capacity", "excluded"].includes(message.bodyCoverage)) &&
+    (message.keepBody === undefined || typeof message.keepBody === "boolean") &&
+    (message.bodyRetrievedAt === undefined || (typeof message.bodyRetrievedAt === "string" && Number.isFinite(Date.parse(message.bodyRetrievedAt)))) &&
+    (message.bodyCoverage !== "excluded" || message.keepBody !== true) &&
     (message.bodyRetention === undefined || ["important", "protected", "excluded"].includes(message.bodyRetention)) &&
     (message.bodyCoverage !== "excluded" || (message.excerpt === "" && message.timingText === undefined)) &&
     (message.timingText === undefined ||
@@ -42,7 +45,7 @@ export function validBodyCoverage(message) {
 
 export function mailBodyNotice(message) {
   if (message.bodyCoverage === "excluded")
-    return "重要条件に未一致のため本文をアプリに保存していません。Gmailの原文は削除していません。必要なメールは優先設定を変更して「全接続のメールを取得」で再取得してください。";
+    return "重要条件に未一致のため本文をアプリに保存していません。Gmailの原文は削除していません。必要なメールは「このメールを重要として本文を再取得」で個別に保存できます。";
   if (message.bodyCoverage === "unavailable")
     return (message.excerpt ? "本文を取得できず、Gmailの短い抜粋だけを使用しています。" : "本文・抜粋を取得できていません。") + "原文・添付・リンク先の日時は確認できていません。Gmailで確認してください。";
   if (message.bodyCoverage === "capacity")

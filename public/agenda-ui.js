@@ -39,6 +39,8 @@ function controls() {
     "appointmentPreview",
     "appointmentReconcile",
     "appointmentReview",
+    "mailBodyKeep",
+    "mailBodyAutomatic",
   ])
     el(id).disabled = busy;
   for (const button of el("managedAccounts").querySelectorAll("button"))
@@ -55,6 +57,8 @@ function controls() {
   el("agendaMore").disabled ||= state?.mailJob?.active || state?.accounts.find(a => a.id === state.accountId)?.disconnectedAt;
   el("agendaSync").disabled ||=
     !state?.accounts.length || state?.mailJob?.active;
+  for (const id of ["mailBodyKeep", "mailBodyAutomatic"])
+    el(id).disabled ||= !current?.bodyRevision || !!state?.mailJob?.active || state?.accounts.find(a => a.id === state.accountId)?.disconnectedAt;
   el("agendaLabelSave").disabled ||= !state?.accountId;
   el("timingCleanupOpen").disabled ||= !state?.accountId;
   el("agendaManual").disabled ||= !state?.accountId;
@@ -113,6 +117,12 @@ function openMessage(message) {
     "：" +
     (message.candidate.reasons.join("・") ||
       "抽出結果と原文を確認してください") + (message.bodyNotice ? " ／ " + message.bodyNotice : message.contentLimited ? " ／ 本文の一部だけを解析しています。Gmailの原文を確認してください。" : "");
+  el("mailBodyReviewControls").hidden = !!message.manual || !message.bodyRevision;
+  el("mailBodyAutomatic").hidden = !message.keepBody;
+  el("mailBodyKeep").textContent = message.keepBody ? "このメールの本文を再取得" : "このメールを重要として本文を再取得";
+  el("mailBodyReviewStatus").textContent = message.keepBody
+    ? "本人指定で重要として保持しています。自動取得の対象範囲内で本文を保持します。" + (message.bodyRetrievedAt ? " 個別取得 " + time(message.bodyRetrievedAt) : "")
+    : "選んだ1通だけを読み直します。重要として保存し、Gmailの原文は変更しません。";
   el("appointmentExcerpt").textContent = message.excerpt;
   el("appointmentMailLink").href = message.url;
   el("appointmentMailLink").hidden = !!message.manual && !message.timingRef;
@@ -291,6 +301,8 @@ function render() {
         meta.textContent = `${message.review ? "確認済み・対応不要" : message.operation?.phase || (typeof message.candidate.isCandidate === "boolean" ? message.candidate.status : "候補判定の更新待ち")} · ${time(message.receivedAt)} · ${message.from}`;
         if (state.priorityIds?.includes(message.id) && !state.standardIds?.includes(message.id))
           meta.textContent = "通常100件の外から補完 · " + meta.textContent;
+        if (message.keepBody) meta.textContent = "本人指定・本文保持 · " + meta.textContent;
+        else if (message.bodyCoverage === "excluded") meta.textContent = "本文未保存 · " + meta.textContent;
         row.append(title, meta);
         row.onclick = () => openMessage(message);
         return row;
@@ -362,7 +374,7 @@ async function run(body = null, accountId) {
   controls();
   try {
     state = await api(body, accountId);
-    if (["register","reconcile"].includes(body?.action)) document.dispatchEvent(new CustomEvent("dashboard:agenda-changed"));
+    if (["register","reconcile","reviewBody"].includes(body?.action)) document.dispatchEvent(new CustomEvent("dashboard:agenda-changed"));
     render();
     if (current && el("appointmentDialog").open) {
       if (current.manual) {
@@ -929,3 +941,21 @@ async function initializeAgenda() {
 initializeAgenda();
 
 document.addEventListener("dashboard:priority-rules-saved",()=>run());
+
+async function reviewCurrentMailBody(keepBody) {
+  if (busy || !current?.bodyRevision || state?.mailJob?.active) return;
+  const input = {action:"reviewBody",accountId:state.accountId,messageId:current.id,revision:current.bodyRevision,keepBody,confirm:true};
+  const approved = await confirmAction(
+    current.subject + "\n\n" + (keepBody
+      ? "このメールだけを再取得し、重要として本文を保存します。自動取得の対象範囲内で保持し、Gmailは変更しません。表示中の予定入力欄は再読込されます。"
+      : "本人指定を解除して自動判定に戻します。重要でない本文はアプリから整理します。確定日時・予定登録に関係する記録は保護し、Gmailは変更しません。"),
+    keepBody ? "再取得して保存" : "自動判定に戻す",
+  );
+  if (!approved) return;
+  if (await run(input))
+    el("mailBodyReviewStatus").textContent = keepBody
+      ? "このメールを再取得し、重要として保存しました。本文の確認範囲は上の案内をご確認ください。"
+      : "自動判定に戻しました。重要判定や保護対象に該当する本文は保持しています。";
+}
+el("mailBodyKeep").onclick = () => reviewCurrentMailBody(true);
+el("mailBodyAutomatic").onclick = () => reviewCurrentMailBody(false);

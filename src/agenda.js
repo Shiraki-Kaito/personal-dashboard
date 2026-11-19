@@ -1,3 +1,4 @@
+import { mailBodyRevision } from "./mail-body-review.js";
 import { retainImportantMailBodies } from "./mail-body-retention.js";
 import { prioritySearchPlan, mailRetrievalView, standardMessages, priorityMessages, mergeMailLanes, maximumMailMessages } from "./mail-retrieval.js";
 import { queueCalendarSync } from "./calendar-scheduler.js";
@@ -111,6 +112,7 @@ export async function agendaView(env, storage, id) {
       (cache.messages || []).map(async ({ timingText, ...message }) => ({
         ...message,
         bodyNotice: mailBodyNotice({ ...message, timingText }),
+        bodyRevision: await mailBodyRevision({...message,timingText}),
         priority: priorityWithRules(message, priorityRules.rules),
         review: reviews[message.id] || null,
         operation:
