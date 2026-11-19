@@ -25,6 +25,7 @@ function element(tag, text, className) {
 function fileLink(file, openFile) {
   const button = element("button", file.name, "group-file");
   button.type = "button";
+  if (file.folder) button.append(element("span", file.folder, "group-file-path"));
   button.disabled = !!file.unavailable;
   button.onclick = () => openFile(file);
   return button;
@@ -286,7 +287,7 @@ function renderImportantFiles() {
     const remove = element("button","選択から外す","text-button");
     remove.type="button";
     remove.onclick=()=>{ selectedImportantIds=selectedImportantIds.filter(value=>value!==id); importantChanged(); };
-    row.append(element("span",file.name),remove);el("groupImportantSelection").append(row);
+    row.append(element("span",file.name + (file.folder ? " — " + file.folder : "")),remove);el("groupImportantSelection").append(row);
   }
 }
 function renderFileChoices() {

@@ -111,3 +111,17 @@
 .nav-button[hidden],#homeSlackStatus[hidden],#notesWorkspace[hidden],#notesSearchBar[hidden] {display:none!important;}
 
 .overview-warning.overview-information { color:#36576c; border-color:#ccdbe5; background:#f3f7fa; }
+
+/* 狭幅・拡大表示でも、長いチーム詳細から常に閉じられるようにする。 */
+#groupEditor { scroll-padding-top:100px; }
+#groupEditor > .panel-heading {
+  position:sticky; top:0; z-index:3; background:#fff; border-bottom:1px solid var(--border);
+  display:grid; grid-template-columns:minmax(0,1fr) 44px; align-items:center; padding:14px 18px;
+}
+#groupEditorHeading { margin:0; overflow-wrap:anywhere; font-size:1.1rem; }
+#groupEditorClose { min-width:44px; min-height:44px; }
+#groupEditor > .group-path, #groupEditor > .group-important, #groupEditDetails { margin:16px 20px; }
+#groupEditor input, #groupEditor select, #groupEditor textarea, #groupEditDetails summary { scroll-margin-top:100px; }
+#groupEditor .group-file-path { display:block; margin-top:4px; font-size:.8rem; font-weight:400; color:var(--muted); overflow-wrap:anywhere; }
+#groupImportantSelection .group-recent > span { min-width:0; overflow-wrap:anywhere; }
+#groupImportantSelection .group-recent > button { flex-shrink:0; }
