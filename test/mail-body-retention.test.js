@@ -86,3 +86,60 @@ test("本文整理後の設定プレビューは再取得が必要な件数を�
   const preview=await previewPriorityRules(store,{accountId:'a',rules:{...emptyPriorityRules(),prioritySenders:['notice@example.test']}});
   assert.equal(preview.unavailableCount,1);
 });
+
+test("Cron経路で分割取得・再起動・通信再試行を経ても重要本文と不要本文の整理を確定する",async()=>{
+  const {queueMailSync,runMailBatch}=await import('../src/mail-scheduler.js');
+  const now=Date.now();
+  function durableMemory(records) {
+    const store={
+      records,
+      get:async key=>structuredClone(records.get(key)),
+      put:async(key,value)=>records.set(key,structuredClone(value)),
+      delete:async key=>records.delete(key),
+    };
+    store.transaction=async action=>action(store);
+    return store;
+  }
+  let store=durableMemory(new Map([
+    ['agenda:accounts',[{id:'a',email:'a@example.test'}]],
+    ['agenda:credential:a',{token:'fixture',expires:now+3600000}],
+    ['agenda:cache:a',{messages:[message('ff','選考の提出依頼')],lastSuccess:new Date(now-3600000).toISOString()}],
+  ]));
+  let fail=false;
+  const send=async url=>{
+    const endpoint=new URL(url);
+    if(fail) throw Error('simulated network failure');
+    if(endpoint.pathname.endsWith('/messages')) {
+      const second=endpoint.searchParams.get('pageToken')==='page2';
+      return Response.json({messages:Array.from({length:20},(_,i)=>({id:(i+(second?20:0)).toString(16)})),...(second?{}:{nextPageToken:'page2'})});
+    }
+    const id=endpoint.pathname.split('/').at(-1);
+    return Response.json({id,internalDate:String(now),payload:{mimeType:'text/plain',headers:[{name:'Subject',value:parseInt(id,16)%20<5?'選考の提出依頼':'セールのお知らせ'}],body:{data:Buffer.from(body).toString('base64url')}}});
+  };
+  await queueMailSync(store,now); // sourceの既定値は実Cronと同じcron。
+  let job=await store.get('agenda:mailJob');
+  await runMailBatch({},store,send,job.nextAt);
+  assert.equal((await store.get('agenda:cache:a')).messages[0].id,'ff');
+  // 保存した途中状態から再起動する。通信失敗でも前回成功の一覧を残す。
+  store=durableMemory(structuredClone(store.records));
+  fail=true;
+  job=await store.get('agenda:mailJob');
+  await runMailBatch({},store,send,job.nextAt);
+  assert.equal((await store.get('agenda:cache:a')).messages[0].id,'ff');
+  job=await store.get('agenda:mailJob');
+  assert.equal(job.retries,1);
+  fail=false;
+  await runMailBatch({},store,send,job.nextAt);
+  const cache=await store.get('agenda:cache:a');
+  assert.equal(cache.error,null);
+  assert.equal(cache.messages.length,40);
+  assert.equal(cache.messages.filter(m=>m.bodyCoverage==='excluded').length,30);
+  assert.equal(cache.messages.filter(m=>m.timingText===body).length,10);
+  assert.equal(cache.messages.filter(m=>m.bodyCoverage==='capacity').length,0);
+  assert.equal(await store.get('agenda:mailJob'),undefined);
+  const history=await store.get('agenda:history:a');
+  assert.equal(history[0].source,'cron');
+  assert.equal(history[0].outcome,'success');
+  assert.equal(history[0].pages,2);
+  assert.equal(history[1].outcome,'failure');
+});
