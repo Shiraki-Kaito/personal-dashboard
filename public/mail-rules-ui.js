@@ -146,7 +146,8 @@ el("mailRulesPreview").onclick = async () => {
       result.important +
       "件。分類が変わるメール " +
       result.changedCount +
-      "件。先頭10件まで表示します。未取得のメールは含みません。";
+      "件。先頭10件まで表示します。未取得のメールは含みません。" +
+      (result.unavailableCount ? ` 本文未保存の${result.unavailableCount}件は再判定できません。保存後に「全接続のメールを取得」で再取得してください。` : "");
     el("mailRulesResult").replaceChildren(
       ...result.changed.map((message) => {
         const row = document.createElement("li");
@@ -188,7 +189,7 @@ el("mailRulesSave").onclick = async () => {
     previewKey = null;
     el("mailRulesConfirm").checked = false;
     el("mailRulesStatus").textContent =
-      "保存しました。ホームとメール一覧へ反映します。元メール・確認記録・予定は変更していません。";
+      "保存しました。本文未保存のメールは「全接続のメールを取得」で再判定・再保存します。元メール・確認記録・予定は変更していません。";
     document.dispatchEvent(new CustomEvent("dashboard:agenda-changed"));
     document.dispatchEvent(new CustomEvent("dashboard:priority-rules-saved"));
   } catch (error) {

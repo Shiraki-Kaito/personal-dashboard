@@ -293,3 +293,23 @@ test("復元した登録済み操作はGET照合だけで成功へ戻し、予�
     false,
   );
 });
+
+
+test("本文を整理したメールのバックアップ復元で未保存状態を維持し、確定操作は消さない", async () => {
+  const { source, target, accounts } = await fixture();
+  const key = "agenda:cache:" + accounts[0].id;
+  const cache = await source.get(key);
+  cache.messages[0] = {...cache.messages[0], excerpt:"", bodyCoverage:"excluded",bodyRetention:"excluded",contentLimited:true};
+  await source.put(key,cache);
+  const backup=await createBackup(env,source);
+  const plan=await backupPlan(env,target,backup);
+  await restoreBackup(env,target,backup,plan.checksum);
+  const restored=(await target.get(key)).messages[0];
+  assert.equal(restored.bodyCoverage,"excluded");
+  assert.equal(restored.bodyRetention,"excluded");
+  assert.equal(restored.excerpt,"");
+  assert.ok(await target.get("agenda:operation:"+accounts[0].id+":abc"));
+  const invalid=structuredClone(backup);
+  invalid.agenda[0].cache.messages[0].timingText="隠した本文";
+  await assert.rejects(backupPlan(env,target,invalid));
+});

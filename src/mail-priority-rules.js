@@ -71,6 +71,9 @@ function matchesSender(address, entries) {
 // カスタム設定は保存済み件名・抜粋だけを使う。差出人の真正性は保証しない。
 export function priorityWithRules(message, rules = emptyPriorityRules()) {
   const builtin = currentMailPriority(message);
+  // 本文整理後に除外語句だけ消えて重要扱いへ戻ることを防ぐ。設定変更は再取得時に適用する。
+  if (message.bodyCoverage === "excluded")
+    return { ...builtin, important: false, reason: "本文未保存（優先設定の反映にはメールを再取得）" };
   const sender = senderAddress(message.from);
   const context = (
     (message.subject || "") +
@@ -128,6 +131,7 @@ export async function previewPriorityRules(storage, input) {
   });
   return {
     total: messages.length,
+    unavailableCount: messages.filter(message => message.bodyCoverage === "excluded").length,
     important: messages.filter(
       (message) => priorityWithRules(message, rules).important,
     ).length,

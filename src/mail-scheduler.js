@@ -1,3 +1,5 @@
+import { limitTimingText } from "./mail-body-coverage.js";
+import { retainImportantMailBodies } from "./mail-body-retention.js";
 import { priorityRulesView } from "./mail-priority-rules.js";
 import {
   prioritySearchPlan,
@@ -99,7 +101,7 @@ export async function runMailBatch(
       send,
       priorityPhase ? job.priorityPlan.query : standardMailQuery,
     );
-    const messages = [...job.messages, ...page.messages];
+    const messages = limitTimingText([...job.messages, ...page.messages]);
     if (
       messages.length > maximumMessages ||
       new Set(messages.map((m) => m.id)).size !== messages.length ||
@@ -149,7 +151,7 @@ export async function runMailBatch(
     const regular = priorityPhase ? job.standardMessages : messages;
     const supplement = priorityPhase ? messages : [];
     const regularIds = regular.map((message) => message.id);
-    const combined = mergeMailLanes(regular, supplement);
+    const combined = mergeMailLanes(await retainImportantMailBodies(storage, account.id, regular), await retainImportantMailBodies(storage, account.id, supplement));
     const standardToken = priorityPhase
       ? job.standardNextPageToken
       : page.nextPageToken;

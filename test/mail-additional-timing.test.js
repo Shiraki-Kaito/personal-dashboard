@@ -120,7 +120,7 @@ test("本文取得と保存の上限、参照だけの本文、空本文、旧�
   for (const [index,payload] of payloads.entries()) {
     const result = await readMailPage({},memory(null),{id:"a",email:"a@example.test"},null,async url => {
       if(new URL(url).pathname.endsWith("/messages"))return Response.json({messages:[{id:"abc"}]});
-      return Response.json({id:"abc",internalDate:String(now),snippet:index===2?"":"抜粋",payload:{...payload,headers:[]}});
+      return Response.json({id:"abc",internalDate:String(now),snippet:index===2?"":"抜粋",payload:{...payload,headers:[{name:"Subject",value:"面接日時のご連絡"}]}});
     });
     const mail = result.messages[0];
     assert.equal(mail.bodyCoverage,index===0?"partial":"unavailable");

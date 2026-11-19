@@ -1,8 +1,9 @@
+import { retainImportantMailBodies } from "./mail-body-retention.js";
 import { standardMailQuery } from "./mail-retrieval.js";
 import { agendaClient, AgendaError } from "./agenda-google.js";
 import { extractAppointment, decodeMessageContent } from "./agenda-rules.js";
 import { mailPriority } from "./agenda-priority.js";
-import { maximumTimingTextCharacters, maximumPageTimingBytes, limitTimingText } from "./mail-body-coverage.js";
+import { maximumTimingTextCharacters } from "./mail-body-coverage.js";
 export async function readMailPage(
   env,
   storage,
@@ -99,7 +100,7 @@ export async function readMailPage(
     });
   }
   return {
-    messages: limitTimingText(messages, maximumPageTimingBytes),
+    messages: await retainImportantMailBodies(storage, account.id, messages),
     nextPageToken: page.nextPageToken || null,
     estimate: Number.isFinite(page.resultSizeEstimate)
       ? page.resultSizeEstimate

@@ -247,11 +247,12 @@ function render() {
   const searchLink = el("mailPrioritySearchLink");
   searchLink.hidden = !connection || !coverage?.query;
   if (!searchLink.hidden) searchLink.href = "https://mail.google.com/mail/u/" + encodeURIComponent(connection.email) + "/#search/" + encodeURIComponent(coverage.query);
-  const contentLimitedCount = state.messages.filter(message=>message.contentLimited).length;
+  const excludedBodyCount = state.messages.filter(message=>message.bodyCoverage === "excluded").length;
+  const contentLimitedCount = state.messages.filter(message=>message.contentLimited && message.bodyCoverage !== "excluded").length;
   el("agendaStatus").textContent = !state.accounts.length
     ? "未接続です。追加認可を行ったアカウントだけを取得します。"
-    : `取得済み ${state.messages.length}件 ／ 最終試行 ${time(state.lastAttempt)} ／ 最終成功 ${time(state.lastSuccess)}` +
-      (contentLimitedCount ? " ／ 本文一部のメール "+contentLimitedCount+"件・原文を確認してください" : "") +
+    : `取得済み ${state.messages.length}件（重要・保護対象の本文を保存、その他 ${excludedBodyCount}件は件名・リンクのみ） ／ 最終試行 ${time(state.lastAttempt)} ／ 最終成功 ${time(state.lastSuccess)}` +
+      (contentLimitedCount ? " ／ 本文の確認範囲に案内があるメール "+contentLimitedCount+"件・詳細と原文を確認してください" : "") +
       (connection?.disconnectedAt ? " ／ 接続停止中・保存情報です" : "") +
       (state.mailJob?.active
         ? " ／ メールの自動・分割取得中（前回の成功分を表示）"

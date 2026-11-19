@@ -24,7 +24,7 @@ const pick = (value, keys) =>
     keys.filter((k) => value?.[k] !== undefined).map((k) => [k, value[k]]),
   );
 const cacheKeys = ["lastAttempt", "lastSuccess", "limited"];
-const messageKeys = ["id", "subject", "from", "receivedAt", "excerpt", "contentLimited", "bodyCoverage", "timingText"];
+const messageKeys = ["id", "subject", "from", "receivedAt", "excerpt", "contentLimited", "bodyCoverage", "timingText", "bodyRetention"];
 const operationKeys = [
   "eventId",
   "targetAccountId",

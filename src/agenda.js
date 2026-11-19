@@ -1,3 +1,4 @@
+import { retainImportantMailBodies } from "./mail-body-retention.js";
 import { prioritySearchPlan, mailRetrievalView, standardMessages, priorityMessages, mergeMailLanes, maximumMailMessages } from "./mail-retrieval.js";
 import { queueCalendarSync } from "./calendar-scheduler.js";
 import { disconnectAccount, clearAccountCache, previewAccountDeletion, deleteAccount } from "./agenda-management.js";
@@ -195,7 +196,7 @@ export async function refreshAgenda(
     fetchedCount = messages.length;
     const regular = input.more ? [...standardMessages(cache), ...messages] : messages;
     const supplement = page.nextPageToken ? priorityMessages(cache) : [];
-    const combined = mergeMailLanes(regular,supplement);
+    const combined = mergeMailLanes(await retainImportantMailBodies(storage, account.id, regular), await retainImportantMailBodies(storage, account.id, supplement));
     const ids = new Set(regular.map((m) => m.id));
     if (regular.length > maxMessages || ids.size !== regular.length)
       throw new AgendaError(
