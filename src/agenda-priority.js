@@ -1,9 +1,11 @@
-export const mailPriorityVersion = 2;
+import { maximumTimingTextCharacters } from "./mail-body-coverage.js";
+import { currentMailText } from "./mail-intent.js";
+export const mailPriorityVersion = 3;
 // 表示上の優先判定であり、送信者の本人性や安全性を保証しない。
 export function mailPriority(message, body = message.excerpt || "") {
   const subject = (message.subject || "").normalize("NFKC");
   const from = message.from || "";
-  const context = subject + "\n" + body.slice(0, 2000).normalize("NFKC");
+  const context = subject + "\n" + currentMailText(body, maximumTimingTextCharacters).normalize("NFKC");
   const school =
     /@[^\s>]+\.(?:ac\.jp|edu)(?:[>\s]|$)/i.test(from) ||
     /学校|大学|学生証|学生課|成績|課題(?:の(?:提出|締切)|提出)|レポート(?:の)?(?:提出|締切)|試験|履修|授業|講義|教務|学務|休講|補講|奨学金|研究室|指導教員|ゼミ|学籍|卒業研究|学費/.test(
@@ -51,6 +53,9 @@ export function mailPriority(message, body = message.excerpt || "") {
 export function currentMailPriority(message) {
   if (message.priority?.version === mailPriorityVersion)
     return message.priority;
-  const priority = mailPriority(message);
-  return { ...priority, reason: priority.reason + "（保存済み抜粋で再判定）" };
+  // 旧版で本文を整理済みの場合も、既に重要だったものを抜粋不足だけで降格しない。
+  if (message.priority?.version === 2 && message.priority.important)
+    return {...message.priority, reason: message.priority.reason + "（再取得まで前回の重要判定を保持）"};
+  const priority = mailPriority(message, message.timingText || message.excerpt || "");
+  return { ...priority, reason: priority.reason + "（保存済み本文の範囲で再判定）" };
 }

@@ -121,3 +121,19 @@ test("ホームと全件一覧に同じ新判定を適用し、その他のメ�
     true,
   );
 });
+
+test("本文後半の対応依頼を重要判定し、宣伝・引用・上限外からは推測しない",()=>{
+  const late="連絡事項\n".repeat(500)+"\n提出期限：2026/12/15 17:00";
+  assert.equal(mailPriority({subject:"採用に関するご連絡"},late).important,true);
+  assert.equal(mailPriority({subject:"事務からのお知らせ",from:"office@example.ac.jp"},late).important,true);
+  assert.equal(mailPriority({subject:"採用ニュース・セミナー募集中"},late).important,false);
+  assert.equal(mailPriority({subject:"採用に関するご連絡"},"x".repeat(6000)+"提出期限").important,false);
+  assert.equal(mailPriority({subject:"採用に関するご連絡"},"連絡事項\n".repeat(500)+"\n-----Original Message-----\n提出期限").important,false);
+});
+
+test("旧版の重要判定は抜粋不足で降格せず、保存済み追加本文は新判定で使う",()=>{
+  const previous={subject:"採用に関するご連絡",excerpt:"連絡",priority:{version:2,important:true,category:"career",reason:"前回"}};
+  assert.equal(currentMailPriority(previous).important,true);
+  assert.match(currentMailPriority(previous).reason,/前回の重要判定/);
+  assert.equal(currentMailPriority({...previous,priority:{...previous.priority,important:false},timingText:"連絡\n".repeat(1000)+"提出期限"}).important,true);
+});

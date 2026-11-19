@@ -143,3 +143,15 @@ test("Cron経路で分割取得・再起動・通信再試行を経ても重要�
   assert.equal(history[0].pages,2);
   assert.equal(history[1].outcome,'failure');
 });
+
+test("取得時に本文後半で重要と判定したメールを整理せず、締切候補まで保持する",async()=>{
+  const store=storage();
+  const page=await readMailPage({},store,{id:'a',email:'a@example.test'},null,async url=>{
+    if(new URL(url).pathname.endsWith('/messages'))return Response.json({messages:[{id:'abc'}]});
+    return Response.json({id:'abc',internalDate:String(Date.now()),payload:{mimeType:'text/plain',headers:[{name:'Subject',value:'採用に関するご連絡'}],body:{data:Buffer.from(body).toString('base64url')}}});
+  });
+  const saved=mergeMailLanes(page.messages,[])[0];
+  assert.equal(saved.bodyRetention,'important');
+  assert.equal(saved.timingText,body);
+  assert.ok((await messageTimingView(saved)).timings.some(t=>t.additional && t.date==='2026-12-15'));
+});
