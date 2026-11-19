@@ -206,3 +206,68 @@
     top: -14px;
   }
 }
+
+/* 長い資料名・履歴名でも入力欄の最小幅が画面を押し広げないようにする。 */
+.progress-dialog,
+.progress-dialog * {
+  box-sizing: border-box;
+}
+.progress-dialog {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.progress-controls > *,
+.progress-actions > *,
+.progress-dialog label > span,
+.progress-dialog details,
+.progress-dialog select,
+.progress-dialog input {
+  min-width: 0;
+}
+.progress-dialog summary,
+.progress-result small {
+  overflow-wrap: anywhere;
+}
+.progress-dialog input[type="checkbox"] {
+  flex: 0 0 auto;
+}
+#progressHistorySection .progress-actions > label {
+  flex: 1 1 260px;
+  max-width: 100%;
+}
+#progressHistory {
+  width: 100%;
+}
+@media (max-width: 480px) {
+  .progress-section {
+    padding: 14px 12px 8px;
+  }
+  .progress-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .progress-controls > label,
+  .progress-controls input,
+  .progress-controls select,
+  .progress-actions > button {
+    width: 100%;
+  }
+  .progress-dialog input:not([type="checkbox"]),
+  .progress-dialog select,
+  .progress-result textarea {
+    font-size: 16px;
+  }
+  .progress-dialog button {
+    min-height: 44px;
+    white-space: normal;
+  }
+  .progress-header > button {
+    flex-shrink: 0;
+  }
+  .progress-result {
+    padding: 12px;
+  }
+  #progressSettings > label {
+    display: grid;
+  }
+}

@@ -1,5 +1,5 @@
 import { sessionFetch } from "./session-connection.js";
-import { confirmDiscard } from "./confirm.js";
+import { confirmAction, confirmDiscard } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 const kinds = {
   personal: ["チーム定例", "自分の完了・Next Actions"],
@@ -10,7 +10,8 @@ let view = null,
   record = null,
   busy = false,
   initialTexts = "",
-  pending = null;
+  pending = null,
+  restoreCandidate = null;
 const node = (tag, text, className) => {
   const result = document.createElement(tag);
   if (text !== undefined) result.textContent = text;
@@ -66,7 +67,51 @@ historyActions.append(
   el("progressHistory").closest("label"),
   el("progressReload"),
 );
+const exportButton = node("button", "報告履歴をバックアップ", "button");
+exportButton.type = "button";
+exportButton.id = "progressExport";
+const exportScope = node("select");
+exportScope.id = "progressExportScope";
+exportScope.setAttribute("aria-label", "バックアップの対象");
+for (const [value, label] of [["all", "全履歴"], ["current", "表示中の報告だけ"]]) {
+  const option = node("option", label);
+  option.value = value;
+  exportScope.append(option);
+}
+historyActions.append(exportScope, exportButton);
+const archiveButton = node("button", "表示中の報告をアーカイブ", "button");
+archiveButton.type = "button";
+archiveButton.id = "progressArchive";
+historyActions.append(archiveButton);
+const archivedLabel = node("label");
+const archivedToggle = node("input");
+archivedToggle.type = "checkbox";
+archivedToggle.id = "progressShowArchived";
+archivedLabel.append(archivedToggle, node("span", "アーカイブ済みも表示"));
+historyActions.append(archivedLabel);
 historySection.append(historyActions);
+const restoreSection = node("details");
+restoreSection.append(node("summary", "報告バックアップから復元"));
+const restoreLabel = node("label", "バックアップファイル（最大16MiB）");
+const restoreFile = node("input");
+restoreFile.type = "file";
+restoreFile.accept = ".json,application/json";
+restoreFile.id = "progressRestoreFile";
+restoreLabel.append(restoreFile);
+const restoreButton = node("button", "内容を確認して復元", "button");
+restoreButton.type = "button";
+restoreButton.id = "progressRestore";
+const restoreStatus = node("p");
+restoreStatus.id = "progressRestoreStatus";
+restoreStatus.setAttribute("role", "status");
+restoreSection.append(restoreLabel, restoreStatus, restoreButton);
+historySection.append(restoreSection);
+historySection.append(
+  node(
+    "p",
+    "保存済みの報告文・根拠を含むファイルです。共有先と保存場所に注意してください。未保存の編集は含みません。",
+  ),
+);
 el("progressSettings").before(historySection);
 
 const status = (text) => (el("progressStatus").textContent = text);
@@ -83,6 +128,11 @@ function controls() {
   el("progressSave").disabled = busy || !record || record.status === "final";
   el("progressConnect").disabled = busy || !el("progressConsent").checked;
   el("progressGenerate").disabled = busy || !view;
+  el("progressRestore").disabled = busy || !restoreCandidate;
+  el("progressArchive").disabled = busy || !record;
+  el("progressArchive").textContent = record?.archivedAt
+    ? "表示中の報告を通常一覧へ戻す"
+    : "表示中の報告をアーカイブ";
   if (record?.status === "final")
     for (const area of el("progressResults").querySelectorAll("textarea"))
       area.readOnly = true;
@@ -107,10 +157,13 @@ function teamLabel() {
 function historyOptions() {
   el("progressHistory").replaceChildren(
     new Option("履歴を選択", ""),
-    ...view.history.map(
+    ...[
+      ...view.history,
+      ...(el("progressShowArchived").checked ? view.archivedHistory || [] : []),
+    ].map(
       (item) =>
         new Option(
-          `${item.reportDate} ${kinds[item.kind][0]} · ${item.teams.join("・")} · ${item.status === "final" ? "使用済み確定版" : "下書き"}`,
+          `${item.archivedAt ? "[アーカイブ] " : ""}${item.reportDate} ${kinds[item.kind][0]} · ${item.teams.join("・")} · ${item.status === "final" ? "使用済み確定版" : "下書き"}`,
           item.id,
         ),
     ),
@@ -614,3 +667,159 @@ for (const id of [
       );
   });
 }
+
+el("progressExport").onclick = async () => {
+  if (busy) return;
+  const currentOnly = el("progressExportScope").value === "current";
+  if (currentOnly && !record) {
+    status("先にバックアップする報告を履歴から開いてください。");
+    return;
+  }
+  busy = true;
+  controls();
+  let url;
+  try {
+    const backup = await api({ action: "reportExport", ...(currentOnly ? { id: record.id } : {}) });
+    const blob = new Blob([JSON.stringify(backup)], {
+      type: "application/json",
+    });
+    url = URL.createObjectURL(blob);
+    const link = node("a");
+    link.href = url;
+    link.download = "personal-dashboard-reports-" + date() + ".json";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    status(
+      `保存済み報告${backup.records.length}件のダウンロードを開始しました。ブラウザーの保存結果を確認してください。`,
+    );
+  } catch (error) {
+    status(error.message);
+  } finally {
+    if (url) setTimeout(() => URL.revokeObjectURL(url), 1000);
+    busy = false;
+    controls();
+  }
+};
+
+el("progressShowArchived").onchange = historyOptions;
+el("progressArchive").onclick = async () => {
+  if (busy || !record) return;
+  if (edited()) {
+    status("未保存の編集があります。先に下書きを保存してください。");
+    return;
+  }
+  const archived = !record.archivedAt;
+  const label = archived ? "アーカイブする" : "通常一覧へ戻す";
+  if (
+    !(await confirmAction(
+      `${record.request.reportDate} ${kinds[record.request.kind][0]}・${record.results.map((result) => result.team.name).join("・")}を${label}操作です。本文・根拠・前回比較は保持されます。`,
+      label,
+    ))
+  )
+    return;
+  busy = true;
+  controls();
+  let saved = false;
+  try {
+    renderRecord(
+      await api({
+        action: "reportArchive",
+        id: record.id,
+        scope: view.scope,
+        expectedRevision: record.revision,
+        archived,
+      }),
+    );
+    saved = true;
+    view = await api({ action: "reportView" });
+    historyOptions();
+    status(
+      archived
+        ? "アーカイブしました。下側の履歴でアーカイブ済みを表示すると戻せます。"
+        : "通常の履歴一覧へ戻しました。",
+    );
+  } catch (error) {
+    status(
+      (saved
+        ? "整理は保存済みですが、履歴の再取得に失敗しました。"
+        : "結果不明の場合は履歴から再取得してください。") + error.message,
+    );
+  } finally {
+    busy = false;
+    controls();
+  }
+};
+
+el("progressRestoreFile").onchange = async () => {
+  restoreCandidate = null;
+  const file = el("progressRestoreFile").files[0];
+  if (!file || busy) {
+    controls();
+    return;
+  }
+  busy = true;
+  controls();
+  try {
+    if (file.size > 16 * 1024 * 1024)
+      throw Error("ファイル上限16MiBを超えています");
+    const backup = JSON.parse(await file.text());
+    const plan = await api({ action: "reportRestorePreview", backup });
+    el("progressRestoreStatus").textContent =
+      `${plan.records}件（通常${plan.active}・アーカイブ${plan.archived}）。` +
+      (plan.conflicts.length
+        ? `既存報告との重複${plan.conflicts.length}件のため停止しています。`
+        : plan.capacityExceeded
+          ? "履歴の保存上限を超えています。"
+          : "既存報告を上書きせず復元できます。");
+    if (plan.records && !plan.conflicts.length && !plan.capacityExceeded)
+      restoreCandidate = { backup, ...plan };
+  } catch (error) {
+    el("progressRestoreStatus").textContent = error.message;
+  } finally {
+    busy = false;
+    controls();
+  }
+};
+el("progressRestore").onclick = async () => {
+  if (busy || !restoreCandidate) return;
+  if (edited()) {
+    status("未保存の編集があります。先に保存してください。");
+    return;
+  }
+  const candidate = restoreCandidate;
+  if (
+    !(await confirmAction(
+      `報告${candidate.records}件を復元します。下書き・確定版と根拠を保持し、元のGoogle資料は変更しません。`,
+      "復元する",
+    ))
+  )
+    return;
+  busy = true;
+  restoreCandidate = null;
+  controls();
+  let saved = false;
+  try {
+    const result = await api({
+      action: "reportRestore",
+      backup: candidate.backup,
+      checksum: candidate.checksum,
+      expectedRevision: candidate.expectedRevision,
+      confirm: true,
+    });
+    saved = true;
+    el("progressRestoreStatus").textContent =
+      `${result.restored}件を復元しました。`;
+    view = await api({ action: "reportView" });
+    historyOptions();
+  } catch (error) {
+    el("progressRestoreStatus").textContent =
+      (saved
+        ? "復元は保存済みです。履歴を再取得してください。"
+        : "結果不明の場合は履歴を再取得し、ファイルを選び直して照合してください。") +
+      error.message;
+  } finally {
+    busy = false;
+    controls();
+  }
+};

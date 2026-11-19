@@ -1,4 +1,4 @@
-import { progressReportView, generateProgressReport, loadProgressReport, saveProgressReport } from "./progress-reports.js";
+import { previewProgressRestore, restoreProgressReports, archiveProgressReport, exportProgressReports, progressReportView, generateProgressReport, loadProgressReport, saveProgressReport } from "./progress-reports.js";
 import { saveAgendaCase, saveAgendaSplit, manageAgendaSplit } from "./agenda-home.js";
 import { saveDriveGroup } from "./drive-groups.js";
 import { saveGroupDisplay } from "./drive-group-display.js";
@@ -279,6 +279,10 @@ export class Dashboard extends DurableObject {
         if(!config) throw new InputError("Driveの対象フォルダを設定してください");
         const scope=config.folderId+":"+config.includeSubfolders;
         if(request.method==="GET") return Response.json(await meetingView(storage,scope));
+        if(input.action==="reportRestorePreview") return Response.json(await previewProgressRestore(storage,scope,input.backup));
+        if(input.action==="reportRestore") return Response.json(await restoreProgressReports(storage,scope,input));
+        if(input.action==="reportArchive") return Response.json(await archiveProgressReport(storage,scope,input));
+        if(input.action==="reportExport") return Response.json(await exportProgressReports(storage,scope,input.id ?? null));
         if(input.action==="reportView") return Response.json(await progressReportView(storage,scope));
         if(input.action==="reportGenerate") return Response.json(await generateProgressReport(this.env,storage,scope,input));
         if(input.action==="reportLoad") return Response.json(await loadProgressReport(storage,scope,input.id));

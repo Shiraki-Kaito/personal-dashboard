@@ -106,6 +106,8 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "drive-meetings",
       "weekly-drive",
       "progress-reports",
+      "progress-backup",
+      "progress-record-store",
       "progress-sources",
       "progress-evidence",
       "weekly-report",
@@ -199,7 +201,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     for(const path of ["/progress-reports-ui.js","/progress-reports.css"])assert.equal((await request(path)).status,401);
     assert.equal((await request("/auth/google/progress-start",{})).status,401);
     assert.equal((await request("/auth/google/report-start",{})).status,401);
-    for(const action of ["weekly","configureWeekly","reportView","reportGenerate","reportLoad","reportSave"])assert.equal((await request("/api/meetings",{action})).status,401);
+    for(const action of ["weekly","configureWeekly","reportView","reportGenerate","reportLoad","reportSave","reportExport","reportArchive","reportRestorePreview","reportRestore"])assert.equal((await request("/api/meetings",{action})).status,401);
     assert.equal((await request("/drive-groups-ui.js")).status, 401);
     assert.equal((await request("/api/drive",{group:{}})).status,401);
     assert.equal((await request("/api/drive",{display:{}})).status,401);
@@ -278,7 +280,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     assert.equal((await request("/api/home")).status, 200);
     assert.equal((await request("/api/meetings")).status, 409);
     assert.equal((await request("/api/meetings",{action:"save"},"https://other.test")).status,403);
-    for(const action of ["weekly","configureWeekly","reportView","reportGenerate","reportLoad","reportSave"])assert.equal((await request("/api/meetings",{action},"https://other.test")).status,403);
+    for(const action of ["weekly","configureWeekly","reportView","reportGenerate","reportLoad","reportSave","reportExport","reportArchive","reportRestorePreview","reportRestore"])assert.equal((await request("/api/meetings",{action},"https://other.test")).status,403);
     assert.equal((await request("/auth/google/report-start",{},"https://other.test")).status,403);
     assert.equal((await request("/api/meetings",{action:"save"})).status,409);
     assert.equal((await request("/api/drive",{group:{}},"https://other.test")).status,403);

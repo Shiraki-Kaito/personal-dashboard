@@ -14,6 +14,10 @@ import {
   readProgressSources,
 } from "../src/progress-sources.js";
 import {
+  previewProgressRestore,
+  restoreProgressReports,
+  archiveProgressReport,
+  exportProgressReports,
   generateProgressReport,
   progressReportView,
   saveProgressReport,
@@ -783,5 +787,181 @@ test("Google APIの無効・利用制限・権限不足を区別し、生のエ�
     assert.equal(result.status, "unread");
     assert.match(result.checks[0].message, expected);
     assert.ok(!JSON.stringify(result).includes("private raw diagnostic"));
+  }
+});
+
+test("管理表の空欄・中止・名前のない状態をNext Actionsに変換しない", () => {
+  const parsed = spreadsheetFacts(
+    [
+      {
+        title: "管理",
+        id: 0,
+        values: [
+          ["タスク", "状態", "担当者", "完了日"],
+          ["状態未確認", "", "白木海斗", ""],
+          ["", "進行中", "白木海斗", ""],
+          ["中止した作業", "中止", "白木海斗", ""],
+          ["次の作業", "進行中", "白木海斗", ""],
+          ["作成した草案", " 完了 ", "白木海斗", "2026/11/17"],
+        ],
+      },
+    ],
+    source,
+    ["白木海斗"],
+  );
+  assert.equal(parsed.facts.length, 2);
+  assert.equal(parsed.facts[0].kind, "next");
+  assert.equal(parsed.facts[1].kind, "done");
+  assert.equal(parsed.checks.length, 3);
+  assert.ok(parsed.facts.every((fact) => !fact.text.includes("中止")));
+});
+
+test("報告バックアップは本文と根拠を保持し認証情報を含めず、索引の不一致を拒否する", async () => {
+  const f = fixture();
+  const created = await generateProgressReport(
+    {},
+    f.storage,
+    scope,
+    { ...request, scope, id: crypto.randomUUID() },
+    f.send,
+  );
+  const backup = await exportProgressReports(f.storage, scope);
+  assert.equal(backup.records.length, 1);
+  assert.deepEqual(backup.records[0], created);
+  assert.ok(!JSON.stringify(backup).includes('"token"'));
+  await generateProgressReport({}, f.storage, scope,
+    { ...request, scope, id: crypto.randomUUID() }, f.send);
+  const selected = await exportProgressReports(f.storage, scope, created.id);
+  assert.deepEqual(selected.records, [created]);
+  assert.equal((await exportProgressReports(f.storage, scope)).records.length, 2);
+  await assert.rejects(exportProgressReports(f.storage, scope, crypto.randomUUID()), /見つかりません/);
+  await assert.rejects(exportProgressReports(f.storage, scope, "invalid"), /不正/);
+  await assert.rejects(exportProgressReports(f.storage, "different"));
+  const index = await f.storage.get("drive:progress:index");
+  index.records[0].revision = crypto.randomUUID();
+  await f.storage.put("drive:progress:index", index);
+  await assert.rejects(exportProgressReports(f.storage, scope), /保存版/);
+});
+
+test("履歴のアーカイブは本文を保持し、一覧へ戻せて古い操作を拒否する", async () => {
+  const f = fixture();
+  const record = await generateProgressReport(
+    {},
+    f.storage,
+    scope,
+    { ...request, scope, id: crypto.randomUUID() },
+    f.send,
+  );
+  const input = {
+    id: record.id,
+    scope,
+    expectedRevision: record.revision,
+    archived: true,
+  };
+  const archived = await archiveProgressReport(f.storage, scope, input);
+  const view = await progressReportView(f.storage, scope);
+  assert.equal(view.history.length, 0);
+  assert.equal(view.archivedHistory.length, 1);
+  assert.deepEqual(archived.results, record.results);
+  assert.equal(
+    (await exportProgressReports(f.storage, scope)).records.length,
+    1,
+  );
+  await assert.rejects(
+    archiveProgressReport(f.storage, scope, { ...input, archived: false }),
+    /変更/,
+  );
+  await archiveProgressReport(f.storage, scope, {
+    ...input,
+    expectedRevision: archived.revision,
+    archived: false,
+  });
+  assert.equal((await progressReportView(f.storage, scope)).history.length, 1);
+});
+
+test("報告復元は確認した内容を再構成し重複・改変・古い確認を拒否する", async () => {
+  const f = fixture();
+  const created = await generateProgressReport(
+    {},
+    f.storage,
+    scope,
+    { ...request, scope, id: crypto.randomUUID() },
+    f.send,
+  );
+  const backup = await exportProgressReports(f.storage, scope);
+  const target = memory();
+  const plan = await previewProgressRestore(target, scope, backup);
+  const input = {
+    backup,
+    checksum: plan.checksum,
+    expectedRevision: plan.expectedRevision,
+    confirm: true,
+  };
+  await assert.rejects(
+    restoreProgressReports(target, scope, { ...input, checksum: "changed" }),
+    /再確認/,
+  );
+  assert.equal(
+    (await restoreProgressReports(target, scope, input)).restored,
+    1,
+  );
+  const loaded = await loadProgressReport(target, scope, created.id);
+  assert.deepEqual(loaded.results, created.results);
+  assert.notEqual(loaded.revision, created.revision);
+  await assert.rejects(
+    restoreProgressReports(target, scope, input),
+    /履歴が変わり/,
+  );
+  const conflict = await previewProgressRestore(target, scope, backup);
+  assert.equal(conflict.conflicts.length, 1);
+  await assert.rejects(
+    restoreProgressReports(target, scope, {
+      ...input,
+      expectedRevision: conflict.expectedRevision,
+    }),
+    /重複/,
+  );
+  await assert.rejects(
+    previewProgressRestore(target, "other", backup),
+    /対象範囲/,
+  );
+  await assert.rejects(
+    previewProgressRestore(target, scope, {
+      ...backup,
+      records: [created, created],
+    }),
+    /重複/,
+  );
+});
+
+test("復元は壊れた日付・根拠参照・比較配列・集計を保存前に拒否する", async () => {
+  const f = fixture();
+  await generateProgressReport(
+    {},
+    f.storage,
+    scope,
+    { ...request, scope, id: crypto.randomUUID() },
+    f.send,
+  );
+  const original = await exportProgressReports(f.storage, scope);
+  for (const mutate of [
+    (backup) => (backup.records[0].request.reportDate = "2026-02-30"),
+    (backup) =>
+      (backup.records[0].results[0].items[0].references[0].sourceId =
+        "unknown"),
+    (backup) => (backup.records[0].results[0].comparison.previousOnly = {}),
+    (backup) =>
+      (backup.records[0].results[0].community.invalid = {
+        period: -1,
+        cumulative: 2,
+        basis: "test",
+      }),
+    (backup) => backup.records[0].sources.push(backup.records[0].sources[0]),
+  ]) {
+    const candidate = structuredClone(original);
+    mutate(candidate);
+    const target = memory();
+    await assert.rejects(previewProgressRestore(target, scope, candidate));
+    assert.equal(target.values.size, 0);
   }
 });

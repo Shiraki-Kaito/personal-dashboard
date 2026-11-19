@@ -7,8 +7,25 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 const script = `
 import {DurableObject} from 'cloudflare:workers';
-import {generateProgressReport,saveProgressReport,loadProgressReport,progressReportView} from './src/progress-reports.js';
+import {readReportRecord,writeReportRecord} from './src/progress-record-store.js';
+import {generateProgressReport,saveProgressReport,loadProgressReport,progressReportView,exportProgressReports,archiveProgressReport,previewProgressRestore,restoreProgressReports} from './src/progress-reports.js';
 export class Fixture extends DurableObject {
+ async storeLarge(serialized,fail=false){
+  const record=JSON.parse(serialized);
+  try {await this.ctx.storage.transaction(async tx=>{
+   await writeReportRecord(tx,record);
+   if(fail)throw Error('large rollback');
+  });return 'ok';} catch(error){return error.message;}
+ }
+ async readLarge(id){return JSON.stringify(await readReportRecord(this.ctx.storage,id));}
+ async backup(){return JSON.stringify(await exportProgressReports(this.ctx.storage,'root:true'));}
+ async archive(input){return JSON.stringify(await archiveProgressReport(this.ctx.storage,'root:true',JSON.parse(input)));}
+ async preview(serialized){return JSON.stringify(await previewProgressRestore(this.ctx.storage,'root:true',JSON.parse(serialized)));}
+ async restore(serialized,fail=false){
+  const storage=this.ctx.storage;
+  const wrapped=fail?{transaction:fn=>storage.transaction(async tx=>{const result=await fn(tx);throw Error('restore rollback');})}:storage;
+  try{return JSON.stringify(await restoreProgressReports(wrapped,'root:true',JSON.parse(serialized)));}catch(error){return JSON.stringify({error:error.message});}
+ }
  seed(values){return this.ctx.storage.put(Object.fromEntries(values));}
  generate(input,document){return generateProgressReport({},this.ctx.storage,'root:true',input,async()=>Response.json(document));}
  load(id){return loadProgressReport(this.ctx.storage,'root:true',id);}
@@ -42,9 +59,9 @@ test("報告のSQLite保存は並行編集・途中障害・応答喪失・再�
       }),
     );
   let app = boot();
-  const stubFor = async () => {
+  const stubFor = async (name = "report") => {
     const ns = await app.getDurableObjectNamespace("FIXTURE");
-    return ns.get(ns.idFromName("report"));
+    return ns.get(ns.idFromName(name));
   };
   try {
     let stub = await stubFor();
@@ -67,6 +84,26 @@ test("報告のSQLite保存は並行編集・途中障害・応答喪失・再�
       ],
       ["drive:credential", { scopes: [] }],
     ]);
+    const largeRecord = {
+      id: crypto.randomUUID(),
+      evidence: "複数資料の根拠😀".repeat(30000),
+    };
+    assert.equal(await stub.storeLarge(JSON.stringify(largeRecord)), "ok");
+    assert.deepEqual(
+      JSON.parse(await stub.readLarge(largeRecord.id)),
+      largeRecord,
+    );
+    assert.match(
+      await stub.storeLarge(
+        JSON.stringify({ ...largeRecord, evidence: "途中で失敗" }),
+        true,
+      ),
+      /rollback/,
+    );
+    assert.deepEqual(
+      JSON.parse(await stub.readLarge(largeRecord.id)),
+      largeRecord,
+    );
     const id = crypto.randomUUID(),
       input = {
         id,
@@ -103,11 +140,39 @@ test("報告のSQLite保存は並行編集・途中障害・応答喪失・再�
     });
     assert.ok(final.result);
     const finalRevision = final.result.revision;
+    const archived = JSON.parse(await stub.archive(JSON.stringify({
+      scope: "root:true", id, expectedRevision: finalRevision, archived: true,
+    })));
+    assert.equal(archived.status, "final");
+    const backup = await stub.backup();
+    const destination = await stubFor("restored");
+    const plan = JSON.parse(await destination.preview(backup));
+    const restoreInput = JSON.stringify({
+      backup: JSON.parse(backup), confirm: true,
+      checksum: plan.checksum, expectedRevision: plan.expectedRevision,
+    });
+    assert.match(JSON.parse(await destination.restore(restoreInput, true)).error, /rollback/);
+    assert.equal((await destination.view()).archivedHistory.length, 0);
+    assert.deepEqual(JSON.parse(await destination.restore(restoreInput)), {restored: 1});
+    const restored = JSON.parse(await destination.readLarge(id));
+    assert.equal(restored.status, "final");
+    assert.equal(restored.archivedAt, archived.archivedAt);
+    assert.deepEqual(restored.results, archived.results);
+    assert.notEqual(restored.revision, archived.revision);
+    assert.ok(JSON.parse(await destination.restore(restoreInput)).error);
     await app.dispose();
     app = boot();
     stub = await stubFor();
+    assert.deepEqual(
+      JSON.parse(await stub.readLarge(largeRecord.id)),
+      largeRecord,
+    );
     assert.equal((await stub.load(id)).status, "final");
-    assert.equal((await stub.view()).history.length, 1);
+    assert.equal((await stub.view()).history.length, 0);
+    assert.equal((await stub.view()).archivedHistory.length, 1);
+    const restartedDestination = await stubFor("restored");
+    assert.equal((await restartedDestination.load(id)).revision, restored.revision);
+    assert.deepEqual(JSON.parse(await restartedDestination.backup()).records[0].results, archived.results);
     assert.ok(
       (await stub.save({ ...edit, expectedRevision: finalRevision })).error,
     );

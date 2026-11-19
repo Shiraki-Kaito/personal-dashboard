@@ -1,3 +1,8 @@
+import { validateProgressBackup } from "./progress-backup.js";
+import {
+  readReportRecord,
+  writeReportRecord,
+} from "./progress-record-store.js";
 import { InputError } from "./sync.js";
 import { minutesReadScope, sheetsReadScope } from "./drive-auth.js";
 import {
@@ -13,10 +18,9 @@ import {
   readProgressSources,
 } from "./progress-sources.js";
 
-const indexKey = "drive:progress:index",
-  prefix = "drive:progress:record:";
-const maximumHistory = 24,
-  maximumRecordBytes = 120 * 1024;
+const indexKey = "drive:progress:index";
+const maximumHistory = 24;
+const maximumStoredHistory = 96;
 const uuid = (value) =>
   typeof value === "string" && /^[a-f0-9-]{36}$/.test(value);
 const safeText = (value, maximum) =>
@@ -39,14 +43,15 @@ export async function progressReportView(storage, scope) {
   const savedWeekly = await storage.get("drive:weeklySettings");
   const weekly = savedWeekly?.scope === scope ? savedWeekly : null;
   const sources = valid ? reportSourceCatalog(cache) : [];
-  const last = index.records[0];
-  const previous = last ? await storage.get(prefix + last.id) : null;
+  const last = index.records.find((record) => !record.archivedAt);
+  const previous = last ? await readReportRecord(storage, last.id) : null;
   return {
     scope,
     teams: valid ? reportTeams(cache) : [],
     sources,
     folders: [...new Set(sources.map((file) => file.folder))].sort(),
-    history: index.records,
+    history: index.records.filter((record) => !record.archivedAt),
+    archivedHistory: index.records.filter((record) => record.archivedAt),
     maximumHistory,
     maximumSources: maximumReportSources,
     lastDriveSuccess: valid ? cache.lastSuccess : null,
@@ -79,7 +84,7 @@ export async function loadProgressReport(storage, scope, id) {
   const index = await indexView(storage, scope);
   if (!index.records.some((record) => record.id === id))
     throw new InputError("報告が見つかりません");
-  const record = await storage.get(prefix + id);
+  const record = await readReportRecord(storage, id);
   if (!record || record.scope !== scope)
     throw new InputError("報告の保存状態を確認できません");
   return record;
@@ -135,17 +140,9 @@ function recordMetadata(record) {
     generatedAt: record.generatedAt,
     updatedAt: record.updatedAt,
     revision: record.revision,
+    archivedAt: record.archivedAt || null,
   };
 }
-function assertSize(record) {
-  if (
-    new TextEncoder().encode(JSON.stringify(record)).length > maximumRecordBytes
-  )
-    throw new InputError(
-      "報告の保存上限120KiBを超えました。資料・期間を絞ってください。前の履歴は保持しています",
-    );
-}
-
 export async function generateProgressReport(
   env,
   storage,
@@ -160,7 +157,7 @@ export async function generateProgressReport(
     index = await indexView(storage, scope);
   if (input.scope !== scope)
     throw new InputError("Driveの対象範囲が変わっています");
-  const existing = await storage.get(prefix + input.id);
+  const existing = await readReportRecord(storage, input.id);
   if (existing) {
     if (
       existing.scope !== scope ||
@@ -169,9 +166,16 @@ export async function generateProgressReport(
       throw new InputError("同じ操作IDで別の報告は作成できません");
     return existing;
   }
-  if (index.records.length >= maximumHistory)
+  if (index.records.length >= maximumStoredHistory)
     throw new InputError(
-      "生成履歴24件の保存上限です。既存の確定版を勝手に削除せず停止しました",
+      "アーカイブを含む履歴96件の上限です。バックアップで保存内容を確認してください",
+    );
+  if (
+    index.records.filter((record) => !record.archivedAt).length >=
+    maximumHistory
+  )
+    throw new InputError(
+      "通常の生成履歴24件の上限です。履歴をアーカイブして枠を空けてください",
     );
   const selected = expandReportSources(view.sources, request);
   const cache = await storage.get("drive:cache");
@@ -182,9 +186,23 @@ export async function generateProgressReport(
     [request.reporter, ...request.aliases],
     send,
   );
-  const history = await Promise.all(
-    index.records.map((record) => storage.get(prefix + record.id)),
-  );
+  // 下書きや根拠の全文は前回比較に不要。大きな履歴を並列展開しない。
+  const history = [];
+  for (const entry of index.records) {
+    if (entry.status !== "final" || entry.kind !== request.kind ||
+        entry.reportDate >= request.reportDate) continue;
+    const previous = await readReportRecord(storage, entry.id);
+    if (!previous || previous.revision !== entry.revision)
+      throw new InputError("比較元の保存版を確認できません。履歴を再取得してください");
+    if (request.kind === "personal" && previous.request.reporter !== request.reporter) continue;
+    history.push({
+      id: previous.id, status: previous.status, request: previous.request,
+      results: previous.results.map(result => ({
+        team: result.team, text: result.text,
+        items: result.items.map(({ references, ...item }) => item),
+      })),
+    });
+  }
   const result = composeProgressReports({
     request,
     sources,
@@ -233,7 +251,6 @@ export async function generateProgressReport(
     finalizedAt: null,
     edited: false,
   };
-  assertSize(record);
   return storage.transaction(async (tx) => {
     if (
       (await indexView(tx, scope)).revision !== index.revision ||
@@ -242,7 +259,7 @@ export async function generateProgressReport(
       throw new InputError(
         "作成中に履歴またはDrive一覧が変わりました。再取得してください",
       );
-    await tx.put(prefix + record.id, record);
+    await writeReportRecord(tx, record);
     await tx.put(indexKey, {
       scope,
       revision: crypto.randomUUID(),
@@ -292,8 +309,7 @@ export async function saveProgressReport(storage, scope, input) {
       updatedAt,
       finalizedAt: input.status === "final" ? updatedAt : null,
     };
-    assertSize(saved);
-    await tx.put(prefix + saved.id, saved);
+    await writeReportRecord(tx, saved);
     await tx.put(indexKey, {
       scope,
       revision: crypto.randomUUID(),
@@ -302,5 +318,146 @@ export async function saveProgressReport(storage, scope, input) {
       ),
     });
     return saved;
+  });
+}
+
+// 一覧と本文を同じ保存時点で読み、欠けた履歴を正常なバックアップにしない。
+export async function exportProgressReports(storage, scope, selectedId = null) {
+  if (selectedId !== null && !uuid(selectedId))
+    throw new InputError("バックアップ対象が不正です");
+  return storage.transaction(async (tx) => {
+    const index = await indexView(tx, scope);
+    const entries = selectedId === null ? index.records : index.records.filter(entry => entry.id === selectedId);
+    if (selectedId !== null && entries.length !== 1)
+      throw new InputError("バックアップ対象が見つかりません");
+    const records = [];
+    // 全件をメモリへ積む前に上限を確認する。大きな履歴は1件ずつ取り出せる。
+    let encodedBytes = 1024;
+    for (const entry of entries) {
+      const record = await loadProgressReport(tx, scope, entry.id);
+      if (record.revision !== entry.revision)
+        throw new InputError(
+          "報告の履歴と保存版が一致しません。バックアップを停止しました",
+        );
+      encodedBytes += new TextEncoder().encode(JSON.stringify(record)).length + 1;
+      if (encodedBytes > 16 * 1024 * 1024)
+        throw new InputError("一括バックアップの上限16MiBです。表示中の報告を1件ずつバックアップしてください");
+      records.push(record);
+    }
+    const backup = {
+      format: "personal-dashboard-progress",
+      version: 1,
+      scope,
+      exportedAt: new Date().toISOString(),
+      records,
+    };
+    if (
+      new TextEncoder().encode(JSON.stringify(backup)).length >
+      16 * 1024 * 1024
+    )
+      throw new InputError("報告バックアップの上限16MiBを超えています");
+    return backup;
+  });
+}
+
+export async function archiveProgressReport(storage, scope, input) {
+  if (
+    input.scope !== scope ||
+    !uuid(input.id) ||
+    !uuid(input.expectedRevision) ||
+    typeof input.archived !== "boolean"
+  )
+    throw new InputError("整理対象と保存版を確認してください");
+  return storage.transaction(async (tx) => {
+    const index = await indexView(tx, scope);
+    const record = await loadProgressReport(tx, scope, input.id);
+    if (record.revision !== input.expectedRevision)
+      throw new InputError("報告が変更されています。履歴を再取得してください");
+    if (!!record.archivedAt === input.archived) return record;
+    if (
+      !input.archived &&
+      index.records.filter((item) => !item.archivedAt).length >= maximumHistory
+    )
+      throw new InputError(
+        "通常の履歴24件の上限です。先に別の報告をアーカイブしてください",
+      );
+    const updated = {
+      ...record,
+      archivedAt: input.archived ? new Date().toISOString() : null,
+      revision: crypto.randomUUID(),
+    };
+    await writeReportRecord(tx, updated);
+    await tx.put(indexKey, {
+      ...index,
+      revision: crypto.randomUUID(),
+      records: index.records.map((item) =>
+        item.id === updated.id ? recordMetadata(updated) : item,
+      ),
+    });
+    return updated;
+  });
+}
+
+async function progressBackupDigest(backup) {
+  const bytes = new TextEncoder().encode(JSON.stringify(backup));
+  return Array.from(
+    new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+    (value) => value.toString(16).padStart(2, "0"),
+  ).join("");
+}
+export async function previewProgressRestore(storage, scope, backup) {
+  const records = validateProgressBackup(backup, scope);
+  const index = await indexView(storage, scope);
+  const conflicts = records
+    .filter((record) => index.records.some((entry) => entry.id === record.id))
+    .map((record) => record.id);
+  const active = records.filter((record) => !record.archivedAt).length;
+  return {
+    checksum: await progressBackupDigest(backup),
+    expectedRevision: index.revision,
+    records: records.length,
+    active,
+    archived: records.length - active,
+    conflicts,
+    capacityExceeded:
+      index.records.length + records.length > maximumStoredHistory ||
+      index.records.filter((record) => !record.archivedAt).length + active >
+        maximumHistory,
+  };
+}
+export async function restoreProgressReports(storage, scope, input) {
+  const records = validateProgressBackup(input.backup, scope);
+  if (
+    input.confirm !== true ||
+    input.checksum !== (await progressBackupDigest(input.backup))
+  )
+    throw new InputError("復元する内容を再確認してください");
+  return storage.transaction(async (tx) => {
+    const plan = await previewProgressRestore(tx, scope, input.backup);
+    if (plan.expectedRevision !== input.expectedRevision)
+      throw new InputError(
+        "確認後に履歴が変わりました。復元内容を再確認してください",
+      );
+    if (plan.conflicts.length || plan.capacityExceeded)
+      throw new InputError(
+        "既存の報告との重複、または履歴上限のため復元できません",
+      );
+    const index = await indexView(tx, scope);
+    const restored = [];
+    for (const record of records) {
+      if (await readReportRecord(tx, record.id))
+        throw new InputError(
+          "保存済みの報告が存在します。上書きせず停止しました",
+        );
+      const updated = { ...record, revision: crypto.randomUUID() };
+      await writeReportRecord(tx, updated);
+      restored.push(recordMetadata(updated));
+    }
+    await tx.put(indexKey, {
+      scope,
+      revision: crypto.randomUUID(),
+      records: [...restored, ...index.records],
+    });
+    return { restored: restored.length };
   });
 }

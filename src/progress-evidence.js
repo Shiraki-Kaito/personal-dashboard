@@ -259,11 +259,31 @@ export function spreadsheetFacts(sheets, source, reporter) {
       team = column(header, /^(チーム|担当チーム)$/);
     for (const [index, row] of rows.slice(headerIndex + 1).entries()) {
       if (!row.some(Boolean)) continue;
-      const state = String(row[status] || ""),
+      const state = String(row[status] || "").trim(),
         organization = entity >= 0 ? String(row[entity] || "").trim() : null;
-      const text = [title >= 0 ? row[title] : organization, state]
-        .filter(Boolean)
-        .join("：");
+      const subject = String(
+        title >= 0 ? row[title] || "" : organization || "",
+      ).trim();
+      if (!subject || !state) {
+        checks.push({
+          message:
+            "作業・団体名または状態が空欄です。Next Actionsと推測していません",
+          sourceId: source.id,
+          heading: sheet.title,
+          text: subject || "行 " + (index + headerIndex + 2),
+        });
+        continue;
+      }
+      if (/^(中止|取消|取り消し|対象外|辞退|見送り)$/.test(state)) {
+        checks.push({
+          message: "中止・対象外の記載です。完了やNext Actionsへ移していません",
+          sourceId: source.id,
+          heading: sheet.title,
+          text: subject + "：" + state,
+        });
+        continue;
+      }
+      const text = [subject, state].filter(Boolean).join("：");
       if (!text) continue;
       const date = completed >= 0 ? dateIn(row[completed]) : null;
       const isDone =
