@@ -26,21 +26,16 @@ const time = (value) =>
     : "未取得";
 const reportSection = node("section", undefined, "progress-section");
 reportSection.id = "progressReportsSection";
-reportSection.append(node("h3", "定例の進捗報告"));
-const cards = node("div", undefined, "report-type-grid");
-for (const [kind, [name, description]] of Object.entries(kinds)) {
-  const button = node("button", undefined, "report-type-card");
-  button.type = "button";
-  button.dataset.reportKind = kind;
-  button.append(
-    node("strong", name),
-    node("span", description),
-    node("small", "Driveから下書きを作る →"),
-  );
-  button.onclick = () => openReport(kind);
-  cards.append(button);
-}
-reportSection.append(cards);
+const reportButton = node("button", undefined, "report-type-card");
+reportButton.type = "button";
+reportButton.id = "progressOpen";
+reportButton.append(
+  node("strong", "進捗報告"),
+  node("span", "Driveから下書きを作成・編集"),
+  node("small", "開いて定例を選ぶ →"),
+);
+reportButton.onclick = () => openReport(el("progressKind").value || "personal");
+reportSection.append(reportButton);
 const groupSection = el("driveGroups").closest("section");
 document.querySelector("#drivePanel>.panel-heading").after(reportSection);
 reportSection.after(groupSection);

@@ -5,12 +5,8 @@
   font-size: 16px;
   margin: 0 0 12px;
 }
-.report-type-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
 .report-type-card {
+  width: 100%;
   font: inherit;
   text-align: left;
   color: var(--text);
@@ -190,9 +186,6 @@
   border-top: 1px solid var(--border);
 }
 @media (max-width: 650px) {
-  .report-type-grid {
-    grid-template-columns: 1fr;
-  }
   .report-type-card {
     padding: 15px;
   }
