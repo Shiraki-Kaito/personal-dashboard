@@ -1,3 +1,4 @@
+import { digest } from "./agenda-rules.js";
 import { InputError } from "./sync.js";
 import { ownerId } from "./github.js";
 import { NotesError, notesRequest } from "./notes-http.js";
@@ -164,6 +165,7 @@ export async function notesView(storage, now = Date.now()) {
   const config = await storage.get("notes:config");
   const cache = await storage.get("notes:cache");
   return {
+    searchRevision: await digest({ config, commit: cache?.commit || null }),
     configured: !!config,
     config: config || null,
     files: cache?.files || [],

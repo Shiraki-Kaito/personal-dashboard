@@ -1,3 +1,4 @@
+import { searchNotes, noteTextMatch } from "../src/notes-search.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -425,4 +426,66 @@ test("直前の手動取得とGitHubの待機期限がある時は定期取得�
   await refreshScheduledNotes(storage, remote.send, now + 3600000);
   assert.equal(remote.calls.length, count);
   assert.equal((await storage.get("notes:automatic")).result, "skipped");
+});
+
+
+test("本文検索は5件ずつ進み、ローカル限定ノートを取得せず一覧全体の完了を区別する", async () => {
+  const api = fixture({entries:[...Array.from({length:7},(_,i)=>file(`note${i}.md`)),file("秘密_L.md"),file("sub/秘密_l.MD"),file("large.md",{size:300000})]});
+  const storage = memory();
+  const view = await configureNotes(storage, settings, api.send);
+  const before = structuredClone(storage.values);
+  const first = await searchNotes(storage,{query:"研究",revision:view.searchRevision},api.send);
+  assert.equal(first.total,8);
+  assert.equal(first.scanned,4);
+  assert.equal(first.skipped,1);
+  assert.equal(first.nextOffset,5);
+  assert.equal(first.matches.length,4);
+  assert.ok(first.matches.every(match=>match.line===1 && !match.path.includes("_L")));
+  const next = await searchNotes(storage,{query:"研究",revision:view.searchRevision,offset:first.nextOffset},api.send);
+  assert.equal(next.scanned,3);
+  assert.equal(next.nextOffset,null);
+  assert.equal(api.calls.filter(call=>call.url.includes("/git/blobs/")).length,7);
+  assert.deepEqual(storage.values,before,"本文・検索語を永続化しない");
+});
+
+test("本文検索の途中失敗は成功分を返し、未取得の位置から再開できる", async()=>{
+  const api=fixture({entries:[file("a.md"),file("b.md"),file("c.md")]});
+  const storage=memory(), view=await configureNotes(storage,settings,api.send);
+  let reads=0;
+  const interrupted=async(url,options)=>url.includes('/git/blobs/') && ++reads===2
+    ? new Response('',{status:403}) : api.send(url,options);
+  const first=await searchNotes(storage,{query:'研究',revision:view.searchRevision},interrupted);
+  assert.equal(first.scanned,1);assert.equal(first.matches.length,1);
+  assert.equal(first.error.code,'permission');assert.equal(first.nextOffset,1);
+  const next=await searchNotes(storage,{query:'研究',revision:view.searchRevision,offset:first.nextOffset},api.send);
+  assert.equal(next.scanned,2);assert.equal(next.nextOffset,null);
+  assert.equal(new Set([...first.matches,...next.matches].map(file=>file.path)).size,3);
+});
+
+test("検索の古い版・対象変更・古い一覧・不正入力は本文を取得しない",async()=>{
+  const api=fixture(), storage=memory(), view=await configureNotes(storage,settings,api.send);
+  for(const input of [{query:'x'},{query:'x'.repeat(101)},{query:'研究',offset:-1},{query:'研究',offset:0.5},{query:'研究',offset:10},{query:'研究',revision:'old'}])
+    await assert.rejects(searchNotes(storage,{revision:view.searchRevision,...input},api.send));
+  await storage.put('notes:config',{...view.config,repo:'other'});
+  await assert.rejects(searchNotes(storage,{query:'研究',revision:view.searchRevision},api.send),/一覧/);
+  await storage.put('notes:config',view.config);
+  const cache=await storage.get('notes:cache');
+  await storage.put('notes:cache',{...cache,lastSuccess:new Date(Date.now()-7200000).toISOString()});
+  await assert.rejects(searchNotes(storage,{query:'研究',revision:view.searchRevision},api.send),/一覧/);
+  assert.equal(api.calls.filter(call=>call.url.includes('/git/blobs/')).length,0);
+});
+
+test("本文検索は大文字小文字を区別せず、抜粋と行番号を返す。正規表現として解釈しない",()=>{
+  assert.deepEqual(noteTextMatch('一行目\nNext Actions: TEST','test'),{line:2,snippet:'一行目\nNext Actions: TEST'});
+  assert.equal(noteTextMatch('abc','.*'),null);
+  assert.equal(noteTextMatch('abc','なし'),null);
+  assert.ok(noteTextMatch('前'.repeat(1000)+'対象'+'後'.repeat(1000),'対象').snippet.length<=182);
+});
+
+test("本文の版不一致を検索済みや一致なしとして扱わない",async()=>{
+  const api=fixture(), storage=memory(), view=await configureNotes(storage,settings,api.send);
+  api.setBlob({sha,size:bytes.length,encoding:'base64',content:Buffer.from('x'.repeat(bytes.length)).toString('base64')});
+  const result=await searchNotes(storage,{query:'研究',revision:view.searchRevision},api.send);
+  assert.equal(result.scanned,0);assert.equal(result.nextOffset,0);
+  assert.equal(result.error.code,'invalid_response');assert.deepEqual(result.matches,[]);
 });

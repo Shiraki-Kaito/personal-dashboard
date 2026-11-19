@@ -2324,3 +2324,8 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 .meeting-reports summary { cursor:pointer; font-weight:650; }
 .meeting-reports label { margin:12px 0; }
 @media(max-width:760px) { .meeting-input-grid { grid-template-columns:1fr; } .meeting-date-row > label { width:100%; } }
+
+#notesBodySearchStatus { flex-basis:100%; margin:0; font-size:.9rem; }
+
+#notesSearchBar { flex-wrap:wrap; }
+#notesSearchBar .notes-search { min-width:min(100%, 220px); }

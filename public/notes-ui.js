@@ -3,6 +3,7 @@ import { confirmAction } from "./confirm.js";
 const el = (id) => document.getElementById(id);
 const time = (value) =>
   value ? new Date(value).toLocaleString("ja-JP", {timeZone:"Asia/Tokyo"}) : "未取得";
+let bodySearch = null;
 let state = null,
   busy = false,
   selected = null,
@@ -23,6 +24,10 @@ async function api(body) {
   return result;
 }
 function controls() {
+  el("notesSearch").disabled = busy;
+  el("notesBodySearch").disabled = busy || !state?.configured || state.stale;
+  el("notesBodyMore").disabled = busy || !!state?.stale;
+  el("notesBodyClear").disabled = busy;
   for (const node of el("notesForm").elements) node.disabled = busy;
   el("notesSave").disabled ||= !el("notesConfirm").checked;
   el("notesToken").disabled ||= !el("notesPrivate").checked;
@@ -72,11 +77,19 @@ async function openNote(file) {
 }
 function renderList() {
   const query = el("notesSearch").value.trim().toLocaleLowerCase();
-  const files = (state?.files || []).filter((file) =>
+  const files = bodySearch ? bodySearch.matches : (state?.files || []).filter((file) =>
     file.path.toLocaleLowerCase().includes(query),
   );
   el("notesCount").textContent =
-    files.length + " / " + (state?.files.length || 0) + "件";
+    bodySearch ? files.length + "件一致（本文）" : files.length + " / " + (state?.files.length || 0) + "件";
+  el("notesBodyMore").hidden = !bodySearch || bodySearch.nextOffset === null;
+  el("notesBodyClear").hidden = !bodySearch;
+  el("notesBodyMore").textContent = bodySearch?.error ? "失敗した位置から再試行" : "続きの5件を検索";
+  el("notesBodySearchStatus").textContent = bodySearch
+    ? `本文検索済み ${bodySearch.scanned}/${bodySearch.total}件・サイズ上限で未検索 ${bodySearch.skipped}件` +
+      (bodySearch.nextOffset === null ? " ／ 一覧の末尾まで確認" : " ／ 未検索の続きがあります") +
+      (bodySearch.error ? " ／ " + bodySearch.error.message + (bodySearch.error.retryAt ? "・再試行可能 " + time(bodySearch.error.retryAt) : "") : "")
+    : "本文検索は5件ずつ取得します。検索語は2〜100文字。";
   el("notesList").replaceChildren(
     ...files.map((file) => {
       const row = document.createElement("button");
@@ -86,6 +99,12 @@ function renderList() {
       row.setAttribute("aria-pressed", String(selected === file.path));
       row.textContent =
         file.path + (file.readable ? "" : "（本文サイズ上限超過）");
+      if (bodySearch) {
+        const snippet = document.createElement("span");
+        snippet.className = "task-meta";
+        snippet.textContent = `本文 ${file.line}行目：${file.snippet}`;
+        row.append(snippet);
+      }
       row.disabled = busy || state.stale || !file.readable;
       row.onclick = () => openNote(file);
       return row;
@@ -95,7 +114,7 @@ function renderList() {
     const empty = document.createElement("p");
     empty.className = "empty-state";
     empty.textContent = state?.configured
-      ? "一致するノートがありません"
+      ? (bodySearch ? "検索済みの本文には一致がありません。未検索の続き・取得状況も確認してください" : "一致するノートがありません")
       : "取得対象を設定すると、ノートがここに並びます";
     el("notesList").append(empty);
   }
@@ -131,6 +150,7 @@ async function run(action) {
   busy = true;
   controls();
   clearReader();
+  bodySearch = null;
   try {
     state = await action();
     render();
@@ -161,7 +181,7 @@ el("notesForm").onsubmit = async (event) => {
 };
 el("notesConfirm").onchange = controls;
 el("notesPrivate").onchange = controls;
-el("notesSearch").oninput = renderList;
+el("notesSearch").oninput = () => { bodySearch = null; renderList(); controls(); };
 el("notesRefresh").onclick = () => run(() => api({ action: "refresh" }));
 el("notesStop").onclick = async () => {
   if (
@@ -196,3 +216,38 @@ document.addEventListener("dashboard:view", event => {
       ? api({ action: "refresh" }) : view;
   });
 });
+
+
+async function searchBody(more = false) {
+  if (busy || state?.stale || !state?.configured) return;
+  const query = el("notesSearch").value.trim();
+  if (query.length < 2 || query.length > 100) {
+    el("notesBodySearchStatus").textContent = "検索語は2〜100文字で入力してください";
+    return;
+  }
+  if ((bodySearch?.error?.retryAt || 0) > Date.now()) {
+    el("notesBodySearchStatus").textContent = "GitHubの待機期限です。" + time(bodySearch.error.retryAt) + "以降に再試行してください";
+    return;
+  }
+  const previous = more ? bodySearch : null;
+  if (more && (!previous || previous.nextOffset === null)) return;
+  busy = true;
+  controls();
+  el("notesBodySearchStatus").textContent = "本文を検索中…（最大5件）";
+  try {
+    const result = await api({action:"search",query,revision:state.searchRevision,offset:previous?.nextOffset || 0});
+    bodySearch = {...result,
+      scanned:(previous?.scanned || 0) + result.scanned,
+      skipped:(previous?.skipped || 0) + result.skipped,
+      matches:[...(previous?.matches || []),...result.matches]};
+    renderList();
+  } catch (error) {
+    el("notesBodySearchStatus").textContent = error.message + "（以前の検索結果があれば保持しています）";
+  } finally {
+    busy = false;
+    controls();
+  }
+}
+el("notesBodySearch").onclick = () => searchBody();
+el("notesBodyMore").onclick = () => searchBody(true);
+el("notesBodyClear").onclick = () => { bodySearch = null; renderList(); controls(); };

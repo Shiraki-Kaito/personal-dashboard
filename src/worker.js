@@ -1,3 +1,4 @@
+import { searchNotes } from "./notes-search.js";
 import { reviewMailBody } from "./mail-body-review.js";
 import { previewProgressRestore, restoreProgressReports, archiveProgressReport, exportProgressReports, progressReportView, generateProgressReport, loadProgressReport, saveProgressReport } from "./progress-reports.js";
 import { saveAgendaCase, saveAgendaSplit, manageAgendaSplit } from "./agenda-home.js";
@@ -301,6 +302,7 @@ export class Dashboard extends DurableObject {
         if (input.action === "configure") return Response.json(await configureNotes(storage, input));
         if (input.action === "refresh") return Response.json(await refreshNotes(storage));
         if (input.action === "read") return Response.json(await readNote(storage, input));
+        if (input.action === "search") return Response.json(await searchNotes(storage, input));
         if (input.action === "stop") return Response.json(await stopNotes(storage, input));
         throw new InputError("ノートの操作が不正です");
       }
