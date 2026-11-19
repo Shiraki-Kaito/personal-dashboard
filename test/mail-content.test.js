@@ -120,7 +120,7 @@ test("本文参照だけのメールは抜粋へフォールバックし、未�
   assert.equal(result.messages[0].contentLimited, true);
   assert.equal(result.messages[0].excerpt, "面接案内の抜粋");
 });
-test("Cronのページ完了を保持し、本文一部をホームの警告にも残す", async () => {
+test("Cronのページ完了を保持し、本文一部をホームの確認範囲にも残す", async () => {
   const storage = memory();
   await queueMailSync(storage);
   const job = await storage.get("agenda:mailJob");
@@ -137,7 +137,8 @@ test("Cronのページ完了を保持し、本文一部をホームの警告に�
   const home = await agendaHome(storage);
   assert.equal(home.accounts[0].contentLimitedCount, 1);
   assert.equal(home.complete, false);
-  assert.ok(home.alerts.some((alert) => alert.message.includes("本文の一部")));
+  assert.ok(home.notices.some((notice) => notice.message.includes("範囲が一部")));
+  assert.ok(!home.alerts.some((alert) => alert.message.includes("本文の一部")));
   assert.ok(
     home.groups.some((group) =>
       group.timingNotices.some((notice) =>

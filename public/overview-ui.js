@@ -20,7 +20,7 @@ register("calendar",document.querySelector(".home-calendar-card"),labels.calenda
 register("drive",document.querySelector(".home-drive-card"),labels.drive,"drive");
 register("rawmail",document.querySelector(".agenda-column"),"取得済みメール",null);
 register("calendarData",document.querySelectorAll(".agenda-column")[1],"予定の取得状況",null);
-register("warnings",el("homeHealthDetails"),"取得状況の注意",null);
+register("warnings",el("homeHealthDetails"),"取得・解析状況",null);
 
 const dialog = node("dialog","overview-dialog");
 dialog.id="overviewDialog";
@@ -114,6 +114,9 @@ export function updateOverview(state) {
       element.replaceChildren(...value.lines.map((line,index)=>{const item=node("span","overview-line",line);if(key==="drive")item.dataset.groupColor=state.drive.groups.highlighted[index].color;return item;}));
     for(const element of document.querySelectorAll(`[data-hint="${key}"]`))element.textContent=value.hint;
   }
-  warning.hidden=!state.alerts?.length;
-  warning.textContent="取得状況に注意 "+(state.alerts?.length || 0);
+  const alertCount=state.alerts?.length || 0;
+  const noticeCount=state.agenda?.notices?.length || 0;
+  warning.hidden=!alertCount && !noticeCount;
+  warning.classList.toggle("overview-information", !alertCount);
+  warning.textContent=alertCount ? "取得状況に注意 "+alertCount : "本文の確認範囲 "+noticeCount;
 }

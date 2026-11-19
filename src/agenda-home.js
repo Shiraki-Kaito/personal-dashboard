@@ -8,13 +8,14 @@ import { displayAccounts } from "./agenda-labels.js";
 import { groupMailSuggestions } from "./mail-suggestions.js";
 import { messageTimingView } from "./timing-confirmations.js";
 import { timingOperationId } from "./timing-calendar.js";
-import { mailBodyNotice } from "./mail-body-coverage.js";
+import { mailBodyNotice, mailBodySummary } from "./mail-body-coverage.js";
 const mailFreshMs = 60 * 60 * 1000;
 // 保存済みのメール候補・確認記録・未確定操作を集約する。Googleへの通信は行わない。
 export async function agendaHome(storage, now = Date.now()) {
   const accounts = [],
     entries = [],
-    alerts = [];
+    alerts = [],
+    notices = [];
   for (const account of await displayAccounts(storage)) {
     const connection = agendaConnectionStatus(
       account.disconnectedAt ? null : await storage.get("agenda:credential:" + account.id),
@@ -30,6 +31,7 @@ export async function agendaHome(storage, now = Date.now()) {
     const stale =
       !Number.isFinite(Date.parse(cache.lastSuccess)) ||
       now - Date.parse(cache.lastSuccess) > mailFreshMs;
+    const bodySummary = mailBodySummary(messages);
     const contentLimitedCount = messages.filter(message => !!mailBodyNotice(message)).length;
     const unclassified = messages.filter(
       (message) => typeof message.candidate?.isCandidate !== "boolean",
@@ -47,7 +49,7 @@ export async function agendaHome(storage, now = Date.now()) {
       contentLimitedCount,
       retrievalView,
     });
-    if (!account.disconnectedAt && (!connection.connected || cache.error || stale || unclassified || contentLimitedCount))
+    if (!account.disconnectedAt && (!connection.connected || cache.error || stale || unclassified))
       alerts.push({
         service: "agenda",
         message:
@@ -60,10 +62,12 @@ export async function agendaHome(storage, now = Date.now()) {
                 ? "メール未取得"
                 : unclassified
                   ? "予定候補の判定を更新してください"
-                  : contentLimitedCount
-                    ? "本文の一部だけを解析したメールが"+contentLimitedCount+"件あります。原文を確認してください"
-                    : "1時間以上前のメール情報です")),
+                  : "1時間以上前のメール情報です")),
       });
+    if (!account.disconnectedAt && bodySummary.unavailable)
+      alerts.push({service: "agenda", message: account.email + "：本文を取得できていないメールが" + bodySummary.unavailable + "件あります。Gmailで原文を確認してください"});
+    if (!account.disconnectedAt && bodySummary.notice)
+      notices.push({service: "agenda", message: account.email + "：" + bodySummary.notice});
     if (!account.disconnectedAt && retrievalView.notice) alerts.push({service:"agenda",message:account.email+"："+retrievalView.notice});
     for (const id of pending) {
       const operation = await storage.get(
@@ -139,6 +143,7 @@ export async function agendaHome(storage, now = Date.now()) {
     entries: entries.map(({ excerpt, from, timings, timingNotice, ...entry }) => entry),
     ...caseView,
     alerts,
+    notices,
     complete: accounts.every(
       (a) =>
         a.connected && !a.stale && !a.error && !a.hasMore && !a.unclassified && !a.contentLimitedCount && !a.retrievalView.notice,

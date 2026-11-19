@@ -408,11 +408,14 @@ function render() {
       (agenda.accounts.some((a) => a.hasMore) ? "・未取得の続きあり" : "");
   renderSuggestions(agenda);
   renderCalendar();
-  el("homeHealthDetails").hidden = !state.alerts.length;
-  el("homeHealthSummary").textContent = `接続・取得に警告があります（${state.alerts.length}件）`;
-  el("homeAlerts").hidden = !state.alerts.length;
+  const coverageNotices = state.agenda?.notices || [];
+  const hasHealthDetails = state.alerts.length || coverageNotices.length;
+  el("homeHealthDetails").hidden = !hasHealthDetails;
+  el("homeHealthSummary").textContent = `接続・取得の警告 ${state.alerts.length}件 ／ 本文の確認範囲 ${coverageNotices.length}件`;
+  el("homeAlerts").hidden = !hasHealthDetails;
   el("homeAlerts").replaceChildren(
-    ...state.alerts.map((alert) => element("p", "", alert.message)),
+    ...state.alerts.map((alert) => element("p", "", "注意：" + alert.message)),
+    ...coverageNotices.map((notice) => element("p", "coverage-notice", "確認範囲：" + notice.message)),
   );
   const lastSuccess = state.sources
     .map((source) => source.lastSuccess)

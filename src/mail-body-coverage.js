@@ -49,3 +49,19 @@ export function mailBodyNotice(message) {
     return "保存済み本文は先頭1,600文字までで、原文全体を確認できていません。メールを再取得するか、Gmailで日時を確認してください。";
   return "";
 }
+
+// 接続の失敗と、保存・解析する本文の範囲を区別する。
+export function mailBodySummary(messages) {
+  const counts = { unavailable: 0, partial: 0, capacity: 0, legacy: 0, extended: 0 };
+  for (const message of messages) {
+    if (["unavailable", "partial", "capacity"].includes(message.bodyCoverage)) counts[message.bodyCoverage]++;
+    else if (message.bodyCoverage === "complete" && message.timingText) counts.extended++;
+    else if (mailBodyNotice(message)) counts.legacy++;
+  }
+  const parts = [];
+  if (counts.partial) parts.push(`本文の取得・解析範囲が一部のメール ${counts.partial}件（最大6,000文字）`);
+  if (counts.capacity) parts.push(`容量上限で追加本文を保持できないメール ${counts.capacity}件`);
+  if (counts.legacy) parts.push(`保存済み抜粋だけで確認しているメール ${counts.legacy}件`);
+  if (counts.extended) parts.push(`日時確認に追加本文を使用したメール ${counts.extended}件（本文表示・提案分類は先頭1,600文字）`);
+  return { ...counts, notice: parts.length ? parts.join("。") + "。原文のレイアウト・添付・リンク先は未確認です。必要な日時はGmailの原文で確認してください。" : "" };
+}

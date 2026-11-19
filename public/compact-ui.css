@@ -109,3 +109,5 @@
 
 /* 未提供の導線を通常画面へ出さない。非表示は認可の代わりにしない。 */
 .nav-button[hidden],#homeSlackStatus[hidden],#notesWorkspace[hidden],#notesSearchBar[hidden] {display:none!important;}
+
+.overview-warning.overview-information { color:#36576c; border-color:#ccdbe5; background:#f3f7fa; }
