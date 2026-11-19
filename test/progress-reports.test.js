@@ -965,3 +965,28 @@ test("復元は壊れた日付・根拠参照・比較配列・集計を保存�
     assert.equal(target.values.size, 0);
   }
 });
+
+
+test("24件の通常履歴をアーカイブすると新規作成でき、満杯の一覧へは戻せない", async () => {
+  const f = fixture();
+  const records = [];
+  for (let index = 0; index < 24; index++) {
+    records.push(await generateProgressReport({}, f.storage, scope,
+      { ...request, scope, id: crypto.randomUUID() }, f.send));
+  }
+  await assert.rejects(generateProgressReport({}, f.storage, scope,
+    { ...request, scope, id: crypto.randomUUID() }, f.send), /24件/);
+  const archived = await archiveProgressReport(f.storage, scope, {
+    id: records[0].id, scope, expectedRevision: records[0].revision, archived: true,
+  });
+  await generateProgressReport({}, f.storage, scope,
+    { ...request, scope, id: crypto.randomUUID() }, f.send);
+  const view = await progressReportView(f.storage, scope);
+  assert.equal(view.history.length, 24);
+  assert.equal(view.archivedHistory.length, 1);
+  assert.deepEqual((await loadProgressReport(f.storage, scope, archived.id)).results, records[0].results);
+  await assert.rejects(archiveProgressReport(f.storage, scope, {
+    id: archived.id, scope, expectedRevision: archived.revision, archived: false,
+  }), /24件/);
+  assert.equal((await exportProgressReports(f.storage, scope)).records.length, 25);
+});
