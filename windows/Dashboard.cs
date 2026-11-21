@@ -28,21 +28,21 @@ public sealed class Dashboard : BackgroundWindow
         toolbar.Items.AddRange(new ToolStripItem[] { mode, normal, retry, browser, close, status });
         web.Dock = DockStyle.Fill;
         Controls.Add(web); Controls.Add(toolbar);
-        mode.Click += delegate { SetBackgroundMode(true); };
-        normal.Click += delegate { SetBackgroundMode(false); Show(); Activate(); };
+        mode.Click += delegate { ShowBackgroundWindow(); };
+        normal.Click += delegate { RestoreNormalWindow(); };
         close.Click += delegate { Close(); };
         browser.Click += delegate { OpenExternal(Home); };
         retry.Click += delegate { if (web.CoreWebView2 != null) web.CoreWebView2.Navigate(Home); };
         ModeChanged += delegate { UpdateMode(); };
         BackgroundPlacementFailed += delegate { status.Text = "背面へ移動できませんでした。通常表示で再試行してください。"; };
         var menu = new ContextMenuStrip();
-        menu.Items.Add("通常表示へ戻す", null, delegate { SetBackgroundMode(false); Show(); Activate(); });
-        menu.Items.Add("背景表示", null, delegate { Show(); SetBackgroundMode(true); });
+        menu.Items.Add("通常表示へ戻す", null, delegate { RestoreNormalWindow(); });
+        menu.Items.Add("背景表示", null, delegate { ShowBackgroundWindow(); });
         menu.Items.Add("終了", null, delegate { Close(); });
         tray.Icon = SystemIcons.Application;
         tray.Text = "Personal Dashboard";
         tray.ContextMenuStrip = menu; tray.Visible = true;
-        tray.DoubleClick += delegate { SetBackgroundMode(false); Show(); Activate(); };
+        tray.DoubleClick += delegate { RestoreNormalWindow(); };
         Shown += Initialize;
         FormClosed += delegate { tray.Visible = false; tray.Dispose(); web.Dispose(); };
     }

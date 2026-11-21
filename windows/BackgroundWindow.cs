@@ -33,6 +33,23 @@ public class BackgroundWindow : Form
         };
     }
 
+    public void RestoreNormalWindow()
+    {
+        SetBackgroundMode(false);
+        // モードが既に通常でも、最小化状態からは明示的に復元する。
+        if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+        Show();
+        Activate();
+    }
+
+    public void ShowBackgroundWindow()
+    {
+        Show();
+        if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+        if (BackgroundMode) SendBehind();
+        else SetBackgroundMode(true);
+    }
+
     public void SetBackgroundMode(bool enabled)
     {
         if (enabled == BackgroundMode) return;

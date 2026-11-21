@@ -46,6 +46,17 @@ public static class DesktopTests
                 Check(!dashboard.BackgroundMode && dashboard.FormBorderStyle == FormBorderStyle.Sizable, "normal window restored");
                 Check(dashboard.Bounds == BackgroundWindow.FitBounds(before, Screen.FromRectangle(before).WorkingArea), "normal bounds restored");
                 Check((GetWindowLong(dashboard.Handle, -20) & 8) == 0, "normal window is not topmost");
+                dashboard.WindowState = FormWindowState.Minimized;
+                dashboard.RestoreNormalWindow(); Application.DoEvents();
+                Check(dashboard.WindowState == FormWindowState.Normal && dashboard.Visible, "tray restore recovers minimized normal window");
+                dashboard.ShowBackgroundWindow(); Application.DoEvents();
+                dashboard.WindowState = FormWindowState.Minimized;
+                dashboard.ShowBackgroundWindow(); Application.DoEvents();
+                Check(dashboard.BackgroundMode && dashboard.WindowState == FormWindowState.Normal, "tray background recovers minimized background window");
+                dashboard.WindowState = FormWindowState.Minimized;
+                dashboard.RestoreNormalWindow(); Application.DoEvents();
+                Check(!dashboard.BackgroundMode && dashboard.WindowState == FormWindowState.Normal && dashboard.FormBorderStyle == FormBorderStyle.Sizable, "tray restore recovers minimized background window");
+                Check((GetWindowLong(dashboard.Handle, -20) & 8) == 0, "tray restore never enables topmost");
                 dashboard.SetBackgroundMode(true); dashboard.Close(); other.Close();
                 Check(dashboard.IsDisposed, "background window can exit");
             }
