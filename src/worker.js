@@ -303,7 +303,7 @@ export class Dashboard extends DurableObject {
       if (action === "session") return Response.json({expiresAt:session.expires});
       if (action === "health") return Response.json(await healthView(this.env, storage));
       if (action === "notes") {
-        if (request.method === "POST" && ["draftList", "draftLoad", "draftSave"].includes(input.action)) return Response.json(await noteDrafts(storage, input));
+        if (request.method === "POST" && ["draftList", "draftLoad", "draftSave", "draftExport", "draftRestorePreview", "draftRestore", "draftDelete"].includes(input.action)) return Response.json(await noteDrafts(storage, input));
         if (request.method === "GET") return Response.json(await notesView(storage));
         if (input.action === "links") return Response.json(await noteTaskLinksView(this.env, storage));
         if (["linkAdd", "linkRemove"].includes(input.action)) return Response.json(await changeNoteTaskLink(this.env, storage, input));

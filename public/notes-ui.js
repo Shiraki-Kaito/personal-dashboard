@@ -1,6 +1,6 @@
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
-import { mountNoteDraft } from "./note-draft-ui.js";
+import { mountNoteDraft } from "./note-draft-ui.js?v=backup1";
 const el = (id) => document.getElementById(id);
 const setDraftSource = mountNoteDraft(el("noteBody").parentElement, api);
 const time = (value) =>

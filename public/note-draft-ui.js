@@ -36,6 +36,36 @@ export function mountNoteDraft(reader, api) {
   restore.type = "button"; restore.textContent = "保存済みの下書きを開く";
   document.getElementById("notesRefresh").after(restore);
   document.getElementById("notesStatus").after(list);
+  const management = document.createElement("details");
+  management.innerHTML = `<summary>下書きのバックアップ・復元</summary><p>保存済みの本文を含む専用JSONです。安全な場所に保管してください。通常のアプリバックアップとは別です。GitHubの元ノートは変更しません。ダウンロードは通常ブラウザーをご利用ください。</p><button type="button" data-backup>JSONを保存</button><label>復元するJSON<input type="file" accept=".json,application/json"></label><button type="button" data-import>復元内容を確認</button><p role="status"></p>`;
+  list.after(management);
+  const managementStatus = management.querySelector('[role="status"]');
+  management.querySelector('[data-backup]').onclick = async event => {
+    const control = event.currentTarget; control.disabled = true;
+    try {
+      const backup = await api({action:"draftExport"});
+      const url = URL.createObjectURL(new Blob([JSON.stringify(backup,null,2)],{type:"application/json"}));
+      const link = document.createElement("a"); link.href=url; link.download=`note-drafts-${new Date().toISOString().slice(0,10)}.json`; link.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      managementStatus.textContent=`${backup.records.length}件のダウンロードを開始しました。端末の保存先を確認してください。`;
+    } catch(error) { managementStatus.textContent=error.message; }
+    finally { control.disabled=false; }
+  };
+  management.querySelector('[data-import]').onclick = async event => {
+    const control=event.currentTarget; control.disabled=true;
+    try {
+      const file=management.querySelector('input').files[0];
+      // JSONのエスケープ・整形による増分を含めた上限。各レコードはサーバーでも検証する。
+      if (!file || file.size > 16*1024*1024) throw Error("16MiB以内の下書きJSONを選択してください");
+      const backup=JSON.parse(await file.text());
+      const plan=await api({action:"draftRestorePreview",backup});
+      if (!await confirmAction(`追加 ${plan.added.length}件／同じ内容の保存済み ${plan.existing}件。既存の内容は上書きしません。GitHubには書き込みません。\n${plan.added.map(x=>x.path).join('\n')}`,"下書きを復元")) return;
+      const result=await api({action:"draftRestore",backup,confirmed:true});
+      managementStatus.textContent=`復元完了：追加${result.added.length}件、保存済み${result.existing}件。`;
+      await restore.onclick();
+    } catch(error) { managementStatus.textContent=`復元できませんでした：${error.message}`; }
+    finally { control.disabled=false; }
+  };
   restore.onclick = async () => {
     restore.disabled = true;
     try {
@@ -49,7 +79,18 @@ export function mountNoteDraft(reader, api) {
           try { const loaded = await api({action:"draftLoad",id:record.id}); open(loaded, loaded); }
           catch (error) { list.append(document.createTextNode(error.message)); }
           finally { item.disabled = false; }
-        }; list.append(item);
+        };
+        const remove=document.createElement("button"); remove.type="button"; remove.textContent="この下書きを削除";
+        remove.onclick=async()=>{
+          remove.disabled=true;
+          try {
+            if (!await confirmAction(`${record.path}\n保存日時：${new Date(record.updatedAt).toLocaleString("ja-JP")}\nこの保存済み下書きを削除します。元に戻すには専用JSONのバックアップが必要です。必要なら先にバックアップしてください。GitHubの元ノートは削除しません。`,"下書きを削除")) return;
+            await api({action:"draftDelete",id:record.id,revision:record.revision,confirmed:true});
+            await restore.onclick();
+          } catch(error) { managementStatus.textContent=error.message; }
+          finally { remove.disabled=false; }
+        };
+        const row=document.createElement("div"); row.append(item,remove); list.append(row);
       }
     } catch (error) { list.textContent = error.message; }
     finally { restore.disabled = false; }

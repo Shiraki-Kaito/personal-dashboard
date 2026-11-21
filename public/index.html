@@ -20,7 +20,7 @@
     <script type="module" src="/home-ui.js?v=compact1"></script>
     <script type="module" src="/backup-ui.js?v=meetings1"></script>
     <script type="module" src="/agenda-ui.js?v=compact1"></script>
-    <script type="module" src="/notes-ui.js?v=hourly1"></script>
+    <script type="module" src="/notes-ui.js?v=draft-backup1"></script>
     <script type="module" src="/health-ui.js?v=recovery1"></script>
     <script type="module" src="/timing-cleanup-ui.js"></script>
     <script type="module" src="/mail-rules-ui.js?v=3"></script>
@@ -577,7 +577,7 @@
             <div id="noteLinksList"></div>
           </details>
           <div class="notes-workspace" id="notesWorkspace" hidden><div id="notesList" class="notes-list" aria-label="ノート一覧"></div><article class="notes-reader"><div class="notes-reader-heading"><h3 id="noteTitle">ノートを選択</h3><a id="noteSource" target="_blank" rel="noreferrer" hidden>GitHubで開く ↗</a></div><p id="noteStatus" role="status"></p><pre id="noteBody">一覧から選ぶと、本文を取得します。本文はMarkdown原文として表示し、外部画像・HTML・スクリプトは実行しません。</pre></article></div>
-          <p class="agenda-help">設定後は毎時、一覧を自動更新します。「一覧を更新」でも取得できます。上限1000ノート・ツリー5000項目、本文256KiB。取得失敗時は以前の一覧を明示して保持し、本文は取得しません。本文検索は明示操作で5件ずつ読み取ります。検索済み範囲とサイズ超過・失敗を表示し、未検索の続きはボタンで進めます。検索語・閲覧だけの本文は保存しません。「下書きを保存」で明示保存した本文は本人専用サーバーに保持します。下書きはバックアップ対象外です。ノートの一覧・本文・認証情報はバックアップ対象外です。タスクとの関連はバックアップに含みます。</p>
+          <p class="agenda-help">設定後は毎時、一覧を自動更新します。「一覧を更新」でも取得できます。上限1000ノート・ツリー5000項目、本文256KiB。取得失敗時は以前の一覧を明示して保持し、本文は取得しません。本文検索は明示操作で5件ずつ読み取ります。検索済み範囲とサイズ超過・失敗を表示し、未検索の続きはボタンで進めます。検索語・閲覧だけの本文は保存しません。「下書きを保存」で明示保存した本文は本人専用サーバーに保持します。下書きは「下書きのバックアップ・復元」から専用JSONで保存・復元できます。ノートの一覧・本文・認証情報はバックアップ対象外です。タスクとの関連はバックアップに含みます。</p>
         </section>
         <section class="panel surface slack-panel" aria-labelledby="slackHeading">
           <div class="panel-heading"><h2 id="slackHeading" tabindex="-1">Slack</h2><button id="slackRefresh" class="button">投稿を更新</button></div>

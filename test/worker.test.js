@@ -228,7 +228,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     for (const action of ["configure", "refresh", "addChannel", "review", "stop"])
       assert.equal((await request("/api/slack", {action})).status, 401);
     assert.equal((await request("/auth/slack/start", {})).status, 401);
-    for(const action of ["draftList","draftLoad","draftSave","configure","refresh","read","search","stop","links","linkAdd","linkRemove"]) assert.equal((await request("/api/notes",{action})).status,401);
+    for(const action of ["draftList","draftLoad","draftSave","draftExport","draftRestorePreview","draftRestore","draftDelete","configure","refresh","read","search","stop","links","linkAdd","linkRemove"]) assert.equal((await request("/api/notes",{action})).status,401);
     for (const action of ["previewPriorityRules", "savePriorityRules", "label", "syncMail", "disconnect", "clearCache", "previewDelete", "deleteAccount", "cleanupReferences"])
       assert.equal((await request("/api/agenda", { action })).status, 401);
     assert.equal(
@@ -421,6 +421,15 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     assert.deepEqual(restartedNotes.files.map(file=>file.path),["note.md"]);
     assert.deepEqual(await (await request("/api/notes",{action:"draftLoad",id:draftInput.id})).json(),savedDraft);
     assert.deepEqual(await (await request("/api/notes",draftInput)).json(),savedDraft);
+    const draftBackup=await (await request("/api/notes",{action:"draftExport"})).json();
+    for(const action of ["draftExport","draftRestorePreview","draftRestore","draftDelete"])
+      assert.equal((await request("/api/notes",{action},"https://other.test")).status,403);
+    assert.equal((await request("/api/notes",{action:"draftDelete",id:savedDraft.id,revision:savedDraft.revision,confirmed:true})).status,200);
+    const restoreDrafts={action:"draftRestore",backup:draftBackup,confirmed:true};
+    assert.equal((await request("/api/notes",restoreDrafts)).status,200);
+    await app.dispose(); app=boot();
+    assert.equal((await (await request("/api/notes",{action:"draftLoad",id:savedDraft.id})).json()).text,savedDraft.text);
+    assert.equal((await (await request("/api/notes",restoreDrafts)).json()).existing,1);
     const healthAfterRestart=await (await request("/api/health")).json();
     assert.equal(healthAfterRestart.pending.find(item=>item.service==="github").count,1);
     const recovered = await (await request("/api/state")).json();
