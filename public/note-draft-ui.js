@@ -1,4 +1,4 @@
-import { NoteDraft } from "./note-draft.js";
+import { NoteDraft, compareDraftSource } from "./note-draft.js?v=compare1";
 import { confirmAction } from "./confirm.js";
 
 export function mountNoteDraft(reader, api) {
@@ -16,6 +16,7 @@ export function mountNoteDraft(reader, api) {
   dialog.innerHTML = `<h2 id="noteDraftTitle">ノートの下書き</h2>
     <p data-source></p><p>「下書きを保存」で本人専用サーバーへ保存します。自動保存ではありません。GitHubには書き込みません。</p>
     <label>Markdown本文<textarea rows="16" spellcheck="false"></textarea></label>
+    <button type="button" data-compare>元ノートを取得して比較</button><section data-comparison hidden><p data-comparison-status role="status"></p><details><summary>異なる範囲を見る（共通の先頭・末尾を省略）</summary><h3>取得した元ノート</h3><pre data-source-lines></pre><h3>比較時の下書き</h3><pre data-draft-lines></pre></details></section>
     <p role="status" data-status></p><div class="button-row"><button type="button" data-save>下書きを保存</button><button type="button" data-copy>コピー</button><button type="button" data-download>Markdown保存</button><button type="button" data-close>閉じる</button></div>`;
   document.body.append(dialog);
   const input = dialog.querySelector("textarea"), status = dialog.querySelector("[data-status]");
@@ -23,13 +24,30 @@ export function mountNoteDraft(reader, api) {
     draft = new NoteDraft(note);
     saved = record || {id:crypto.randomUUID(),scope:note.scope,path:note.path,commit:note.commit,revision:""};
     pending = null;
+    dialog.querySelector('[data-comparison]').hidden=true;
     input.value = draft.text;
     dialog.querySelector("[data-source]").textContent = `${draft.path} ／ 元コミット ${draft.commit.slice(0, 8)}`;
-    status.textContent = record ? "保存済み下書きを復元しました。元ノートの最新版との照合はしていません。GitHubには未反映です。" : "下書きは未保存・GitHubには未反映";
+    status.textContent = record ? "保存済み下書きを復元しました。比較ボタンで元ノートとの相違を確認できます。GitHubには未反映です。" : "下書きは未保存・GitHubには未反映";
     dialog.showModal();
     input.focus();
   }
   button.onclick = () => { if (source) open(source); };
+  dialog.querySelector('[data-compare]').onclick = async event => {
+    const control=event.currentTarget, active=draft, text=draft.text;
+    const area=dialog.querySelector('[data-comparison]'), message=dialog.querySelector('[data-comparison-status]');
+    control.disabled=true; area.hidden=false; message.textContent="元ノートを取得しています…";
+    dialog.querySelector('[data-source-lines]').textContent="";
+    dialog.querySelector('[data-draft-lines]').textContent="";
+    try {
+      const result=await compareDraftSource({...saved},text,api);
+      if(draft!==active) return;
+      if(draft.text!==text) throw Error("比較中に下書きを編集しました。もう一度比較してください。");
+      message.textContent=`${result.same ? "本文は一致しています。" : `${result.startLine}行目から相違があります。`} 取得版 ${result.commit.slice(0,8)} ／ 一覧取得 ${new Date(result.checkedAt).toLocaleString("ja-JP",{timeZone:"Asia/Tokyo"})}。${result.sourceCommitChanged ? "編集元とリポジトリのコミットが異なります（このファイルの変更とは限りません）。" : "編集元と同じコミットです。"} 取得した版との比較です。自動マージ・GitHub保存は行いません。`;
+      dialog.querySelector('[data-source-lines]').textContent=result.sourceLines;
+      dialog.querySelector('[data-draft-lines]').textContent=result.draftLines;
+    } catch(error) { if(draft===active) message.textContent=`比較できません：${error.message}`; }
+    finally { control.disabled=false; }
+  };
   const restore = document.createElement("button"), list = document.createElement("div");
   restore.className = "button button-small";
   list.className = "note-draft-list";
@@ -109,7 +127,7 @@ export function mountNoteDraft(reader, api) {
     } catch (error) { status.textContent = error.message + " 入力は保持しています。結果不明時は同じ内容で再試行してください。"; }
     finally { saving = false; input.disabled = false; for (const control of dialog.querySelectorAll("button")) control.disabled = false; }
   };
-  input.oninput = () => { draft.text = input.value; status.textContent = "下書きを編集中・GitHubには未反映"; };
+  input.oninput = () => { draft.text = input.value; dialog.querySelector('[data-comparison]').hidden=true; status.textContent = "下書きを編集中・GitHubには未反映"; };
   async function close() {
     if (saving) return;
     if (draft?.dirty && !await confirmAction("コピー・保存していない変更があります。下書きを破棄して閉じますか？")) return;

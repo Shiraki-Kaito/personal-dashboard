@@ -2340,3 +2340,5 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 .note-draft-dialog textarea { display: block; width: 100%; box-sizing: border-box; font: inherit; }
 .note-draft-dialog button, .note-draft-list button { padding: 10px; border: 1px solid #ccd8df; border-radius: 8px; margin: 4px; }
 .note-draft-list button { display: block; max-width: 100%; overflow-wrap: anywhere; }
+
+.note-draft-dialog [data-comparison] pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:18rem; overflow:auto; padding:12px; background:#f3f6f8; }

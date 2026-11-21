@@ -39,3 +39,23 @@ test("UTF-8の上限、空本文、ローカル限定名、元の版の検証", 
     assert.throws(() => new NoteDraft({...source,path}));
   assert.throws(() => new NoteDraft({...source,commit:"unknown"}));
 });
+
+test("下書き比較は読み取り経路だけを使い、変更範囲とコミット差を区別する", async()=>{
+  const {compareDraftSource}=await import('../public/note-draft.js');
+  const origin={...source,scope:'["owner","notes","",""]'};
+  const view={configured:true,config:{owner:'owner',repo:'notes',branch:'',folder:''},files:[{path:source.path,sha:'c'.repeat(40),readable:true}],commit:'b'.repeat(40),lastSuccess:new Date().toISOString()};
+  const calls=[];
+  const api=async input=>{calls.push(input.action);return input.action==='refresh'?view:{...source,text:'先頭\n元本文\n末尾',commit:view.commit,sha:'c'.repeat(40)};};
+  const result=await compareDraftSource(origin,'先頭\n編集本文\n末尾',api);
+  assert.deepEqual(calls,['refresh','read']);
+  assert.equal(result.startLine,2); assert.equal(result.sourceLines,'元本文'); assert.equal(result.draftLines,'編集本文');
+  assert.equal(result.sourceCommitChanged,true); assert.equal(result.same,false);
+  assert.equal((await compareDraftSource(origin,'先頭\n元本文\n末尾',api)).same,true);
+  for(const patch of [{stale:true},{error:'通信失敗'},{configured:false},{config:{...view.config,repo:'other'}},{files:[]}]) {
+    let reads=0;
+    await assert.rejects(compareDraftSource(origin,'x',async input=>{if(input.action==='read') reads++;return {...view,...patch};}));
+    assert.equal(reads,0);
+  }
+  await assert.rejects(compareDraftSource(origin,'x',async input=>input.action==='refresh'?view:{...source,sha:'c'.repeat(40)}),/版が変わり/);
+  await assert.rejects(compareDraftSource({...origin,path:'private_L.md'},'x',api));
+});
