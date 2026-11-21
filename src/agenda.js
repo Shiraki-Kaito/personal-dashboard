@@ -113,7 +113,7 @@ export async function agendaView(env, storage, id) {
         ...message,
         bodyNotice: mailBodyNotice({ ...message, timingText }),
         bodyRevision: await mailBodyRevision({...message,timingText}),
-        priority: priorityWithRules(message, priorityRules.rules),
+        priority: priorityWithRules({ ...message, timingText }, priorityRules.rules),
         review: reviews[message.id] || null,
         operation:
           (await operationView(

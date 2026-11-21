@@ -285,3 +285,21 @@ test("本文後半のカスタム優先・除外語句と6000文字境界を判�
   assert.equal(priorityWithRules({...base,timingText:'a'.repeat(2000)+'参加証 対象外',keepBody:true},rules).important,true);
   assert.equal(priorityWithRules({...base,timingText:'a'.repeat(2000)+'ＥＳ'},rule({priorityKeywords:['es']})).important,true);
 });
+
+test("追加本文の語句による重要判定をホーム・一覧・プレビューで揃え、本文は一覧APIへ追加配布しない",async()=>{
+  const {s,id}=await setup();
+  const cache=await s.get('agenda:cache:'+id);
+  cache.messages[0]={...cache.messages[0],subject:'連絡',excerpt:'a'.repeat(1600),timingText:'a'.repeat(2000)+'運営連絡',bodyCoverage:'complete'};
+  await s.put('agenda:cache:'+id,cache);
+  const rules=rule({priorityKeywords:['運営連絡']});
+  await savePriorityRules(s,{accountId:id,rules,revision:null,confirm:true});
+  assert.equal((await previewPriorityRules(s,{accountId:id,rules})).important,1);
+  assert.equal((await agendaHome(s)).candidates,1);
+  const view=await agendaView({},s,id);
+  assert.equal(view.messages[0].priority.important,true);
+  assert.equal(view.messages[0].timingText,undefined);
+  const excluded=rule({priorityKeywords:['運営連絡'],excludedKeywords:['運営連絡']});
+  await savePriorityRules(s,{accountId:id,rules:excluded,revision:(await priorityRulesView(s,id)).revision,confirm:true});
+  assert.equal((await agendaView({},s,id)).messages[0].priority.important,false);
+  assert.equal((await agendaHome(s)).candidates,0);
+});
