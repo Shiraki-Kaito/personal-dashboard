@@ -16,7 +16,7 @@ export class AppInstall {
     this.installed = true;
     this.event = null;
     this.message =
-      "インストールされました。WindowsのスタートからPersonal Dashboardを開けます。";
+      "インストールされました。端末のアプリ一覧またはホーム画面からPersonal Dashboardを開けます。";
     this.changed();
   }
   async prompt() {
@@ -32,7 +32,7 @@ export class AppInstall {
       if (!this.installed)
         this.message =
           result.outcome === "accepted"
-            ? "ブラウザーで受け付けました。完了後、スタートから開けます。"
+            ? "ブラウザーで受け付けました。追加の完了を確認してください。"
             : "インストールを見送りました。ブラウザーから引き続き利用できます。";
     } catch {
       if (!this.installed)

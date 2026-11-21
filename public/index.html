@@ -7,6 +7,7 @@
     <meta name="theme-color" content="#10151d" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/dashboard-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/icons/dashboard-192.png" />
     <title>ワークスペース | Personal Dashboard</title>
     <link rel="stylesheet" href="/style.css?v=20261117-drive-cards1" />
     <link rel="stylesheet" href="/compact-ui.css?v=1" />
@@ -1041,10 +1042,14 @@
           </button>
         </div>
         <section class="settings-section">
-          <h3>Windowsの独立ウィンドウ</h3>
-          <p id="installStatus" role="status"></p><button id="installApp" class="button button-small" disabled>Windowsアプリとして追加</button>
-          <p>追加後はWindowsのスタートから起動できます。本人ログインは引き続き必要です。更新はサーバー側へ反映され、開き直すと最新版を読み込みます。インターネット接続が必要です。</p>
-          <p>通常ウィンドウとして動作します。壁紙風の背面表示・最前面固定・自動起動・オフライン編集は含みません。削除するときはブラウザーのアプリ管理からアンインストールしてください。サーバーの保存データやGoogle・GitHub側の情報は削除しません。</p>
+          <h3>端末にアプリとして追加</h3>
+          <p id="installStatus" role="status"></p><button id="installApp" class="button button-small" disabled>この端末に追加</button>
+          <details><summary>iPhone・iPadでの追加手順</summary>
+            <ol><li>Safariでこのサイトを開きます。</li><li>共有メニューから「ホーム画面に追加」を選びます。項目がない場合は共有メニューの編集も確認してください。</li><li>「Webアプリとして開く」が表示される場合は有効にして追加します。</li><li>ホーム画面のアイコンから開き、必要に応じてGitHubで本人ログインします。</li></ol>
+            <p>TestFlight版ではありません。追加しただけで他の人が本番データを使えるようにはなりません。</p>
+          </details>
+          <p>インターネット接続が必要です。オフライン編集には対応していません。更新後は開き直してください。端末からアプリを削除しても、サーバーやGoogle・GitHubの保存データは削除しません。</p>
+          <p>ここで追加するWebアプリは通常のアプリ画面です。Windowsの壁紙風表示は別の専用Windowsアプリを使います。</p>
         </section>
         <section class="settings-section">
           <h3>全接続の診断・復旧</h3><button id="healthRefresh" class="button button-small">保存状態を確認</button>
