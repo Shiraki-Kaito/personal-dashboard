@@ -12,3 +12,5 @@ public/fonts/
 public/third-party-licenses.txt
 
 public/slack-app-manifest.json
+windows/.packages/
+windows/bin/
