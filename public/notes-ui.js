@@ -2,7 +2,7 @@ import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
 import { mountNoteDraft } from "./note-draft-ui.js";
 const el = (id) => document.getElementById(id);
-const setDraftSource = mountNoteDraft(el("noteBody").parentElement);
+const setDraftSource = mountNoteDraft(el("noteBody").parentElement, api);
 const time = (value) =>
   value ? new Date(value).toLocaleString("ja-JP", {timeZone:"Asia/Tokyo"}) : "未取得";
 let bodySearch = null;
@@ -69,7 +69,7 @@ async function openNote(file) {
     const url = new URL(note.url);
     if (url.origin !== "https://github.com") throw Error("参照先が不正です");
     el("noteBody").textContent = note.text;
-    setDraftSource({ ...note, path: file.path });
+    setDraftSource({ ...note, path: file.path, scope: JSON.stringify([state.config.owner,state.config.repo,state.config.branch,state.config.folder]) });
     el("noteSource").href = url.href;
     el("noteSource").hidden = false;
     el("noteStatus").textContent =

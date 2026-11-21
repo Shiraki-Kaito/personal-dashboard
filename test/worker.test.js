@@ -77,6 +77,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "notes-http",
       "notes-search",
       "note-task-links",
+      "note-drafts",
       "auth",
       "github",
       "sync",
@@ -227,7 +228,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     for (const action of ["configure", "refresh", "addChannel", "review", "stop"])
       assert.equal((await request("/api/slack", {action})).status, 401);
     assert.equal((await request("/auth/slack/start", {})).status, 401);
-    for(const action of ["configure","refresh","read","search","stop","links","linkAdd","linkRemove"]) assert.equal((await request("/api/notes",{action})).status,401);
+    for(const action of ["draftList","draftLoad","draftSave","configure","refresh","read","search","stop","links","linkAdd","linkRemove"]) assert.equal((await request("/api/notes",{action})).status,401);
     for (const action of ["previewPriorityRules", "savePriorityRules", "label", "syncMail", "disconnect", "clearCache", "previewDelete", "deleteAccount", "cleanupReferences"])
       assert.equal((await request("/api/agenda", { action })).status, 401);
     assert.equal(
@@ -406,12 +407,20 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     assert.deepEqual(attempts.map((x) => x.status).sort(), [200, 409]);
     const failed = await attempts.find((x) => x.status === 200).json();
     assert.ok(failed.pending);
+    const noteView = await (await request("/api/notes")).json();
+    const draftInput = {action:"draftSave",id:crypto.randomUUID(),operationId:crypto.randomUUID(),revision:"",scope:JSON.stringify([noteView.config.owner,noteView.config.repo,noteView.config.branch,noteView.config.folder]),path:"note.md",commit:noteView.commit,text:"SQLite再起動の試験下書き"};
+    assert.equal((await request("/api/notes",draftInput,"https://other.test")).status,403);
+    const savedDraftResponse = await request("/api/notes",draftInput);
+    assert.equal(savedDraftResponse.status,200);
+    const savedDraft = await savedDraftResponse.json();
     await app.dispose();
     app = boot();
     rejectWrites = false;
     const restartedNotes=await (await request("/api/notes")).json();
     assert.equal(restartedNotes.configured,true);
     assert.deepEqual(restartedNotes.files.map(file=>file.path),["note.md"]);
+    assert.deepEqual(await (await request("/api/notes",{action:"draftLoad",id:draftInput.id})).json(),savedDraft);
+    assert.deepEqual(await (await request("/api/notes",draftInput)).json(),savedDraft);
     const healthAfterRestart=await (await request("/api/health")).json();
     assert.equal(healthAfterRestart.pending.find(item=>item.service==="github").count,1);
     const recovered = await (await request("/api/state")).json();

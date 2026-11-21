@@ -2334,3 +2334,9 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 #groupEditDetails summary { cursor:pointer; font-weight:600; }
 #groupEditDetails .group-form { margin-top:16px; }
 #groupImportantSelection .group-recent { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+
+.note-draft-dialog { width: min(850px, 90vw); max-height: 85vh; overflow: auto; padding: 24px; border-radius: 16px; }
+.note-draft-dialog label { display: block; }
+.note-draft-dialog textarea { display: block; width: 100%; box-sizing: border-box; font: inherit; }
+.note-draft-dialog button, .note-draft-list button { padding: 10px; border: 1px solid #ccd8df; border-radius: 8px; margin: 4px; }
+.note-draft-list button { display: block; max-width: 100%; overflow-wrap: anywhere; }
