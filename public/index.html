@@ -784,7 +784,7 @@
         <div class="dialog-top"><h2 id="mailRulesHeading">重要メールの設定</h2><button id="mailRulesClose" class="icon-button" aria-label="重要メール設定を閉じる">×</button></div>
         <label>対象アカウント<select id="mailRulesAccount"></select></label>
         <p>アカウントごとに設定します。除外設定に一致したメールは優先設定よりも先に「その他」へ回します。件名とリンクは全件一覧に残ります。本文未保存のメールは設定保存後に「全接続のメールを取得」で再判定してください。確定日時や予定の登録結果不明は保護します。</p>
-        <p>1行に1件、各欄20件まで。送信者はメールアドレス、または <code>@example.com</code> の形式です。ドメインは完全一致し、サブドメインは含みません。語句は件名と保存済み本文抜粋の部分一致（大文字小文字・全角半角は区別しない）です。正規表現は使いません。</p>
+        <p>1行に1件、各欄20件まで。送信者はメールアドレス、または <code>@example.com</code> の形式です。ドメインは完全一致し、サブドメインは含みません。語句は件名と保存済み本文（追加本文がある場合は最大6,000文字）の部分一致（大文字小文字・全角半角は区別しない）です。正規表現は使いません。未取得の本文後半・添付・リンク先は判定対象外です。本文整理済みのメールは再取得が必要です。</p>
         <div class="mail-rules-grid">
           <label>優先する送信者<textarea id="prioritySenders" rows="4" maxlength="5100" spellcheck="false" placeholder="office@example.ac.jp"></textarea></label>
           <label>その他へ回す送信者<textarea id="excludedSenders" rows="4" maxlength="5100" spellcheck="false" placeholder="newsletter@example.com"></textarea></label>

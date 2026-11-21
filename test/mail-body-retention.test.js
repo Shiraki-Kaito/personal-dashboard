@@ -155,3 +155,34 @@ test("取得時に本文後半で重要と判定したメールを整理せず�
   assert.equal(saved.timingText,body);
   assert.ok((await messageTimingView(saved)).timings.some(t=>t.additional && t.date==='2026-12-15'));
 });
+
+test("後半だけの優先語句を保存後も保持し、容量不足で判定根拠を落とさない",async()=>{
+  const {limitTimingText}=await import('../src/mail-body-coverage.js');
+  const store=storage();
+  const rules={...emptyPriorityRules(),priorityKeywords:['提出期限']};
+  store.values.set('agenda:priorityRules:a',{rules});
+  const kept=await retainImportantMailBodies(store,'a',[message('a')]);
+  assert.equal(kept[0].bodyRetention,'protected');
+  assert.equal(kept[0].timingText,body);
+  assert.equal(priorityWithRules(kept[0],rules).important,true);
+  assert.throws(()=>limitTimingText(kept,1),/保護対象/);
+  const {previewPriorityRules}=await import('../src/mail-priority-rules.js');
+  store.values.set('agenda:accounts',[{id:'a'}]);
+  store.values.set('agenda:cache:a',{messages:[...kept,{...message('b'),bodyCoverage:'capacity',timingText:undefined},{...message('c'),bodyCoverage:'partial'}]});
+  const preview=await previewPriorityRules(store,{accountId:'a',rules});
+  assert.equal(preview.incompleteCount,2);
+});
+
+test("Gmail取得から保存一覧まで本文後半のカスタム語句だけで重要として保持する",async()=>{
+  const store=storage();
+  const rules={...emptyPriorityRules(),priorityKeywords:['提出期限']};
+  store.values.set('agenda:priorityRules:a',{rules});
+  const page=await readMailPage({},store,{id:'a',email:'a@example.test'},null,async url=>{
+    if(new URL(url).pathname.endsWith('/messages'))return Response.json({messages:[{id:'abc'}]});
+    return Response.json({id:'abc',internalDate:String(Date.now()),payload:{mimeType:'text/plain',headers:[{name:'Subject',value:'連絡'}],body:{data:Buffer.from(body).toString('base64url')}}});
+  });
+  const saved=mergeMailLanes(page.messages,[])[0];
+  assert.equal(saved.bodyRetention,'protected');
+  assert.equal(priorityWithRules(saved,rules).important,true);
+  assert.equal(saved.timingText,body);
+});

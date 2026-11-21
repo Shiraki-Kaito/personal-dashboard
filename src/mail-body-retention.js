@@ -12,7 +12,11 @@ export async function retainImportantMailBodies(storage, accountId, messages) {
   for (const source of messages) {
     const message = source.keepBody === undefined && keptIds.has(source.id) ? {...source,keepBody:true} : source;
     const important = priorityWithRules(message, rules).important;
-    const protectedRecord = message.keepBody === true || message.bodyCoverage === "unavailable" || protectedIds.has(message.id) || !!await storage.get("agenda:operation:" + accountId + ":" + message.id);
+    // 後半の語句が重要判定の根拠なら、その本文を容量整理で落として判定を反転させない。
+    // 収まらない場合は既存の保護本文と同様に取得を失敗させ、前回の一覧を保持する。
+    const needsExtendedBody = important && !!message.timingText &&
+      !priorityWithRules({...message,timingText:undefined}, rules).important;
+    const protectedRecord = needsExtendedBody || message.keepBody === true || message.bodyCoverage === "unavailable" || protectedIds.has(message.id) || !!await storage.get("agenda:operation:" + accountId + ":" + message.id);
     if (important || protectedRecord) {
       retained.push({...message, bodyRetention: protectedRecord ? "protected" : "important"});
       continue;

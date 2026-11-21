@@ -147,7 +147,8 @@ el("mailRulesPreview").onclick = async () => {
       "件。分類が変わるメール " +
       result.changedCount +
       "件。先頭10件まで表示します。未取得のメールは含みません。" +
-      (result.unavailableCount ? ` 本文未保存の${result.unavailableCount}件は再判定できません。保存後に「全接続のメールを取得」で再取得してください。` : "");
+      (result.unavailableCount ? ` 本文未保存の${result.unavailableCount}件は再判定できません。保存後に「全接続のメールを取得」で再取得してください。` : "") +
+      (result.incompleteCount ? ` 本文の確認範囲が不完全なメールが${result.incompleteCount}件あります。未取得部分は語句に未一致とは判断できません。再取得またはGmail原文で確認してください。` : "");
     el("mailRulesResult").replaceChildren(
       ...result.changed.map((message) => {
         const row = document.createElement("li");

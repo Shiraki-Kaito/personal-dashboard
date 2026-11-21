@@ -1,5 +1,6 @@
 import { InputError } from "./sync.js";
 import { currentMailPriority } from "./agenda-priority.js";
+import { maximumTimingTextCharacters } from "./mail-body-coverage.js";
 
 const maximumEntries = 20;
 const maximumKeywordLength = 100;
@@ -68,7 +69,7 @@ function matchesSender(address, entries) {
     entry.startsWith("@") ? entry === domain : entry === address,
   );
 }
-// カスタム設定は保存済み件名・抜粋だけを使う。差出人の真正性は保証しない。
+// 保存済みの追加本文も使う。未取得部分・添付・リンク先は判定できない。
 export function priorityWithRules(message, rules = emptyPriorityRules()) {
   const builtin = currentMailPriority(message);
   if (message.keepBody === true)
@@ -80,7 +81,8 @@ export function priorityWithRules(message, rules = emptyPriorityRules()) {
   const context = (
     (message.subject || "") +
     "\n" +
-    (message.excerpt || "").slice(0, 1600)
+    (message.excerpt || "").slice(0, 1600) + "\n" +
+    (message.timingText || "").slice(0, maximumTimingTextCharacters)
   )
     .normalize("NFKC")
     .toLowerCase();
@@ -134,6 +136,8 @@ export async function previewPriorityRules(storage, input) {
   return {
     total: messages.length,
     unavailableCount: messages.filter(message => message.bodyCoverage === "excluded").length,
+    incompleteCount: messages.filter(message => message.bodyCoverage !== "excluded" &&
+      (message.bodyCoverage !== "complete" || (!message.timingText && message.contentLimited))).length,
     important: messages.filter(
       (message) => priorityWithRules(message, rules).important,
     ).length,

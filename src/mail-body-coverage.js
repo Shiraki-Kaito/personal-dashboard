@@ -51,9 +51,9 @@ export function mailBodyNotice(message) {
   if (message.bodyCoverage === "capacity")
     return "日時確認用の追加本文は保存容量の上限で保持できませんでした。先頭1,600文字より後の日時は確認できていません。Gmailで確認してください。";
   if (message.bodyCoverage === "partial")
-    return "本文の一部だけを取得・解析しています。日時確認は最大6,000文字で、それより後・本文参照・添付・リンク先の日時は確認できていません。Gmailで確認してください。";
+    return "本文の一部だけを取得・解析しています。日時確認・カスタム語句判定は最大6,000文字で、それより後・本文参照・添付・リンク先の日時は確認できていません。Gmailで確認してください。";
   if (message.timingText)
-    return "本文表示・提案分類は先頭1,600文字、日時確認は最大6,000文字の追加範囲も使用します。原文のレイアウト・添付・リンク先は未確認です。";
+    return "本文表示・提案分類は先頭1,600文字、日時確認・カスタム語句判定は最大6,000文字の追加範囲も使用します。原文のレイアウト・添付・リンク先は未確認です。";
   if (message.contentLimited || (!message.bodyCoverage && (message.excerpt || "").length >= 1600))
     return "保存済み本文は先頭1,600文字までで、原文全体を確認できていません。メールを再取得するか、Gmailで日時を確認してください。";
   return "";

@@ -275,3 +275,13 @@ test("停止とキャッシュ整理では保持し、完全削除では対象�
   assert.equal(await s.get("agenda:priorityRules:" + id), undefined);
   assert.deepEqual(await priorityRulesView(s, other), otherRules);
 });
+
+test("本文後半のカスタム優先・除外語句と6000文字境界を判定する",()=>{
+  const base={subject:'連絡',excerpt:'a'.repeat(1600),bodyCoverage:'complete'};
+  const rules=rule({priorityKeywords:['参加証'],excludedKeywords:['対象外']});
+  assert.equal(priorityWithRules({...base,timingText:'a'.repeat(5997)+'参加証'},rules).important,true);
+  assert.equal(priorityWithRules({...base,timingText:'a'.repeat(6000)+'参加証'},rules).important,false);
+  assert.equal(priorityWithRules({...base,timingText:'a'.repeat(2000)+'参加証 対象外'},rules).important,false);
+  assert.equal(priorityWithRules({...base,timingText:'a'.repeat(2000)+'参加証 対象外',keepBody:true},rules).important,true);
+  assert.equal(priorityWithRules({...base,timingText:'a'.repeat(2000)+'ＥＳ'},rule({priorityKeywords:['es']})).important,true);
+});
