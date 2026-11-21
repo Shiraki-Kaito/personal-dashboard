@@ -1,4 +1,5 @@
 import { normalizeGroupStore } from "./drive-groups.js";
+import { normalizeNoteTaskLinks } from "./note-task-links.js";
 import { normalizeGroupDisplay } from "./drive-group-display.js";
 import { normalizeMeetingStore } from "./drive-meetings.js";
 import { normalizeWeeklySettings } from "./weekly-drive.js";
@@ -102,6 +103,7 @@ export async function createBackup(env, storage) {
     driveMeetings: (await storage.get("drive:meetingReports"))?.scope === target.drive ? normalizeMeetingStore(await storage.get("drive:meetingReports")) : null,
     weeklySettings:(await storage.get("drive:weeklySettings"))?.scope===target.drive ? normalizeWeeklySettings(await storage.get("drive:weeklySettings")) : null,
     agenda: await createAgendaBackup(storage),
+    noteTaskLinks: (await storage.get("notes:taskLinks")) ? normalizeNoteTaskLinks(await storage.get("notes:taskLinks")) : null,
   };
   checkSize(backup);
   return backup;
@@ -136,6 +138,7 @@ async function restoreEntries(env, storage, backup) {
   )
     throw new InputError("本人・接続先・形式が一致しないバックアップです");
   const entries = new Map();
+  if (backup.noteTaskLinks) entries.set("notes:taskLinks", {...normalizeNoteTaskLinks(backup.noteTaskLinks), revision:crypto.randomUUID()});
   for (const task of backup.tasks) {
     if (
       !task ||
@@ -253,6 +256,7 @@ export async function backupPlan(env, storage, backup) {
   );
   return {
     tasks: backup.tasks.length,
+    noteTaskLinks: backup.noteTaskLinks?.records.length || 0,
     driveFiles: backup.drive?.files.length || 0,
     meetingReports: backup.driveMeetings?.records.length || 0,
     agendaAccounts: backup.agenda?.length || 0,

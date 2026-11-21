@@ -1,4 +1,5 @@
 import { searchNotes } from "./notes-search.js";
+import { noteTaskLinksView, changeNoteTaskLink } from "./note-task-links.js";
 import { reviewMailBody } from "./mail-body-review.js";
 import { previewProgressRestore, restoreProgressReports, archiveProgressReport, exportProgressReports, progressReportView, generateProgressReport, loadProgressReport, saveProgressReport } from "./progress-reports.js";
 import { saveAgendaCase, saveAgendaSplit, manageAgendaSplit } from "./agenda-home.js";
@@ -299,6 +300,8 @@ export class Dashboard extends DurableObject {
       if (action === "health") return Response.json(await healthView(this.env, storage));
       if (action === "notes") {
         if (request.method === "GET") return Response.json(await notesView(storage));
+        if (input.action === "links") return Response.json(await noteTaskLinksView(this.env, storage));
+        if (["linkAdd", "linkRemove"].includes(input.action)) return Response.json(await changeNoteTaskLink(this.env, storage, input));
         if (input.action === "configure") return Response.json(await configureNotes(storage, input));
         if (input.action === "refresh") return Response.json(await refreshNotes(storage));
         if (input.action === "read") return Response.json(await readNote(storage, input));

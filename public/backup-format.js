@@ -14,6 +14,7 @@ export function assertBackupEnvelope(value) {
     "driveMeetings",
     "weeklySettings",
     "agenda",
+    "noteTaskLinks",
   ]);
   if (
     !value ||

@@ -567,8 +567,16 @@
             </form>
           </details>
           <div class="panel-toolbar" id="notesSearchBar" hidden><label class="notes-search">検索語（通常はファイル名・パス）<input id="notesSearch" type="search" placeholder="研究、運営、ノート名…" /></label><span id="notesCount"></span><button id="notesBodySearch" class="button">本文を検索</button><button id="notesBodyMore" class="button" hidden>続きの5件を検索</button><button id="notesBodyClear" class="text-button" hidden>ファイル名検索に戻す</button><p id="notesBodySearchStatus" role="status"></p></div>
+          <details id="noteTaskLinks" class="notes-settings"><summary>GitHubタスクとの関連</summary>
+            <p>選択中のノートと既存タスクを関連付けます。本文・GitHubのタスクは変更しません。関連はこのサイトに保存し、バックアップに含めます。</p>
+            <button id="noteLinksReload" class="button" type="button">関連一覧を読み直す</button>
+            <p id="noteLinksStatus" role="status"></p>
+            <label>関連付けるタスク<select id="noteLinkChoice"></select></label>
+            <button id="noteLinkAdd" class="button" type="button" disabled>選択中のノートに関連付ける</button>
+            <div id="noteLinksList"></div>
+          </details>
           <div class="notes-workspace" id="notesWorkspace" hidden><div id="notesList" class="notes-list" aria-label="ノート一覧"></div><article class="notes-reader"><div class="notes-reader-heading"><h3 id="noteTitle">ノートを選択</h3><a id="noteSource" target="_blank" rel="noreferrer" hidden>GitHubで開く ↗</a></div><p id="noteStatus" role="status"></p><pre id="noteBody">一覧から選ぶと、本文を取得します。本文はMarkdown原文として表示し、外部画像・HTML・スクリプトは実行しません。</pre></article></div>
-          <p class="agenda-help">設定後は毎時、一覧を自動更新します。「一覧を更新」でも取得できます。上限1000ノート・ツリー5000項目、本文256KiB。取得失敗時は以前の一覧を明示して保持し、本文は取得しません。本文検索は明示操作で5件ずつ読み取ります。検索済み範囲とサイズ超過・失敗を表示し、未検索の続きはボタンで進めます。検索語・取得本文はサーバーに保存しません。ノート情報は現行バックアップ対象外です。</p>
+          <p class="agenda-help">設定後は毎時、一覧を自動更新します。「一覧を更新」でも取得できます。上限1000ノート・ツリー5000項目、本文256KiB。取得失敗時は以前の一覧を明示して保持し、本文は取得しません。本文検索は明示操作で5件ずつ読み取ります。検索済み範囲とサイズ超過・失敗を表示し、未検索の続きはボタンで進めます。検索語・取得本文はサーバーに保存しません。ノートの一覧・本文・認証情報はバックアップ対象外です。タスクとの関連はバックアップに含みます。</p>
         </section>
         <section class="panel surface slack-panel" aria-labelledby="slackHeading">
           <div class="panel-heading"><h2 id="slackHeading" tabindex="-1">Slack</h2><button id="slackRefresh" class="button">投稿を更新</button></div>

@@ -76,6 +76,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "connection-recovery",
       "notes-http",
       "notes-search",
+      "note-task-links",
       "auth",
       "github",
       "sync",
@@ -226,7 +227,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     for (const action of ["configure", "refresh", "addChannel", "review", "stop"])
       assert.equal((await request("/api/slack", {action})).status, 401);
     assert.equal((await request("/auth/slack/start", {})).status, 401);
-    for(const action of ["configure","refresh","read","search","stop"]) assert.equal((await request("/api/notes",{action})).status,401);
+    for(const action of ["configure","refresh","read","search","stop","links","linkAdd","linkRemove"]) assert.equal((await request("/api/notes",{action})).status,401);
     for (const action of ["previewPriorityRules", "savePriorityRules", "label", "syncMail", "disconnect", "clearCache", "previewDelete", "deleteAccount", "cleanupReferences"])
       assert.equal((await request("/api/agenda", { action })).status, 401);
     assert.equal(
@@ -305,7 +306,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     const emptyNotes = await (await request("/api/notes")).json();
     assert.equal(emptyNotes.configured, false);
     assert.deepEqual(emptyNotes.files, []);
-    for (const action of ["configure","read","search","refresh","stop"]) assert.equal((await request("/api/notes",{action},"https://other.test")).status,403);
+    for (const action of ["configure","read","search","refresh","stop","links","linkAdd","linkRemove"]) assert.equal((await request("/api/notes",{action},"https://other.test")).status,403);
     const configuredNotes = await request("/api/notes",{action:"configure",repository:"https://github.com/fixture/notes",confirm:true});
     assert.equal(configuredNotes.status,200);
     assert.deepEqual((await configuredNotes.json()).files.map(file=>file.path),["note.md"]);

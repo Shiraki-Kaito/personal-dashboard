@@ -32,6 +32,7 @@ fileInput.onchange = async () => {
       plan.tasks +
       "件・Drive " +
       plan.driveFiles +
+      "件・ノート関連 " + (plan.noteTaskLinks || 0) +
       "件・会議記録 " + (plan.meetingReports || 0) + "件・メール " +
       plan.agendaMessages +
       "件・手動分類 " + (plan.splitMessages || 0) + "通・案件記録 " + (plan.agendaCases || 0) +

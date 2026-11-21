@@ -4,6 +4,7 @@ const el = (id) => document.getElementById(id);
 const time = (value) =>
   value ? new Date(value).toLocaleString("ja-JP", {timeZone:"Asia/Tokyo"}) : "未取得";
 let bodySearch = null;
+let linksView = null, linksBusy = false;
 let state = null,
   busy = false,
   selected = null,
@@ -35,6 +36,7 @@ function controls() {
   el("notesRefresh").disabled = busy || !state?.configured;
   for (const node of el("notesList").querySelectorAll("button"))
     node.disabled = busy || !!state?.stale || node.dataset.readable === "false";
+  renderTaskLinks();
 }
 function clearReader() {
   readSequence++;
@@ -45,6 +47,7 @@ function clearReader() {
   el("noteSource").hidden = true;
   el("noteSource").removeAttribute("href");
   el("noteStatus").textContent = "";
+  renderTaskLinks();
 }
 async function openNote(file) {
   if (busy || state.stale) return;
@@ -67,6 +70,7 @@ async function openNote(file) {
     el("noteSource").hidden = false;
     el("noteStatus").textContent =
       "コミット " + note.commit.slice(0, 8) + " の本文・読み取り専用";
+    if (el("noteTaskLinks").open) await loadTaskLinks();
   } catch (error) {
     if (sequence === readSequence) el("noteStatus").textContent = error.message;
   } finally {
@@ -251,3 +255,60 @@ async function searchBody(more = false) {
 el("notesBodySearch").onclick = () => searchBody();
 el("notesBodyMore").onclick = () => searchBody(true);
 el("notesBodyClear").onclick = () => { bodySearch = null; renderList(); controls(); };
+
+function renderTaskLinks() {
+  el("noteLinksList").replaceChildren();
+  el("noteLinkChoice").replaceChildren(new Option("タスクを選択", ""));
+  for (const [index, task] of (linksView?.candidates || []).entries()) {
+    const option = new Option(task.projectTitle + " ／ " + task.title + (task.stale ? "（古い一覧）" : ""), String(index));
+    option.disabled = task.stale;
+    el("noteLinkChoice").append(option);
+  }
+  for (const link of linksView?.records || []) {
+    const row = document.createElement("p");
+    row.textContent = link.path + " → " + link.title + (!link.available ? "（取得範囲外・参照不可）" : link.stale ? "（古い情報）" : "");
+    const open = document.createElement("button");
+    open.type = "button"; open.className = "text-button"; open.textContent = "タスクを開く";
+    open.disabled = linksBusy || !link.available;
+    open.onclick = () => document.dispatchEvent(new CustomEvent("dashboard:open-task", {detail:{projectId:link.projectId,itemId:link.itemId}}));
+    const remove = document.createElement("button");
+    remove.type = "button"; remove.className = "text-button"; remove.textContent = "関連を解除";
+    remove.disabled = linksBusy;
+    remove.onclick = async () => {
+      if (await confirmAction("このサイトの関連だけを解除します。ノートとGitHubタスクは削除しません。", "解除する")) await saveTaskLink("linkRemove", link);
+    };
+    row.append(open, remove); el("noteLinksList").append(row);
+  }
+  el("noteLinkAdd").disabled = linksBusy || busy || !selected || !linksView || state?.stale || linksView.notesStale;
+  el("noteLinkChoice").disabled = linksBusy;
+  el("noteLinksReload").disabled = linksBusy;
+}
+async function loadTaskLinks() {
+  if (linksBusy) return;
+  linksBusy = true; renderTaskLinks();
+  try {
+    linksView = await api({action:"links"});
+    el("noteLinksStatus").textContent = `${linksView.records.length}/${linksView.maximumLinks}件。` +
+      (linksView.sources.some(source => source.stale) ? "タスク一覧が未取得または古い状態です。「タスク」で一覧を更新後、ここを読み直してください。" : "取得済みのタスク一覧を使用しています。") +
+      (selected ? " 対象ノート：" + selected : " 追加するにはノート本文を開いてください。");
+  } catch (error) { el("noteLinksStatus").textContent = error.message; }
+  finally { linksBusy = false; renderTaskLinks(); }
+}
+async function saveTaskLink(action, link) {
+  if (linksBusy || !linksView) return;
+  linksBusy = true; renderTaskLinks();
+  try {
+    linksView = await api({action, link, revision:linksView.revision});
+    el("noteLinksStatus").textContent = "関連を保存しました。";
+  } catch (error) {
+    el("noteLinksStatus").textContent = error.message + " 結果が不明な場合も、再送前に関連一覧を読み直してください。";
+  } finally { linksBusy = false; renderTaskLinks(); }
+}
+el("noteTaskLinks").ontoggle = () => { if (el("noteTaskLinks").open) void loadTaskLinks(); };
+el("noteLinksReload").onclick = loadTaskLinks;
+el("noteLinkAdd").onclick = () => {
+  const choice = el("noteLinkChoice").value;
+  const task = choice === "" ? null : linksView?.candidates[Number(choice)];
+  if (!selected || !task || task.stale) return;
+  void saveTaskLink("linkAdd", {scope:linksView.scope,path:selected,projectId:task.projectId,itemId:task.itemId});
+};

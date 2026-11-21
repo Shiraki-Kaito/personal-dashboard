@@ -125,3 +125,7 @@
 #groupEditor .group-file-path { display:block; margin-top:4px; font-size:.8rem; font-weight:400; color:var(--muted); overflow-wrap:anywhere; }
 #groupImportantSelection .group-recent > span { min-width:0; overflow-wrap:anywhere; }
 #groupImportantSelection .group-recent > button { flex-shrink:0; }
+
+#noteTaskLinks { overflow-wrap:anywhere; }
+#noteLinkChoice { width:100%; min-width:0; }
+#noteLinksList .text-button { margin:4px 8px; }
