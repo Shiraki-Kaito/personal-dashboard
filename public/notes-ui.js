@@ -1,6 +1,8 @@
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
+import { mountNoteDraft } from "./note-draft-ui.js";
 const el = (id) => document.getElementById(id);
+const setDraftSource = mountNoteDraft(el("noteBody").parentElement);
 const time = (value) =>
   value ? new Date(value).toLocaleString("ja-JP", {timeZone:"Asia/Tokyo"}) : "未取得";
 let bodySearch = null;
@@ -39,6 +41,7 @@ function controls() {
   renderTaskLinks();
 }
 function clearReader() {
+  setDraftSource(null);
   readSequence++;
   selected = null;
   el("noteTitle").textContent = "ノートを選択";
@@ -66,6 +69,7 @@ async function openNote(file) {
     const url = new URL(note.url);
     if (url.origin !== "https://github.com") throw Error("参照先が不正です");
     el("noteBody").textContent = note.text;
+    setDraftSource({ ...note, path: file.path });
     el("noteSource").href = url.href;
     el("noteSource").hidden = false;
     el("noteStatus").textContent =

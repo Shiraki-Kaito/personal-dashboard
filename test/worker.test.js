@@ -194,7 +194,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     assert.equal(await policy.text(), "public policy");
     for (const route of ["/manifest.webmanifest", "/icons/dashboard-192.png", "/icons/dashboard-512.png", "/icons/dashboard.svg"])
       assert.equal((await request(route)).status, 200);
-    for (const route of ["/desktop-ui.js", "/app-install.js", "/install-guidance.js", "/icons/not-public.txt"])
+    for (const route of ["/desktop-ui.js", "/app-install.js", "/install-guidance.js", "/note-draft.js", "/note-draft-ui.js", "/icons/not-public.txt"])
       assert.equal((await request(route)).status, 401);
     assert.equal((await request("/manifest.webmanifest", {})).status, 401);
     assert.equal((await request("/api/drive")).status, 401);

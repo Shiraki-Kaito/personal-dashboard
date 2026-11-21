@@ -232,6 +232,8 @@ export class Dashboard extends DurableObject {
         "/agenda-ui.js",
         "/slack-ui.js",
         "/notes-ui.js",
+        "/note-draft.js",
+        "/note-draft-ui.js",
         "/health-ui.js",
         "/desktop-ui.js",
         "/app-install.js",
