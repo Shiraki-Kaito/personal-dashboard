@@ -14,6 +14,8 @@ public class BackgroundWindow : Form
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr handle);
     Rectangle normalBounds;
     bool changing;
+    bool placementQueued;
+    const int DisplayChangedMessage = 0x007E, SettingsChangedMessage = 0x001A;
     protected override bool ShowWithoutActivation { get { return changing || base.ShowWithoutActivation; } }
     public bool BackgroundMode { get; private set; }
     public event EventHandler ModeChanged;
@@ -38,6 +40,7 @@ public class BackgroundWindow : Form
         SetBackgroundMode(false);
         // モードが既に通常でも、最小化状態からは明示的に復元する。
         if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+        RefreshDisplayPlacement();
         Show();
         Activate();
     }
@@ -46,7 +49,7 @@ public class BackgroundWindow : Form
     {
         Show();
         if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
-        if (BackgroundMode) SendBehind();
+        if (BackgroundMode) RefreshDisplayPlacement();
         else SetBackgroundMode(true);
     }
 
@@ -87,14 +90,57 @@ public class BackgroundWindow : Form
             Math.Max(area.Top, Math.Min(saved.Top, area.Bottom - height)), width, height);
     }
 
+    // 通知処理後にScreenの情報を読み直す。連続する通知は1回にまとめる。
+    protected override void WndProc(ref Message message)
+    {
+        int kind = message.Msg;
+        base.WndProc(ref message);
+        if ((kind != DisplayChangedMessage && kind != SettingsChangedMessage) ||
+            placementQueued || !IsHandleCreated || IsDisposed || Disposing) return;
+        placementQueued = true;
+        BeginInvoke((MethodInvoker)delegate {
+            placementQueued = false;
+            if (!IsDisposed && !Disposing) RefreshDisplayPlacement();
+        });
+    }
+
+    protected virtual Rectangle WorkingAreaFor(Rectangle bounds)
+    {
+        return Screen.FromRectangle(bounds).WorkingArea;
+    }
+
+    public void RefreshDisplayPlacement()
+    {
+        if (changing || !IsHandleCreated || IsDisposed || Disposing) return;
+        // 最小化中は表示を復帰させない。通常表示への復帰時にも範囲を照合する。
+        if (WindowState == FormWindowState.Minimized) return;
+        changing = true;
+        try {
+            if (BackgroundMode) {
+                normalBounds = FitBounds(normalBounds, WorkingAreaFor(normalBounds));
+                Rectangle area = WorkingAreaFor(Bounds);
+                // TopMostの再設定は前面化を招く。非アクティブの配置APIだけを使う。
+                if (!SetWindowPos(Handle, BottomWindow, area.X, area.Y, area.Width, area.Height, NoActivate))
+                    PlacementFailed();
+            } else if (WindowState == FormWindowState.Normal) {
+                Bounds = FitBounds(Bounds, WorkingAreaFor(Bounds));
+            }
+        } finally { changing = false; }
+    }
+
     void SendBehind()
     {
         if (!IsHandleCreated || IsDisposed) return;
         if (!SetWindowPos(Handle, BottomWindow, 0, 0, 0, 0, NoSize | NoMove | NoActivate)) {
-            // 一定周期で繰り返してフォーカスを奪うことはしない。
-            BackgroundMode = false;
-            FormBorderStyle = FormBorderStyle.Sizable;
-            if (BackgroundPlacementFailed != null) BackgroundPlacementFailed(this, EventArgs.Empty);
+            PlacementFailed();
         }
+    }
+
+    void PlacementFailed()
+    {
+        // 一定周期で繰り返してフォーカスを奪うことはしない。
+        BackgroundMode = false;
+        FormBorderStyle = FormBorderStyle.Sizable;
+        if (BackgroundPlacementFailed != null) BackgroundPlacementFailed(this, EventArgs.Empty);
     }
 }

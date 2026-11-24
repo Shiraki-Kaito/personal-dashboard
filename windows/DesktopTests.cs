@@ -6,6 +6,15 @@ using System.Windows.Forms;
 // テスト専用EXE。本人のブラウザーや保存済み認証は使わない。
 public static class DesktopTests
 {
+    sealed class DisplayFixture : BackgroundWindow
+    {
+        public Rectangle Area { get; set; }
+        protected override Rectangle WorkingAreaFor(Rectangle bounds) { return Area; }
+        public void NotifyDisplayChange() {
+            var message = Message.Create(Handle, 0x007E, IntPtr.Zero, IntPtr.Zero);
+            base.WndProc(ref message);
+        }
+    }
     [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr handle, int index);
     [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr handle, uint command);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
@@ -22,6 +31,27 @@ public static class DesktopTests
             var fit = BackgroundWindow.FitBounds(new Rectangle(2000, 1000, 1500, 900), new Rectangle(-1280, 0, 1280, 720));
             Check(fit == new Rectangle(-1280, 0, 1280, 720), "disconnected monitor bounds fit remaining monitor");
             Application.EnableVisualStyles();
+            using (var fixture = new DisplayFixture()) using (var other = new Form()) {
+                fixture.Area = new Rectangle(-1280, 0, 1280, 720);
+                fixture.Show(); fixture.SetBackgroundMode(true);
+                other.Show(); other.Activate(); Application.DoEvents();
+                var foreground = GetForegroundWindow();
+                fixture.NotifyDisplayChange(); Application.DoEvents();
+                Check(fixture.Bounds == fixture.Area, "display notification fits background to remaining monitor");
+                Check(GetForegroundWindow() == foreground, "display notification preserves foreground window (before=" + foreground + ", after=" + GetForegroundWindow() + ", fixture=" + fixture.Handle + ", other=" + other.Handle + ")");
+                Check((GetWindowLong(fixture.Handle, -20) & 8) == 0, "display change does not enable topmost");
+                fixture.Area = new Rectangle(0, 40, 1024, 700);
+                fixture.RefreshDisplayPlacement();
+                Check(fixture.Bounds == fixture.Area, "background follows changed taskbar working area");
+                fixture.WindowState = FormWindowState.Minimized;
+                fixture.RefreshDisplayPlacement();
+                Check(fixture.WindowState == FormWindowState.Minimized, "display change keeps minimized window hidden");
+                fixture.RestoreNormalWindow();
+                fixture.Area = new Rectangle(0, 0, 800, 600);
+                fixture.RefreshDisplayPlacement();
+                Check(fixture.Area.Contains(fixture.Bounds), "normal window fits smaller remaining screen");
+                fixture.Close(); other.Close();
+            }
             using (var dashboard = new BackgroundWindow()) using (var other = new Form()) {
                 dashboard.Text = "Dashboard placement test"; other.Text = "Other application fixture";
                 dashboard.Show(); other.Show(); other.Activate(); Application.DoEvents();
