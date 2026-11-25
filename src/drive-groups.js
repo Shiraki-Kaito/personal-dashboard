@@ -4,6 +4,19 @@ import { isPersonalWork, unreadChanges } from "./drive-review.js";
 export const groupStatuses = ["未設定", "進行中", "確認待ち", "要対応", "完了"];
 const maximumGroups = 80;
 export const maximumImportantFiles = 5;
+export function normalizeMembers(value = []) {
+  if (!Array.isArray(value) || value.length > 40) throw new InputError("メンバーは1チーム40人まで登録できます");
+  const ids = new Set();
+  return value.map(member => {
+    if (!member || typeof member.id !== "string" || !/^[a-f0-9-]{36}$/.test(member.id) || ids.has(member.id) ||
+        typeof member.name !== "string" || !member.name.trim() || member.name.length > 80 ||
+        typeof member.role !== "string" || member.role.length > 40 ||
+        typeof member.note !== "string" || member.note.length > 160)
+      throw new InputError("メンバーの名前・役割・メモを確認してください");
+    ids.add(member.id);
+    return { id: member.id, name: member.name, role: member.role, note: member.note };
+  });
+}
 function importantIds(value = []) {
   if (!Array.isArray(value) || value.length > maximumImportantFiles || new Set(value).size !== value.length || value.some(id => typeof id !== "string" || !/^[A-Za-z0-9_-]{1,160}$/.test(id)))
     throw new InputError("重要資料は重複なしで最大5件まで選択してください");
@@ -63,7 +76,7 @@ export function normalizeGroupStore(value) {
     )
       throw new InputError("グループ設定の入力値が不正です");
     seen.add(record.path);
-    return { importantFileIds: importantIds(record.importantFileIds), ...Object.fromEntries(
+    return { members: normalizeMembers(record.members), importantFileIds: importantIds(record.importantFileIds), ...Object.fromEntries(
       [
         "path",
         "name",
@@ -142,6 +155,7 @@ export function groupView(cache, saved) {
         path,
         name: record?.name || path.split(" / ").at(-1),
         importantFileIds: record?.importantFileIds || [],
+        members: record?.members || [],
         importantFiles: (record?.importantFileIds || []).map(id => {
           const file = (cache?.files || []).find(file => file.id === id && !isPersonalWork(file));
           return file || {id, name:"取得範囲で参照できない資料", unavailable:true};
@@ -182,6 +196,7 @@ export async function saveDriveGroup(storage, input) {
     if (selectedIds.some(id => !(old?.importantFileIds || []).includes(id) && !cache.files.some(file => file.id === id && !isPersonalWork(file))))
       throw new InputError("重要資料は現在の取得範囲から選択してください（個人作業は対象外）");
     const record = {
+      members: normalizeMembers(Object.hasOwn(input, "members") ? input.members : old?.members),
       importantFileIds: selectedIds,
       path: input.path,
       name: input.name,

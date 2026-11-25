@@ -2342,3 +2342,18 @@ body[data-view="home"] .home-tasks-card[data-empty="true"] .panel-footer { grid-
 .note-draft-list button { display: block; max-width: 100%; overflow-wrap: anywhere; }
 
 .note-draft-dialog [data-comparison] pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:18rem; overflow:auto; padding:12px; background:#f3f6f8; }
+
+/* メンバーはチームの色でまとめ、入力欄は編集ダイアログだけに置く。 */
+.drive-members-section { margin-top:32px; padding-top:24px; border-top:1px solid var(--line,#d5dfe8); }
+.compact-enabled .drive-group-card.member-team { padding:20px; min-width:0; }
+.member-team h4 { margin:0 0 14px; color:var(--group-accent); font-size:1.1rem; }
+.member-list { list-style:none; padding:0; display:grid; gap:8px; }
+.member-list li { display:flex; align-items:baseline; flex-wrap:wrap; gap:6px 12px; padding:10px 12px; background:white; border-radius:10px; border-left:3px solid var(--group-accent); overflow-wrap:anywhere; }
+.member-list span,.member-list small { color:var(--muted,#52677c); }
+.member-list small { flex-basis:100%; }
+.member-editor-row { border:1px solid #d5dfe8; border-radius:12px; padding:12px; margin:12px 0; display:grid; gap:10px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.member-editor-row label { display:grid; gap:4px; min-width:0; }
+.member-editor-row input { min-width:0; width:100%; box-sizing:border-box; }
+.member-editor-row label:nth-of-type(3) { grid-column:1/-1; }
+.drive-members-section details { margin-top:16px; }
+@media(max-width:640px) { .member-editor-row {grid-template-columns:1fr;} }

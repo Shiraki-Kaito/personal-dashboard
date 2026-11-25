@@ -116,7 +116,8 @@ test("不正な色・日付・過大入力・対象外や個人作業のグル�
 });
 test("バックアップに色と進捗を含め、復元後の旧版保存・既存設定の上書きを防ぐ", async () => {
   const s = memory();
-  await saveDriveGroup(s, {...input(),importantFileIds:["a"]});
+  const members = [{id:crypto.randomUUID(),name:"検証メンバー",role:"リーダー",note:"試験"}];
+  await saveDriveGroup(s, {...input(),importantFileIds:["a"],members});
   const env = {
     PROJECT_CONFIG: JSON.stringify({
       projects: [{ project: "p", status_field: "s", due_field: "d" }],
@@ -133,6 +134,7 @@ test("バックアップに色と進捗を含め、復元後の旧版保存・�
   await restoreBackup(env, empty, backup, plan.checksum);
   const restored = await empty.get("drive:groups");
   assert.deepEqual(restored.records[0].importantFileIds,["a"]);
+  assert.deepEqual(restored.records[0].members,members);
   assert.notEqual(
     restored.records[0].revision,
     backup.driveGroups.records[0].revision,
@@ -409,4 +411,28 @@ test("重要資料はバックアップの正規化を通り、ホームのチ�
  assert.equal(home.highlighted[0].importantFiles[0].id,'a');
  const legacy=structuredClone(saved);delete legacy.records[0].importantFileIds;
  assert.deepEqual(normalizeGroupStore(legacy).records[0].importantFileIds,[]);
+});
+
+test('メンバーの追加・編集・削除、旧画面からの保存、競合を保護する', async () => {
+ const s=memory(), member={id:crypto.randomUUID(),name:'試験メンバー',role:'リーダー',note:'担当の確認'};
+ const first=await saveDriveGroup(s,{...input(),members:[member]});
+ assert.deepEqual(groupView(await s.get('drive:cache'),await s.get('drive:groups')).find(group=>group.path===input().path).members,[member]);
+ const legacy=await saveDriveGroup(s,{...input(),expectedRevision:first.revision});
+ assert.deepEqual(legacy.members,[member]);
+ await assert.rejects(saveDriveGroup(s,{...input(),expectedRevision:first.revision,members:[]}));
+ const edited=await saveDriveGroup(s,{...input(),expectedRevision:legacy.revision,members:[{...member,role:'オーガナイザー'}]});
+ assert.equal(edited.members[0].role,'オーガナイザー');
+ const deleted=await saveDriveGroup(s,{...input(),expectedRevision:edited.revision,members:[]});
+ assert.deepEqual(deleted.members,[]);
+});
+
+test('不正な名簿と人数上限を拒否し、既存保存を変えない',async()=>{
+ const s=memory(), member={id:crypto.randomUUID(),name:'試験',role:'メンバー',note:''};
+ for(const members of [null,{},[member,member],[{...member,name:' '}],[{...member,role:'a'.repeat(41)}],Array.from({length:41},()=>({...member,id:crypto.randomUUID()}))]) {
+  await assert.rejects(saveDriveGroup(s,{...input(),members}));
+  assert.equal(await s.get('drive:groups'),undefined);
+ }
+ const saved=await saveDriveGroup(s,{...input(),members:[member]});
+ assert.deepEqual(normalizeGroupStore({scope:'root:true',records:[saved]}).records[0].members,[member]);
+ assert.deepEqual(normalizeGroupStore({scope:'root:true',records:[{...saved,members:undefined}]}).records[0].members,[]);
 });
