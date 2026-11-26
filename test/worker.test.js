@@ -192,6 +192,9 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
   try {
     const policy = await request("/privacy");
     assert.equal(policy.status, 200);
+    assert.equal(policy.headers.get("cross-origin-resource-policy"), "same-origin");
+    assert.equal(policy.headers.get("cache-control"), "no-store");
+    assert.equal(policy.headers.get("x-frame-options"), "DENY");
     assert.equal(await policy.text(), "public policy");
     for (const route of ["/manifest.webmanifest", "/icons/dashboard-192.png", "/icons/dashboard-512.png", "/icons/dashboard.svg"])
       assert.equal((await request(route)).status, 200);

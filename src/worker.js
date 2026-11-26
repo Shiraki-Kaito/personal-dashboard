@@ -67,6 +67,8 @@ export default {
       "Cache-Control": "no-store",
       "Referrer-Policy": "no-referrer",
       "X-Content-Type-Options": "nosniff",
+      "Cross-Origin-Resource-Policy": "same-origin",
+      "X-Frame-Options": "DENY",
       "Content-Security-Policy":
         "default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     }))

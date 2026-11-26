@@ -1,5 +1,5 @@
 import { groupView } from "./drive-groups.js";
-import { memberEmail, driveEditorResolver } from "./drive-member-identity.js";
+import { memberEmail, driveEditorResolver, publicDriveFile } from "./drive-member-identity.js";
 import { groupDisplayView } from "./drive-group-display.js";
 import { isPersonalWork } from "./drive-review.js";
 export { isPersonalWork } from "./drive-review.js";
@@ -242,7 +242,7 @@ export async function driveView(env, storage, now = Date.now()) {
     files: orderedDriveFiles(cache?.files || []).map((file) =>
       isPersonalWork(file) ? { ...file, personal: true } : file,
     ),
-    changes: cache?.changes || [],
+    changes: (cache?.changes || []).map(publicDriveFile),
     unreadChanges: unreadChanges(cache).map((file) => {
       const current = currentFiles.get(file.id);
       // 同じ更新時刻のスナップショットだけ補完する。新しい更新者を過去の検知に付けない。

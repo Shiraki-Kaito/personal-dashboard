@@ -12,7 +12,7 @@ test('メール完全一致・非公開・重複・範囲変更を区別し、�
  const saved={scope:'root:true',records:[{...group,members:[member]}]};
  const resolve=driveEditorResolver({scope:'root:true'},saved);
  assert.equal(resolve(file).lastModifiedBy,'登録名');
- assert.equal(resolve(file).originalLastModifiedBy,'Google表示名');
+ assert.equal(resolve(file).originalLastModifiedBy,undefined);
  assert.equal(file.lastModifiedBy,'Google表示名');
  assert.equal(resolve({...file,lastModifiedEmail:null}).lastModifiedBy,'Google表示名');
  assert.equal(resolve({...file,lastModifiedEmail:'member+tag@example.test'}).lastModifiedBy,'Google表示名');
@@ -48,4 +48,17 @@ test('未取得・未登録・別名重複を区別し、同名重複は一致�
  saved.records[1].members[0].name=member.name;
  assert.equal(driveEditorResolver({scope:'root:true'},saved)(file).editorNameSource,'member');
  assert.equal(driveEditorResolver({scope:'other:true'},saved)(file).editorNameSource,'unregistered');
+});
+
+test('表示応答は照合用メールを除外し、保存と名簿編集は維持する',async()=>{
+ const cache={scope:'root:true',files:[file],changes:[file],unreadChanges:[file],viewVersion:3};
+ const saved={scope:'root:true',records:[{...group,members:[member]}]};
+ const values=new Map([['drive:cache',cache],['drive:groups',saved]]);
+ const view=await driveView({DRIVE_CONFIG:JSON.stringify({folderId:'root',includeSubfolders:true})},{get:async key=>structuredClone(values.get(key))});
+ for(const entries of [view.files,view.changes,view.unreadChanges,view.groups[0].recent,view.groups[0].importantFiles]) {
+  for(const entry of entries){assert.equal(Object.hasOwn(entry,'lastModifiedEmail'),false);assert.equal(Object.hasOwn(entry,'originalLastModifiedBy'),false);}
+ }
+ assert.equal(view.files[0].lastModifiedBy,member.name);
+ assert.equal(view.groups[0].members[0].email,email);
+ assert.equal(cache.files[0].lastModifiedEmail,email);
 });
