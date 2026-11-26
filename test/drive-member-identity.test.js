@@ -1,0 +1,38 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {memberEmail,driveEditorResolver} from '../src/drive-member-identity.js';
+import {driveView} from '../src/drive.js';
+const email='member@example.test';
+const file={id:'f',name:'資料',folder:'Root / 100_SNS運用',modifiedTime:'2026-11-26T00:00:00Z',lastModifiedBy:'Google表示名',lastModifiedEmail:email};
+const member={id:crypto.randomUUID(),name:'登録名',role:'メンバー',note:'',email};
+const group={path:file.folder,name:'SNS',color:'blue',status:'未設定',nextAction:'',due:'',members:[member],importantFileIds:['f'],revision:crypto.randomUUID(),updatedAt:file.modifiedTime};
+test('メール完全一致・非公開・重複・範囲変更を区別し、元情報を書き換えない',()=>{
+ assert.equal(memberEmail(' Member@Example.Test '),email);
+ assert.equal(memberEmail('wrong'),null);
+ const saved={scope:'root:true',records:[group]};
+ const resolve=driveEditorResolver({scope:'root:true'},saved);
+ assert.equal(resolve(file).lastModifiedBy,'登録名');
+ assert.equal(resolve(file).originalLastModifiedBy,'Google表示名');
+ assert.equal(file.lastModifiedBy,'Google表示名');
+ assert.equal(resolve({...file,lastModifiedEmail:null}).lastModifiedBy,'Google表示名');
+ assert.equal(resolve({...file,lastModifiedEmail:'member+tag@example.test'}).lastModifiedBy,'Google表示名');
+ assert.equal(driveEditorResolver({scope:'other:true'},saved)(file).lastModifiedBy,'Google表示名');
+ const duplicate={scope:'root:true',records:[group,{...group,members:[{...member,name:'別名'}]}]};
+ assert.equal(driveEditorResolver({scope:'root:true'},duplicate)(file).lastModifiedBy,'Google表示名');
+ duplicate.records[1].members[0].name='登録名';
+ assert.equal(driveEditorResolver({scope:'root:true'},duplicate)(file).lastModifiedBy,'登録名');
+});
+test('一覧・最近の更新・重要資料・同時刻の未確認へ反映し、過去の人物は混ぜない',async()=>{
+ const cache={scope:'root:true',files:[file],unreadChanges:[{...file,lastModifiedEmail:undefined}],viewVersion:3};
+ const values=new Map([['drive:cache',cache],['drive:groups',{scope:'root:true',records:[group]}]]);
+ const storage={get:async key=>structuredClone(values.get(key))};
+ const env={DRIVE_CONFIG:JSON.stringify({folderId:'root',includeSubfolders:true})};
+ let view=await driveView(env,storage);
+ for(const entry of [view.files[0],view.groups[0].recent[0],view.groups[0].importantFiles[0],view.unreadChanges[0]]) assert.equal(entry.lastModifiedBy,'登録名');
+ assert.equal(cache.files[0].lastModifiedBy,'Google表示名');
+ cache.unreadChanges[0].modifiedTime='2026-11-25T00:00:00Z';
+ view=await driveView(env,storage);
+ assert.equal(view.unreadChanges[0].lastModifiedBy,'Google表示名');
+ values.get('drive:groups').records[0].members=[];
+ assert.equal((await driveView(env,storage)).files[0].lastModifiedBy,'Google表示名');
+});

@@ -46,7 +46,7 @@ async function fixture() {
     folder: "Root",
     createdTime: "2026-11-12T00:00:00Z",
     modifiedTime: "2026-11-12T00:00:00Z",
-    lastModifiedBy: "検証担当者",
+    lastModifiedBy: "検証担当者", lastModifiedEmail: "member@example.test",
   };
   await s.put("drive:cache", {
     scope: "root:true",
@@ -86,6 +86,7 @@ test("空の保存先だけに復元し、既存データ・競合・確認後�
   );
   const restored = await target.get("task:p:task");
   assert.equal((await target.get("drive:cache")).files[0].lastModifiedBy, "検証担当者");
+  assert.equal((await target.get("drive:cache")).files[0].lastModifiedEmail, "member@example.test");
   assert.equal(restored.pending.id, "op");
   assert.match(restored.phase, /再照合待ち/);
   assert.equal(

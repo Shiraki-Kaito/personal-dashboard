@@ -100,6 +100,7 @@ summary { cursor:pointer; line-height:1.6; }
 .member-team>.button { align-self:flex-start; margin-top:12px; }
 .member-editor-row { background:#fafbfc; padding:16px; border-radius:10px; }
 .progress-dialog .member-editor-row label { display:grid; align-items:start; gap:6px; }
+.member-editor-row label:nth-of-type(4) { grid-column:1/-1; }
 .progress-dialog:has(.member-editor-list)>.group-card-top { position:sticky; top:-16px; z-index:2; padding:12px 0; background:#fff; border-bottom:1px solid var(--line); }
 .progress-dialog button[aria-label="メンバー編集を閉じる"] { min-width:38px; min-height:38px; border-radius:8px; background:#f3f5f7; }
 .progress-section { padding:20px 24px 12px; }

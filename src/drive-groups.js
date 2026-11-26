@@ -1,5 +1,6 @@
 import { InputError } from "./sync.js";
 import { isPersonalWork, unreadChanges } from "./drive-review.js";
+import { memberEmail } from "./drive-member-identity.js";
 
 export const groupStatuses = ["未設定", "進行中", "確認待ち", "要対応", "完了"];
 const maximumGroups = 80;
@@ -13,8 +14,11 @@ export function normalizeMembers(value = []) {
         typeof member.role !== "string" || member.role.length > 40 ||
         typeof member.note !== "string" || member.note.length > 160)
       throw new InputError("メンバーの名前・役割・メモを確認してください");
+    if (member.email !== undefined && member.email !== "" && !memberEmail(member.email))
+      throw new InputError("メンバーのメールアドレスを確認してください");
     ids.add(member.id);
-    return { id: member.id, name: member.name, role: member.role, note: member.note };
+    return { id: member.id, name: member.name, role: member.role, note: member.note,
+      ...(member.email !== undefined ? {email: member.email === "" ? "" : memberEmail(member.email)} : {}) };
   });
 }
 function importantIds(value = []) {
@@ -196,7 +200,10 @@ export async function saveDriveGroup(storage, input) {
     if (selectedIds.some(id => !(old?.importantFileIds || []).includes(id) && !cache.files.some(file => file.id === id && !isPersonalWork(file))))
       throw new InputError("重要資料は現在の取得範囲から選択してください（個人作業は対象外）");
     const record = {
-      members: normalizeMembers(Object.hasOwn(input, "members") ? input.members : old?.members),
+      members: normalizeMembers(Object.hasOwn(input, "members") ? input.members : old?.members).map(member => {
+        const previous = old?.members?.find(item => item.id === member.id);
+        return member.email === undefined && previous?.email !== undefined ? {...member, email:previous.email} : member;
+      }),
       importantFileIds: selectedIds,
       path: input.path,
       name: input.name,

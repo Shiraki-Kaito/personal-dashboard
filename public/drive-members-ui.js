@@ -8,7 +8,7 @@ const node = (tag, text, className) => {
 };
 const section = node("section", undefined, "drive-members-section");
 section.id = "driveMembersSection";
-section.append(node("h3", "チームのメンバー"), node("p", "チームごとに名前・役割を整理。カードから追加・編集できます。", "group-meta"));
+section.append(node("h3", "チームのメンバー"), node("p", "名前・役割・メールアドレスを登録。Driveの編集者と一致すると登録名で表示します。", "group-meta"));
 const cards = node("div", undefined, "drive-groups");
 const choose = node("select");
 choose.setAttribute("aria-label", "メンバーを管理するチーム");
@@ -24,6 +24,7 @@ const dialog = node("dialog", undefined, "progress-dialog");
 dialog.setAttribute("aria-labelledby", "memberHeading");
 dialog.innerHTML = `<div class="group-card-top"><h2 id="memberHeading">メンバーを編集</h2><button type="button" aria-label="メンバー編集を閉じる">×</button></div><p>このダッシュボード内の名簿です。Driveの共有権限や元資料は変更しません。1チーム40人まで、表示順は追加順です。</p><form><div class="member-editor-list"></div><button type="button" class="button" data-add>メンバーを追加</button><p role="status"></p><button type="submit" class="button button-primary">メンバーを保存</button></form>`;
 document.body.append(dialog);
+dialog.querySelector("p").append(" メールは任意です。Driveから取得できた編集者のメールと完全一致した場合だけ名前を表示します。同じメールに異なる名前がある場合やメール非公開の場合はGoogleの表示名を使います。メール情報が未取得の資料はDriveの更新後に反映されます。");
 const form = dialog.querySelector("form"), rows = dialog.querySelector(".member-editor-list"), message = dialog.querySelector('[role="status"]');
 let state, save, current, members = [], busy = false, saving = false;
 const dirty = () => current && JSON.stringify(members) !== JSON.stringify(current.members || []);
@@ -46,9 +47,10 @@ function renderRows() {
   members.forEach((member, index) => {
     const row = node("fieldset", undefined, "member-editor-row");
     row.append(node("legend", "メンバー " + (index + 1)));
-    for (const [key, label, max] of [["name", "名前", 80], ["role", "役割", 40], ["note", "担当・メモ", 160]]) {
+    for (const [key, label, max] of [["name", "名前", 80], ["role", "役割", 40], ["email", "メールアドレス", 254], ["note", "担当・メモ", 160]]) {
       const field = node("label", label), input = node("input");
-      input.value = member[key]; input.maxLength = max; input.required = key === "name";
+      input.value = member[key] || ""; input.maxLength = max; input.required = key === "name";
+      if (key === "email") { input.type = "email"; input.autocomplete = "off"; }
       input.setAttribute("aria-label", `メンバー${index + 1}の${label}`);
       input.oninput = () => { member[key] = input.value; message.textContent = "変更は未保存です。"; };
       field.append(input); row.append(field);
@@ -70,7 +72,7 @@ dialog.querySelector('[data-add]').onclick = () => {
 };
 form.onsubmit = async event => {
   event.preventDefault(); if (saving || !current) return;
-  const draft = { ...current, expectedRevision: current.revision, members: structuredClone(members) };
+  const draft = { ...current, expectedRevision: current.revision, members: members.map(member => ({...member,...(member.email !== undefined ? {email:member.email.trim().toLowerCase()} : {})})) };
   saving = true;
   for (const control of dialog.querySelectorAll("input,button")) control.disabled = true;
   try {

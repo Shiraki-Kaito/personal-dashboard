@@ -436,3 +436,15 @@ test('不正な名簿と人数上限を拒否し、既存保存を変えない',
  assert.deepEqual(normalizeGroupStore({scope:'root:true',records:[saved]}).records[0].members,[member]);
  assert.deepEqual(normalizeGroupStore({scope:'root:true',records:[{...saved,members:undefined}]}).records[0].members,[]);
 });
+
+test('メールを正規化して保存し、旧フォームで保持、明示解除と不正入力を区別する',async()=>{
+ const s=memory(),member={id:crypto.randomUUID(),name:'試験',role:'メンバー',note:''};
+ const first=await saveDriveGroup(s,{...input(),members:[{...member,email:' Member@Example.test '}]});
+ assert.equal(first.members[0].email,'member@example.test');
+ const legacy=await saveDriveGroup(s,{...input(),expectedRevision:first.revision,members:[member]});
+ assert.equal(legacy.members[0].email,'member@example.test');
+ for(const email of ['invalid',42,null,'a'.repeat(255)+'@example.test']) await assert.rejects(saveDriveGroup(s,{...input(),expectedRevision:legacy.revision,members:[{...member,email}]}));
+ assert.equal(normalizeGroupStore(await s.get('drive:groups')).records[0].members[0].email,'member@example.test');
+ const cleared=await saveDriveGroup(s,{...input(),expectedRevision:legacy.revision,members:[{...member,email:''}]});
+ assert.equal(cleared.members[0].email,'');
+});

@@ -1,4 +1,5 @@
 import { normalizeGroupStore } from "./drive-groups.js";
+import { memberEmail } from "./drive-member-identity.js";
 import { normalizeNoteTaskLinks } from "./note-task-links.js";
 import { normalizeGroupDisplay } from "./drive-group-display.js";
 import { normalizeMeetingStore } from "./drive-meetings.js";
@@ -25,6 +26,7 @@ const fileKeys = [
   "createdTime",
   "modifiedTime",
   "lastModifiedBy",
+  "lastModifiedEmail",
   "folder",
 ];
 const changeKeys = [
@@ -193,7 +195,8 @@ async function restoreEntries(env, storage, backup) {
         !Number.isFinite(Date.parse(file.modifiedTime)) ||
         !Number.isFinite(Date.parse(file.createdTime)) ||
         (file.lastModifiedBy !== undefined && file.lastModifiedBy !== null &&
-          (typeof file.lastModifiedBy !== "string" || file.lastModifiedBy.length > 200))
+          (typeof file.lastModifiedBy !== "string" || file.lastModifiedBy.length > 200)) ||
+        (file.lastModifiedEmail !== undefined && file.lastModifiedEmail !== null && !memberEmail(file.lastModifiedEmail))
       )
         throw new InputError("Driveのファイル情報が不正です");
     for (const change of value.unreadChanges)

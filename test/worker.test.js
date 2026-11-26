@@ -83,7 +83,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "sync",
       "catalog",
       "drive",
-      "drive-groups",
+      "drive-groups", "drive-member-identity",
       "drive-group-display",
       "drive-review",
       "drive-history",

@@ -1,4 +1,5 @@
 import { groupView } from "./drive-groups.js";
+import { memberEmail, driveEditorResolver } from "./drive-member-identity.js";
 import { groupDisplayView } from "./drive-group-display.js";
 import { isPersonalWork } from "./drive-review.js";
 export { isPersonalWork } from "./drive-review.js";
@@ -85,7 +86,7 @@ async function advanceScan(config, job, read) {
     const parameters = {
       q: "'" + folder.id + "' in parents and trashed = false",
       fields:
-        "nextPageToken,incompleteSearch,files(id,name,mimeType,createdTime,modifiedTime,parents,lastModifyingUser(displayName))",
+        "nextPageToken,incompleteSearch,files(id,name,mimeType,createdTime,modifiedTime,parents,lastModifyingUser(displayName,emailAddress))",
       pageSize: "1000",
       supportsAllDrives: "true",
       includeItemsFromAllDrives: "true",
@@ -133,6 +134,7 @@ async function advanceScan(config, job, read) {
           mimeType: file.mimeType,
           createdTime: file.createdTime,
           modifiedTime: file.modifiedTime,
+          lastModifiedEmail: memberEmail(file.lastModifyingUser?.emailAddress),
           lastModifiedBy: typeof file.lastModifyingUser?.displayName === "string"
             ? file.lastModifyingUser.displayName.trim().slice(0, 200) || null
             : null,
@@ -216,7 +218,11 @@ export async function driveView(env, storage, now = Date.now()) {
   let job = await storage.get("drive:job");
   const currentFiles = new Map((cache?.files || []).map(file => [file.id, file]));
   if (!config || job?.scope !== configKey(config)) job = null;
-  const groups=groupView(cache, await storage.get("drive:groups"));
+  const savedGroups = await storage.get("drive:groups");
+  const resolveEditor = driveEditorResolver(cache, savedGroups);
+  // 表示用の複製にだけ登録名を適用し、Google由来の保存情報は保持する。
+  if (cache) cache = {...cache, files: cache.files.map(resolveEditor)};
+  const groups=groupView(cache, savedGroups);
   return {
     groups,
     groupDisplay:groupDisplayView(config ? configKey(config) : null,groups,await storage.get("drive:groupDisplay")),
@@ -240,9 +246,10 @@ export async function driveView(env, storage, now = Date.now()) {
     unreadChanges: unreadChanges(cache).map((file) => {
       const current = currentFiles.get(file.id);
       // 同じ更新時刻のスナップショットだけ補完する。新しい更新者を過去の検知に付けない。
-      const enriched = current?.modifiedTime === file.modifiedTime && current?.lastModifiedBy
-        ? { ...file, lastModifiedBy: current.lastModifiedBy }
-        : file;
+      const enriched = resolveEditor(current && current.modifiedTime === file.modifiedTime
+        ? { ...file, ...(current.lastModifiedBy ? {lastModifiedBy:current.lastModifiedBy} : {}),
+            ...(current.lastModifiedEmail != null ? {lastModifiedEmail:current.lastModifiedEmail} : {}) }
+        : file);
       return isPersonalWork(enriched) ? { ...enriched, personal: true } : enriched;
     }),
     changesKnown: cache?.viewVersion === 3,
