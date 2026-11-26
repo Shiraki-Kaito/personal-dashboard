@@ -51,3 +51,6 @@ https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams
 425件のWeb回帰テスト成功。追加で閾値、時間窓、重複抑制、保存障害、送信結果不明、明示拒否時の待機/上限、秘密混入防止、誤パスフレーズ、改変、8MiB境界を確認。
 架空データの作成→暗号化→JSON保存形へ変換→復号→プレビュー→空メモリ保存先への復元→既存上書き拒否を通しで確認。所要628ms（1回、Node24.22.3、実災害RTOではない）。既存Miniflare SQLite再起動試験も成功。
 実メール送信、実受信箱到達、通常ブラウザーでの暗号化ダウンロード/復号操作、本番反映は未実施。
+
+GitHub CI: コードcommit 76ba16c、run 45780291351で全段階成功（npm ci/audit/test/build、静的検査、秘密検査、Gitleaks）。
+https://github.com/Shiraki-Kaito/personal-dashboard/actions/runs/45780291351
