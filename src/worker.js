@@ -246,6 +246,7 @@ export class Dashboard extends DurableObject {
         "/backup-ui.js",
         "/backup-format.js",
         "/style.css",
+        "/workspace-design.css",
         "/drive-ui.js",
         "/drive-groups-ui.js",
         "/drive-members-ui.js",

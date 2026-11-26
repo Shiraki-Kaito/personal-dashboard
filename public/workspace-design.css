@@ -1,0 +1,179 @@
+/* 表示専用。データ取得、件数、表示条件、保存処理は変更しない。 */
+:root {
+  --bg:#f6f7f9; --panel:#fff; --text:#202938; --muted:#596579;
+  --faint:#657186; --border:#dfe4eb; --line:#e9edf2;
+  --mint:#216e60; --blue:#315eae; --radius:14px;
+  font-family:"DM Sans","Yu Gothic UI","Meiryo",sans-serif;
+  font-size:15px;
+}
+body { background:var(--bg); }
+.sidebar { --text:#202938; --muted:#596579; --faint:#657186; --mint:#216e60; background:#fff; border-right:1px solid var(--border); padding:28px 16px 20px; }
+.sidebar .brand { color:var(--muted); padding:0 10px 32px; }
+.sidebar .brand strong,.sidebar .profile strong { color:var(--text); }
+.sidebar .brand-mark { transform:none; gap:3px; }
+.sidebar .brand-mark i { background:#216e60; border-radius:3px; }
+.sidebar .nav-button { color:#526075; border:1px solid transparent; border-radius:9px; min-height:46px; font-size:14px; padding:10px 12px; }
+.sidebar .nav-button:hover { background:#f3f5f7; color:#202938; }
+.sidebar .nav-button.active { color:#175b4f; background:#eaf3ef; border-color:#d9e9e2; font-weight:650; }
+.sidebar .nav-count { color:inherit; background:#f1f4f6; border-radius:6px; padding:1px 6px; font-size:12px; }
+.sidebar .nav-button.active .nav-count { background:#dcece4; }
+.sidebar .nav-symbol { color:inherit; font-size:19px; }
+.sidebar .service-small,.sidebar .logout-button,.sidebar .profile div>span { color:#647184; font-size:12px; }
+.sidebar .profile { border-color:var(--line); padding-top:18px; }
+.sidebar .avatar { background:#eaf3ef; color:#216e60; border:1px solid #d7e5df; }
+.compact-enabled .workspace { padding:24px 32px; gap:20px; }
+.compact-enabled .topbar { min-height:44px; padding-bottom:14px; border-bottom:1px solid var(--border); }
+.compact-enabled .topbar .eyebrow { font-size:13px; font-weight:550; color:var(--muted); }
+.compact-enabled .topbar h1 { font-size:24px; letter-spacing:-.03em; margin-top:6px; }
+.top-actions { flex-wrap:wrap; }
+.button,.icon-button,.save-button { border-radius:8px; box-shadow:0 1px 2px #18243a05; }
+.button { padding:9px 14px; font-size:13px; font-weight:550; min-height:40px; }
+.button-primary,.save-button { background:#216e60; border-color:#216e60; color:#fff; }
+.button-primary:hover:not(:disabled),.save-button:hover:not(:disabled) { background:#195748!important; }
+.button-secondary { background:#fff; color:var(--text); }
+.icon-button { min-width:38px; min-height:38px; background:#f8fafb; }
+input:not([type="checkbox"]):not([type="radio"]),select,textarea {
+  border:1px solid #d5dce5; border-radius:8px; background:#fff; color:var(--text);
+  font:inherit; font-size:14px; padding:10px 12px; line-height:1.5;
+}
+input[type="checkbox"],input[type="radio"] { accent-color:#216e60; }
+textarea { resize:vertical; }
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible {
+  outline:3px solid #75a99c; outline-offset:3px;
+}
+.panel { border:1px solid var(--border); border-radius:14px; box-shadow:0 2px 5px #18243a03; }
+.panel-heading { padding:22px 24px 16px; }
+.panel-heading h2 { font-size:18px; }
+.panel-heading p,.panel-footer { color:var(--muted); }
+.panel-footer { background:#fafbfc; border-top:1px solid var(--line); }
+.panel-toolbar { gap:12px; padding:16px 24px; }
+.segmented { background:#eff2f5; border:1px solid #e6eaf0; border-radius:9px; padding:3px; }
+.segmented button { border-radius:6px; font-size:12px; padding:8px 12px; }
+.segmented button.selected,.segmented button[aria-pressed="true"] { color:#205f52; background:#fff; box-shadow:0 1px 4px #152d3510; }
+
+/* ホームの4つの入口は維持し、概要の行にもまとまりを持たせる。 */
+.compact-enabled[data-view="home"] #homeOverview { gap:20px; }
+.overview-tile { border:1px solid var(--border); border-radius:14px; padding:24px; gap:20px; box-shadow:0 2px 4px #18243a04; position:relative; }
+.overview-tile:hover { border-color:#91b5a8; background:#fff; box-shadow:0 4px 16px #20392e09; }
+.overview-tile-title { font-size:18px; letter-spacing:-.02em; padding-bottom:14px; border-bottom:1px solid var(--line); }
+.overview-count { color:#40526a; background:#f0f3f7; border-radius:7px; font-size:14px; min-width:30px; padding:3px 9px; }
+.overview-lines { gap:10px; grid-auto-rows:max-content; align-content:start; }
+.overview-line { display:block; max-height:3.5em; padding:0 12px; border-left:2px solid #dfe6ed; border-radius:0; background:transparent; font-size:14px; line-height:1.75; }
+.overview-hint { font-size:12px; color:#657186; padding-top:10px; }
+[data-overview="mail"] { border-top:3px solid #498773; }
+[data-overview="calendar"] { border-top:3px solid #6b87ba; }
+[data-overview="tasks"] { border-top:3px solid #8795a9; }
+[data-overview="drive"] { border-top:3px solid #9a87b3; }
+[data-overview="drive"] .overview-lines { gap:10px; }
+[data-overview="drive"] .overview-line { font-size:13px; padding:0 12px; border-left:3px solid var(--group-accent,#9a87b3); background:var(--group-tint,#f7f6fa); }
+.overview-warning { border-radius:7px; font-size:12px; }
+.overview-warning.overview-information { background:#f1f5f9; border-color:#dce4ee; color:#52657c; }
+
+/* Driveは見出し・カード・一覧の左右端と余白をそろえる。 */
+.compact-enabled .drive-group-section { margin:8px 24px 24px; }
+.drive-group-section h3,.drive-members-section>h3 { font-size:17px; letter-spacing:-.02em; }
+.drive-groups { gap:14px; }
+.drive-group-card[data-group-color] { background:#fff; border-top:3px solid var(--group-accent); border-radius:12px; box-shadow:none; }
+.group-block { padding:20px; gap:10px; min-height:168px; border-radius:10px; }
+.group-block:hover { background:var(--group-tint); }
+.group-card-top { gap:12px; }
+.group-card-top h3 { font-size:15px; line-height:1.5; color:var(--group-accent,var(--text)); }
+.group-status { background:var(--group-tint,#f3f5f7); border:1px solid var(--line); color:#536174; font-size:11px; padding:4px 8px; border-radius:6px; }
+.group-block .group-next { font-size:14px; font-weight:500; line-height:1.6; }
+.group-block .group-meta { font-size:12px; line-height:1.6; color:#657186; }
+.drive-visibility { padding:12px 0; margin-top:12px; border-top:1px solid var(--line); }
+summary { cursor:pointer; line-height:1.6; }
+.drive-visibility>summary { font-size:13px; color:var(--muted); }
+.group-filter { margin:0 24px 16px; font-size:13px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.list-columns { background:#f8fafb; border-block:1px solid var(--line); font-size:12px; color:#697589; }
+.file-row[data-group-color] { background:#fff; border-left:3px solid var(--group-accent); border-radius:8px; margin:6px 0; }
+.file-row[data-group-color]:hover { background:var(--group-tint); }
+.file-row,.task-row { padding-block:16px; }
+.file-title,.task-title { font-size:14px; font-weight:550; }
+.drive-members-section { margin:24px; padding-top:24px; }
+.compact-enabled .drive-group-card.member-team { padding:20px; }
+.member-team h4 { font-size:15px; margin:0; }
+.member-team .member-list { gap:8px; margin:12px 0; }
+.member-list li { background:var(--group-tint); border-left:0; padding:12px; border-radius:8px; }
+.member-list strong { font-size:15px; }
+.member-list span { font-size:12px; }
+.member-team>.button { align-self:flex-start; margin-top:12px; }
+.member-editor-row { background:#fafbfc; padding:16px; border-radius:10px; }
+.progress-dialog .member-editor-row label { display:grid; align-items:start; gap:6px; }
+.progress-dialog:has(.member-editor-list)>.group-card-top { position:sticky; top:-16px; z-index:2; padding:12px 0; background:#fff; border-bottom:1px solid var(--line); }
+.progress-dialog button[aria-label="メンバー編集を閉じる"] { min-width:38px; min-height:38px; border-radius:8px; background:#f3f5f7; }
+.progress-section { padding:20px 24px 12px; }
+.report-type-card { background:#f8fafb; border-radius:10px; padding:16px 18px; gap:6px; }
+.report-type-card strong { font-size:15px; }
+
+/* 詳細の見出しと閉じる操作を揃え、項目間の境界を明瞭にする。 */
+dialog { color:var(--text); }
+.overview-dialog,.detail-dialog,.settings-dialog,.progress-dialog { border:1px solid #dce2e9; border-radius:16px; box-shadow:0 24px 80px #1a26352e; }
+dialog::backdrop { background:#14213465; backdrop-filter:blur(4px); }
+.overview-frame { padding:24px; }
+.overview-dialog-header { padding:0 0 16px; margin-bottom:16px; border-bottom:1px solid var(--line); top:0; }
+.overview-dialog-header h2,.dialog-top h2 { font-size:20px; letter-spacing:-.025em; }
+.overview-dialog-actions { margin-bottom:20px; }
+.suggestion-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:20px; box-shadow:none; }
+.suggestion-title { font-size:18px; line-height:1.65; }
+.suggestion-case { color:#527363; }
+.suggestion-timing { border-radius:8px; background:#f8fafb; }
+.calendar-event,#calendarEvents .calendar-event { background:#f8fafc; border:1px solid #e0e6ef; border-left:3px solid #7892ba; border-radius:10px; padding:18px; }
+.calendar-event h3 { font-size:15px; line-height:1.6; }
+.agenda-overview .overview-tile { min-height:240px; }
+.agenda-tools { margin:20px 24px 0; padding-top:12px; }
+.notes-workspace { background:#fff; border-radius:12px; }
+.notes-row { padding:16px; border-bottom-color:var(--line); }
+.notes-row:hover,.notes-row[aria-pressed="true"] { background:#f0f6f3; }
+.notes-reader { padding:24px; line-height:1.85; }
+.notes-settings { background:#fafbfc; border-color:var(--border); }
+@media(min-width:901px) {
+  .compact-enabled .sidebar { width:216px; }
+  .compact-enabled .workspace { margin-left:216px; }
+}
+@media(min-width:1100px) and (min-height:600px) {
+  .compact-enabled[data-view="home"] #homeOverview { grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); }
+}
+@media(max-width:900px) {
+  .sidebar { background:#fff; border-top:1px solid var(--border); padding:8px; }
+  .sidebar .nav-button { min-height:48px; padding:6px; font-size:11px; gap:4px; }
+  .compact-enabled .workspace { padding:16px 14px 96px; gap:14px; }
+  .compact-enabled[data-view="home"] .workspace { padding:14px; height:calc(100dvh - 76px); gap:12px; }
+  .compact-enabled .topbar { min-height:42px; padding-bottom:10px; }
+  .compact-enabled[data-view="home"] #homeOverview { gap:10px; }
+  .overview-tile { padding:14px; gap:10px; border-radius:12px; }
+  .overview-tile-title { font-size:14px; gap:6px; padding-bottom:8px; }
+  .overview-count { font-size:12px; min-width:24px; padding:2px 6px; }
+  .overview-line { padding:0 8px; font-size:12px; line-height:1.6; max-height:3.2em; }
+  .overview-hint { font-size:11px; padding-top:4px; }
+  [data-overview="drive"] .overview-line { font-size:11px; padding:5px 7px; -webkit-line-clamp:1; }
+  .compact-enabled .drive-group-section { margin:8px 16px 20px; }
+  .drive-members-section { margin:20px 16px; }
+  .progress-section { padding:16px; }
+  .group-filter { margin:0 16px 14px; }
+  .group-block { padding:16px; min-height:160px; }
+  .panel-toolbar,.panel-heading { padding-inline:16px; }
+  .overview-frame { padding:16px; }
+  .overview-dialog-header h2 { font-size:18px; }
+}
+@media(max-width:600px) {
+  .compact-enabled[data-view="home"] #homeOverview { grid-template-columns:1fr; grid-template-rows:repeat(4,minmax(0,1fr)); }
+  #homeOverview .overview-tile { padding:10px 14px; gap:6px; }
+  #homeOverview .overview-tile-title { padding-bottom:4px; font-size:14px; }
+  #homeOverview .overview-lines { gap:5px; }
+  #homeOverview .overview-line { max-height:1.6em; }
+  #homeOverview .overview-hint { padding-top:0; }
+  #homeOverview [data-overview="drive"] .overview-lines { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #homeOverview [data-overview="drive"] .overview-line { padding:0 7px; background:transparent; }
+  .compact-enabled .agenda-overview { grid-template-columns:1fr; }
+  .agenda-overview .overview-tile { min-height:180px; }
+  .overview-dialog .home-drive-teams { grid-template-columns:1fr; }
+  .progress-dialog { padding:16px; }
+  .member-editor-row { grid-template-columns:1fr; }
+}
+@media(max-height:560px) {
+  .overview-tile { padding:12px; gap:8px; }
+  .overview-tile-title { padding-bottom:6px; }
+  .overview-line { padding:0 9px; max-height:1.75em; }
+}
+@media(prefers-reduced-motion:reduce) { .overview-tile,.nav-button { transition:none; } }
