@@ -18,7 +18,7 @@ export function driveEditorResolver(cache, groups) {
   return file => {
     const matches = names.get(memberEmail(file.lastModifiedEmail));
     // 別名で重複登録されている場合、チームや表示名から本人を推測しない。
-    if (matches?.size !== 1) return file;
+    if (matches?.size !== 1) return { ...file, editorNameSource: !memberEmail(file.lastModifiedEmail) ? "email-unavailable" : matches?.size > 1 ? "ambiguous" : "unregistered" };
     return { ...file, lastModifiedBy: [...matches][0], originalLastModifiedBy: file.lastModifiedBy, editorNameSource: "member" };
   };
 }

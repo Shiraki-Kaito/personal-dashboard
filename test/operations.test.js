@@ -82,7 +82,7 @@ test("再起動後も再取得予定と未確認を保持し、成功で障害�
     now,
   );
   assert.equal(failed.errorCode, "rate");
-  assert.deepEqual(failed.unreadChanges, unread);
+  assert.deepEqual(failed.unreadChanges, unread.map(file=>({...file,editorNameSource:"email-unavailable"})));
   s = storage(s.entries());
   assert.equal(await nextAlarmAt(s, now), failed.recovery.nextAt);
   const recovered = await refreshDrive(
@@ -101,7 +101,7 @@ test("再起動後も再取得予定と未確認を保持し、成功で障害�
   );
   assert.equal(recovered.error, null);
   assert.equal(recovered.recovery, null);
-  assert.deepEqual(recovered.unreadChanges, unread);
+  assert.deepEqual(recovered.unreadChanges, unread.map(file=>({...file,editorNameSource:"email-unavailable"})));
   assert.deepEqual(
     recovered.runHistory.map((run) => [run.source, run.outcome, run.errorCode]),
     [

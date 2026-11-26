@@ -9,7 +9,7 @@ const group={path:file.folder,name:'SNS',color:'blue',status:'未設定',nextAct
 test('メール完全一致・非公開・重複・範囲変更を区別し、元情報を書き換えない',()=>{
  assert.equal(memberEmail(' Member@Example.Test '),email);
  assert.equal(memberEmail('wrong'),null);
- const saved={scope:'root:true',records:[group]};
+ const saved={scope:'root:true',records:[{...group,members:[member]}]};
  const resolve=driveEditorResolver({scope:'root:true'},saved);
  assert.equal(resolve(file).lastModifiedBy,'登録名');
  assert.equal(resolve(file).originalLastModifiedBy,'Google表示名');
@@ -24,7 +24,7 @@ test('メール完全一致・非公開・重複・範囲変更を区別し、�
 });
 test('一覧・最近の更新・重要資料・同時刻の未確認へ反映し、過去の人物は混ぜない',async()=>{
  const cache={scope:'root:true',files:[file],unreadChanges:[{...file,lastModifiedEmail:undefined}],viewVersion:3};
- const values=new Map([['drive:cache',cache],['drive:groups',{scope:'root:true',records:[group]}]]);
+ const values=new Map([['drive:cache',cache],['drive:groups',{scope:'root:true',records:[{...group,members:[member]}]}]]);
  const storage={get:async key=>structuredClone(values.get(key))};
  const env={DRIVE_CONFIG:JSON.stringify({folderId:'root',includeSubfolders:true})};
  let view=await driveView(env,storage);
@@ -35,4 +35,17 @@ test('一覧・最近の更新・重要資料・同時刻の未確認へ反映�
  assert.equal(view.unreadChanges[0].lastModifiedBy,'Google表示名');
  values.get('drive:groups').records[0].members=[];
  assert.equal((await driveView(env,storage)).files[0].lastModifiedBy,'Google表示名');
+});
+
+test('未取得・未登録・別名重複を区別し、同名重複は一致扱いにする',()=>{
+ const saved={scope:'root:true',records:[{...group,members:[member]}]};
+ const resolve=driveEditorResolver({scope:'root:true'},saved);
+ assert.equal(resolve(file).editorNameSource,'member');
+ assert.equal(resolve({...file,lastModifiedEmail:null}).editorNameSource,'email-unavailable');
+ assert.equal(resolve({...file,lastModifiedEmail:'other@example.test'}).editorNameSource,'unregistered');
+ saved.records.push({...group,members:[{...member,name:'別人'}]});
+ assert.equal(driveEditorResolver({scope:'root:true'},saved)(file).editorNameSource,'ambiguous');
+ saved.records[1].members[0].name=member.name;
+ assert.equal(driveEditorResolver({scope:'root:true'},saved)(file).editorNameSource,'member');
+ assert.equal(driveEditorResolver({scope:'other:true'},saved)(file).editorNameSource,'unregistered');
 });

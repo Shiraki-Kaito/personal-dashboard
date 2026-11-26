@@ -17,7 +17,11 @@ manage.type = "button";
 const more = node("details");
 more.append(node("summary", "その他のチームを選ぶ"), choose, manage);
 const result = node("p"); result.setAttribute("role", "status");
-section.append(cards, more, result);
+const identityDetails = node("details");
+identityDetails.append(node("summary", "編集者名の照合状況"));
+const identityStatus = node("p", "", "group-meta");
+identityDetails.append(identityStatus);
+section.append(cards, more, identityDetails, result);
 document.getElementById("drivePanel").append(section);
 
 const dialog = node("dialog", undefined, "progress-dialog");
@@ -89,6 +93,11 @@ form.onsubmit = async event => {
 manage.onclick = () => edit(state?.groups.find(group => group.path === choose.value));
 export function renderDriveMembers(next, apiSave, isBusy) {
   state = next; save = apiSave; busy = isBusy;
+  const files = state.files || [];
+  const count = source => files.filter(file => file.editorNameSource === source).length;
+  identityStatus.textContent = files.length
+    ? `取得済み資料 ${files.length}件：登録名 ${count("member")}件／メール未登録 ${count("unregistered")}件／メール未取得 ${count("email-unavailable")}件／別名重複 ${count("ambiguous")}件。人数ではなく資料の件数です。未登録はメンバーのメールを追加、別名重複は同じメールの名前を確認してください。メール未取得はDriveを更新しても、Google側の公開範囲によって取得できない場合があります。最終取得時刻と取得状況は上部で確認できます。`
+    : "取得済み資料がないため照合できません。Driveの接続・取得状況を確認してください。";
   const selected = choose.value;
   choose.replaceChildren(...(state.groups || []).map(group => new Option(group.name, group.path)));
   if ([...choose.options].some(option => option.value === selected)) choose.value = selected;
