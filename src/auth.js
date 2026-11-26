@@ -2,6 +2,7 @@ import { ownerId } from "./github.js";
 const flowCookie = "__Host-dashboard_flow",
   sessionCookie = "__Host-dashboard_session";
 const sessionSeconds = 12 * 60 * 60;
+export const idleMilliseconds = 30 * 60 * 1000;
 function encode(bytes) {
   return btoa(String.fromCharCode(...bytes))
     .replaceAll("+", "-")
@@ -48,6 +49,7 @@ export async function login(request, env, storage, send = fetch) {
   if (url.pathname === "/auth/login") {
     const verifier = random(),
       state = random();
+    await storage.put("auth:flow", {key:await digest(state + "." + verifier),expires:Date.now()+600000});
     const auth = new URL("https://github.com/login/oauth/authorize");
     auth.search = new URLSearchParams({
       client_id: env.GITHUB_CLIENT_ID,
@@ -68,6 +70,10 @@ export async function login(request, env, storage, send = fetch) {
     !url.searchParams.get("code")
   )
     return new Response("認可を最初からやり直してください", { status: 403 });
+  const flow = await storage.get("auth:flow");
+  if (!flow || flow.expires <= Date.now() || flow.key !== await digest(state + "." + verifier))
+    return new Response("認可を最初からやり直してください", {status:403});
+  await storage.delete("auth:flow");
   const exchange = await send("https://github.com/login/oauth/access_token", {
     method: "POST",
     headers: { Accept: "application/json" },
@@ -102,6 +108,9 @@ export async function login(request, env, storage, send = fetch) {
   await storage.setAlarm(expires);
   await storage.put("session", {
     owner: ownerId,
+    lastActivity: Date.now(),
+    generation: env.SESSION_GENERATION || "1",
+    identityCheckedAt: Date.now(),
     key: await digest(session),
     token: grant.access_token,
     expires,
@@ -111,17 +120,37 @@ export async function login(request, env, storage, send = fetch) {
     cookie(sessionCookie, session, lifetime),
   ]);
 }
-export async function authorized(request, storage) {
+export async function authorized(request, storage, env = {}, send = fetch) {
   const value = readCookie(request, sessionCookie);
   if (!value || value.length !== 43) return null;
   const session = await storage.get("session");
   if (
     !session ||
     session.owner !== ownerId ||
+    (session.generation || "1") !== (env.SESSION_GENERATION || "1") ||
     session.expires <= Date.now() ||
+    (session.lastActivity ?? session.expires - sessionSeconds * 1000) + idleMilliseconds <= Date.now() ||
     (await digest(value)) !== session.key
   )
     return null;
+  // 外部IdPの失効を最大5分で再照合。ネットワーク障害でも許可側へ倒さない。
+  if (!session.identityCheckedAt || Date.now()-session.identityCheckedAt >= 5*60*1000) {
+    const identity = await send("https://api.github.com/user", {
+      headers:{Authorization:"Bearer "+session.token,"User-Agent":"personal-dashboard"},
+      redirect:"manual",signal:AbortSignal.timeout(8000),
+    });
+    if (identity.status === 401) {
+      await storage.delete("session"); return null;
+    }
+    if (!identity.ok) throw new Error("本人認可を再確認できません");
+    if ((await identity.json()).node_id !== ownerId) {
+      await storage.delete("session"); return null;
+    }
+    session.identityCheckedAt=Date.now();
+    await storage.put("session",session);
+  }
+  if (!session.lastActivity || Date.now() - session.lastActivity >= 60000)
+    await storage.put("session", {...session,lastActivity:Date.now()});
   return session;
 }
 export async function logout(storage) {

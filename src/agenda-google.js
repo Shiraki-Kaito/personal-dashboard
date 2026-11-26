@@ -1,3 +1,4 @@
+import { readRequestJson } from "./request-security.js";
 import { googleRequest, DriveError } from "./drive-http.js";
 import { random, challenge, exchange, googleConfigured } from "./drive-auth.js";
 import { digest } from "./agenda-rules.js";
@@ -246,7 +247,7 @@ export async function agendaConnect(
   if (url.pathname === "/auth/agenda/start") {
     let label = "";
     if (request.body) {
-      const input = await request.json().catch(() => null);
+      const input = await readRequestJson(request, 16 * 1024).catch(() => null);
       if (
         !input ||
         Array.isArray(input) ||

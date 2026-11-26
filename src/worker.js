@@ -1,3 +1,4 @@
+import { readRequestJson, allowRequest, recordSecurityEvent, allowLoginRequest, pruneSecurityState } from "./request-security.js";
 import { searchNotes } from "./notes-search.js";
 import { noteDrafts } from "./note-drafts.js";
 import { noteTaskLinksView, changeNoteTaskLink } from "./note-task-links.js";
@@ -57,9 +58,12 @@ import {
 
 export default {
   async scheduled(_event, env, ctx) {
-    ctx.waitUntil(env.DASHBOARD.getByName("owner").runScheduled());
+    if (env.SECURITY_LOCKDOWN !== "true") ctx.waitUntil(env.DASHBOARD.getByName("owner").runScheduled());
   },
   async fetch(request, env) {
+    if (env.SECURITY_LOCKDOWN === "true") return new Response("一時停止中", {status:503,headers:{"Cache-Control":"no-store"}});
+    if (new URL(request.url).origin !== (env.PUBLIC_ORIGIN || "https://personal-dashboard.kait0.workers.dev"))
+      return new Response("接続先が異なります", {status:421,headers:{"Cache-Control":"no-store"}});
     const stub = env.DASHBOARD.getByName("owner");
     const response = await stub.fetch(request);
     const secured = new Response(response.body, response);
@@ -79,6 +83,7 @@ export default {
 const actions = new Set([
   "meetings",
   "session",
+  "security",
   "notes",
   "health",
   "slack",
@@ -105,6 +110,7 @@ export class Dashboard extends DurableObject {
   runScheduled() {
     return this.serialize(async () => {
       try {
+        await pruneSecurityState(this.ctx.storage);
         await queueMailSync(this.ctx.storage);
         await queueCalendarSync(this.ctx.storage);
         await queueAllSlackSync(this.ctx.storage);
@@ -116,6 +122,7 @@ export class Dashboard extends DurableObject {
     });
   }
   alarm() {
+    if (this.env.SECURITY_LOCKDOWN === "true") return Promise.resolve();
     return this.serialize(async () => {
       await this.ctx.storage.transaction(async (tx) => {
         const session = await tx.get("session");
@@ -155,7 +162,13 @@ export class Dashboard extends DurableObject {
   fetch(request) {
     return this.serialize(async () => {
       try {
-        return await this.handle(request);
+        const response = await this.handle(request);
+        const path = new URL(request.url).pathname;
+        if (path === "/auth/callback" || (path.startsWith("/api/") && (request.method === "POST" || response.status >= 400))) {
+          const action = path.slice(5);
+          await recordSecurityEvent(this.ctx.storage,{route:path === "/auth/callback" ? "login" : actions.has(action) ? action : "unknown",method:request.method === "POST" ? "POST" : "GET",status:response.status});
+        }
+        return response;
       } finally {
         await scheduleAlarm(this.ctx.storage);
       }
@@ -177,8 +190,11 @@ export class Dashboard extends DurableObject {
       request.method === "GET" &&
       ["/auth/login", "/auth/callback"].includes(pathname)
     )
+    {
+      if (!await allowLoginRequest(request, storage)) return new Response("しばらく待って再試行してください", {status:429,headers:{"Retry-After":"60"}});
       return login(request, this.env, storage);
-    const session = await authorized(request, storage);
+    }
+    const session = await authorized(request, storage, this.env);
     if (!session) {
       if (pathname === "/" && request.method === "GET")
         return new Response(
@@ -269,17 +285,18 @@ export class Dashboard extends DurableObject {
     if (
       ["drive", "home", "backup", "agenda", "slack", "notes", "meetings"].includes(action)
         ? !["GET", "POST"].includes(request.method)
-        : request.method !== (["state", "health", "session"].includes(action) ? "GET" : "POST")
+        : request.method !== (["state", "health", "session", "security"].includes(action) ? "GET" : "POST")
     )
       return new Response(null, { status: 405 });
+    if (!await allowRequest(storage, "owner-api", 120)) return new Response("しばらく待って再試行してください", {status:429,headers:{"Retry-After":"60"}});
     let input = {};
     if (request.method === "POST") {
       if (request.headers.get("Content-Type") !== "application/json")
         return new Response(null, { status: 415 });
       try {
-        input = await request.json();
-      } catch {
-        return new Response(null, { status: 400 });
+        input = await readRequestJson(request);
+      } catch (error) {
+        return Response.json({error:error.message}, { status: error.status || 400 });
       }
       if (!input || typeof input !== "object" || Array.isArray(input))
         return new Response(null, { status: 400 });
@@ -304,6 +321,7 @@ export class Dashboard extends DurableObject {
         if(input.action==="weekly") return Response.json(await generateWeekly(this.env,storage,scope,input));
         throw new InputError("会議記録の操作が不正です");
       }
+      if (action === "security") return Response.json({events:((await storage.get("security:audit")) || []).filter(event=>event.at > Date.now()-7*24*60*60*1000)});
       if (action === "session") return Response.json({expiresAt:session.expires});
       if (action === "health") return Response.json(await healthView(this.env, storage));
       if (action === "notes") {

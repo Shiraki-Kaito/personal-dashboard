@@ -47,7 +47,7 @@ dialog.id = "progressDialog";
 dialog.dataset.preserveDraft = "";
 dialog.setAttribute("aria-labelledby", "progressHeading");
 dialog.innerHTML = `<div class="progress-header"><h2 id="progressHeading">進捗報告</h2><button type="button" id="progressClose" class="icon-button" aria-label="進捗報告を閉じる">×</button></div>
-<div class="progress-controls"><label>定例<select id="progressKind"><option value="personal">チーム定例</option><option value="organizer">Organizer定例</option><option value="plenary">全体定例</option></select></label><label>報告対象日<input type="date" id="progressDate"></label><label>報告者<input id="progressReporter" maxlength="40" value="白木海斗"></label><details id="progressTeamPicker"><summary id="progressTeamLabel">対象チーム</summary><button type="button" id="progressAllTeams" class="text-button">全登録チームを選択</button><div id="progressTeams"></div></details></div>
+<div class="progress-controls"><label>定例<select id="progressKind"><option value="personal">チーム定例</option><option value="organizer">Organizer定例</option><option value="plenary">全体定例</option></select></label><label>報告対象日<input type="date" id="progressDate"></label><label>報告者<input id="progressReporter" maxlength="40" value="報告者名"></label><details id="progressTeamPicker"><summary id="progressTeamLabel">対象チーム</summary><button type="button" id="progressAllTeams" class="text-button">全登録チームを選択</button><div id="progressTeams"></div></details></div>
 <div class="progress-actions"><button type="button" id="progressGenerate" class="button button-primary">進捗報告を作成</button><label>生成履歴<select id="progressHistory"><option value="">履歴を選択</option></select></label><button type="button" id="progressReload" class="text-button">履歴・資料を再取得</button></div>
 <p id="progressStatus" role="status"></p><details id="progressChecks" hidden><summary id="progressChecksHeading">確認事項</summary><div id="progressChecksBody"></div></details><div id="progressResults" class="progress-results"></div>
 <div id="progressSaveControls" hidden><label><input type="checkbox" id="progressUsed">内容・根拠・不足情報を確認し、実際にこの定例で使用した版です</label><div class="progress-actions"><button type="button" id="progressSave" class="button">下書きを保存</button><button type="button" id="progressFinalize" class="button">使用済み確定版として保存</button></div></div>
@@ -194,7 +194,7 @@ async function loadForm() {
   view = await api({ action: "reportView" });
   historyOptions();
   const defaults = view.defaults;
-  el("progressReporter").value = defaults.reporter || "白木海斗";
+  el("progressReporter").value = defaults.reporter || "";
   el("progressAliases").value = (defaults.aliases || []).join(", ");
   el("progressDate").value = date();
   el("progressStart").value = "";

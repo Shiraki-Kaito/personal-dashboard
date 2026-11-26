@@ -55,12 +55,12 @@ const document = {
     content: [
       p("2026-11-10", null, "HEADING_1"),
       p("進捗報告", 0),
-      p("白木海斗", 1),
+      p("報告者A", 1),
       p("完了", 2),
       p("過去の草案作成", 3),
       p("2026-11-17", null, "HEADING_1"),
       p("進捗報告", 0),
-      p("白木海斗", 1),
+      p("報告者A", 1),
       p("完了", 2),
       p("過去の草案作成", 3),
       p("LP草案の作成完了", 3),
@@ -80,11 +80,11 @@ const document = {
     ],
   },
 };
-const facts = documentFacts(document, source, ["白木海斗"]);
+const facts = documentFacts(document, source, ["報告者A"]);
 const request = {
   kind: "personal",
   reportDate: "2026-11-17",
-  reporter: "白木海斗",
+  reporter: "報告者A",
   aliases: [],
   startDate: null,
   endDate: "2026-11-17",
@@ -264,15 +264,15 @@ test("連絡・返信・連携確定を別集計し、同じ団体の反復連�
     id: 0,
     values: [
       ["団体名", "状態", "担当者", "段階実施日", "期限"],
-      ["団体A", "初回連絡済", "白木海斗", "2026/11/12", ""],
-      ["団体A", "初回連絡済", "白木海斗", "2026/11/13", ""],
-      ["団体A", "返信済", "白木海斗", "2026/11/14", ""],
-      ["団体B", "連携確定", "白木海斗", "2026/11/15", ""],
-      ["団体C", "連携確定", "白木海斗", "", ""],
-      ["団体D", "連携確定", "白木海斗", "2026/10/01", ""],
+      ["団体A", "初回連絡済", "報告者A", "2026/11/12", ""],
+      ["団体A", "初回連絡済", "報告者A", "2026/11/13", ""],
+      ["団体A", "返信済", "報告者A", "2026/11/14", ""],
+      ["団体B", "連携確定", "報告者A", "2026/11/15", ""],
+      ["団体C", "連携確定", "報告者A", "", ""],
+      ["団体D", "連携確定", "報告者A", "2026/10/01", ""],
     ],
   };
-  const parsed = spreadsheetFacts([sheet], source, ["白木海斗"]),
+  const parsed = spreadsheetFacts([sheet], source, ["報告者A"]),
     result = compose({ kind: "organizer", startDate: "2026-11-11" }, [
       { ...source, ...parsed },
     ]).results[0];
@@ -305,9 +305,9 @@ test("シートの未完了と完了が同じ作業で食い違う場合は上�
 });
 test("資料日付が不明な完了は更新日時で補わず、本文に名前が出るだけで本人にしない", () => {
   const result = documentFacts(
-    { body: { content: [p("完了", 0), p("白木海斗が言及した作業", 1)] } },
+    { body: { content: [p("完了", 0), p("報告者Aが言及した作業", 1)] } },
     source,
-    ["白木海斗"],
+    ["報告者A"],
   );
   assert.equal(result.facts.length, 0);
   assert.ok(result.checks.length);
@@ -317,12 +317,12 @@ test("資料日付が不明な完了は更新日時で補わず、本文に名�
         content: [
           p("2026-11-17", null, "HEADING_1"),
           p("完了", 0),
-          p("白木海斗が言及した作業", 1),
+          p("報告者Aが言及した作業", 1),
         ],
       },
     },
     source,
-    ["白木海斗"],
+    ["報告者A"],
   );
   assert.equal(withDate.facts[0].personal, false);
 });
@@ -512,7 +512,7 @@ test("Sheetsは明示範囲のGETだけを行い、範囲外・同名資料・�
               {
                 values: [
                   ["タスク", "状態", "担当者", "完了日"],
-                  ["草案作成", "完了", "白木海斗", "2026/11/17"],
+                  ["草案作成", "完了", "報告者A", "2026/11/17"],
                 ],
               },
             ],
@@ -535,7 +535,7 @@ test("Sheetsは明示範囲のGETだけを行い、範囲外・同名資料・�
     {},
     f.storage,
     [sheet],
-    ["白木海斗"],
+    ["報告者A"],
     send,
   );
   assert.equal(calls.length, 2);
@@ -546,7 +546,7 @@ test("Sheetsは明示範囲のGETだけを行い、範囲外・同名資料・�
     {},
     f.storage,
     [sheet],
-    ["白木海斗"],
+    ["報告者A"],
     async () => new Response("secret fixture", { status: 403 }),
   );
   assert.equal(denied[0].status, "unread");
@@ -583,7 +583,7 @@ test("前回使用済み版の日付を初期期間に使い、期限超過をNe
     results: [
       {
         team: teams[0],
-        text: "白木海斗\n\n完了\n別の実績\n\nNext Actions\n",
+        text: "報告者A\n\n完了\n別の実績\n\nNext Actions\n",
         items: [],
       },
     ],
@@ -620,7 +620,7 @@ test("Docsの表の断片や担当者の見出しを完了実績にせず、明�
       },
     },
     source,
-    ["白木海斗"],
+    ["報告者A"],
   );
   assert.equal(parsed.facts.length, 0);
   assert.ok(parsed.checks.some((check) => check.code === "doc_table"));
@@ -637,11 +637,11 @@ test("Docsの表の断片や担当者の見出しを完了実績にせず、明�
       },
     },
     source,
-    ["白木海斗", "白木"],
+    ["報告者A", "白木"],
   );
   assert.equal(alias.facts.length, 1);
   assert.equal(alias.facts[0].personal, true);
-  assert.equal(alias.facts[0].owner, "白木海斗");
+  assert.equal(alias.facts[0].owner, "報告者A");
 });
 
 test("同じ作業のDocs間の同日矛盾は完了へ寄せず、古い予定だけを後の実施日で解消する", () => {
@@ -682,7 +682,7 @@ test("本文の完了日と次の期限を混同せず、前回の定例日と�
       body: {
         content: [
           p("2026-11-17", null, "HEADING_1"),
-          p("白木海斗", 0),
+          p("報告者A", 0),
           p("完了", 1),
           p("草案作成 完了日 2026/11/16 締切 2026/11/21", 2),
           p("Next Actions", 1),
@@ -691,7 +691,7 @@ test("本文の完了日と次の期限を混同せず、前回の定例日と�
       },
     },
     source,
-    ["白木海斗"],
+    ["報告者A"],
   );
   assert.equal(parsed.facts[0].date, "2026-11-16");
   assert.equal(parsed.facts[0].due, "2026-11-21");
@@ -717,7 +717,7 @@ async function readSheetFixture(valueRanges, errorBody = null) {
       {},
       f.storage,
       [sheet],
-      ["白木海斗"],
+      ["報告者A"],
       async (url) => {
         if (errorBody) return Response.json(errorBody, { status: 403 });
         if (new URL(url).pathname.endsWith("batchGet"))
@@ -742,7 +742,7 @@ test("Sheetsの空白の確保領域を合算せず、返却データで上限�
     {
       values: [
         ["タスク", "状態", "担当者", "完了日"],
-        ["草案作成", "完了", "白木海斗", "2026/11/17"],
+        ["草案作成", "完了", "報告者A", "2026/11/17"],
       ],
     },
     { values: [] },
@@ -798,16 +798,16 @@ test("管理表の空欄・中止・名前のない状態をNext Actionsに変�
         id: 0,
         values: [
           ["タスク", "状態", "担当者", "完了日"],
-          ["状態未確認", "", "白木海斗", ""],
-          ["", "進行中", "白木海斗", ""],
-          ["中止した作業", "中止", "白木海斗", ""],
-          ["次の作業", "進行中", "白木海斗", ""],
-          ["作成した草案", " 完了 ", "白木海斗", "2026/11/17"],
+          ["状態未確認", "", "報告者A", ""],
+          ["", "進行中", "報告者A", ""],
+          ["中止した作業", "中止", "報告者A", ""],
+          ["次の作業", "進行中", "報告者A", ""],
+          ["作成した草案", " 完了 ", "報告者A", "2026/11/17"],
         ],
       },
     ],
     source,
-    ["白木海斗"],
+    ["報告者A"],
   );
   assert.equal(parsed.facts.length, 2);
   assert.equal(parsed.facts[0].kind, "next");

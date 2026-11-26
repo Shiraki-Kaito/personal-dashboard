@@ -68,7 +68,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       },
     });
   }
-  function boot(driveConfigured=false) {
+  function boot(driveConfigured=false, lockdown=false) {
     const modules = [
       "worker",
       "notes",
@@ -78,7 +78,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "notes-search",
       "note-task-links",
       "note-drafts",
-      "auth",
+      "auth", "request-security",
       "github",
       "sync",
       "catalog",
@@ -148,6 +148,8 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
         },
         resourcePersistencePath: persist,
         bindings: {
+          PUBLIC_ORIGIN: origin,
+          SECURITY_LOCKDOWN: lockdown ? "true" : "false",
           GOOGLE_OAUTH_PUBLISHING_STATUS: "published",
           GITHUB_CLIENT_ID: "fixture",
           GITHUB_CLIENT_SECRET: "fixture",
@@ -190,6 +192,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     return request("/auth/callback?code=test&state=" + state);
   }
   try {
+    assert.equal((await app.dispatchFetch("https://attacker.test/auth/login")).status,421);
     const policy = await request("/privacy");
     assert.equal(policy.status, 200);
     assert.equal(policy.headers.get("cross-origin-resource-policy"), "same-origin");
@@ -461,6 +464,9 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
     await request("/auth/logout", {});
     assert.equal((await request("/api/meetings")).status,401);
     assert.equal((await request("/api/state")).status, 401);
+    await app.dispose();app=boot(true,true);
+    assert.equal((await request("/api/state")).status,503);
+    assert.equal((await request("/auth/login")).status,503);
   } finally {
     await app.dispose();
     await rm(persist, { recursive: true, force: true });

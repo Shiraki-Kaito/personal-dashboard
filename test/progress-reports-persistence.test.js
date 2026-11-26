@@ -110,7 +110,7 @@ test("報告のSQLite保存は並行編集・途中障害・応答喪失・再�
         scope: "root:true",
         kind: "personal",
         reportDate: "2026-11-17",
-        reporter: "白木海斗",
+        reporter: "報告者A",
         teams: ["集客広報"],
         sources: [{ id: "doc", role: "personal" }],
         folders: [],

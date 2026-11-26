@@ -14,3 +14,6 @@ public/third-party-licenses.txt
 public/slack-app-manifest.json
 windows/.packages/
 windows/bin/
+.security-tools/
+audit-local.json
+security/asvs-5.0.0.csv

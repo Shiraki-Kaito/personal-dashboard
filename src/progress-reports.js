@@ -67,7 +67,7 @@ export async function progressReportView(storage, scope) {
       sheets: !!credential?.scopes?.includes(sheetsReadScope),
     },
     defaults: {
-      reporter: "白木海斗",
+      reporter: weekly?.ownerName || "",
       aliases: weekly?.ownerName ? [weekly.ownerName] : [],
       sources: weekly?.minutesId
         ? [{ id: weekly.minutesId, role: "personal" }]

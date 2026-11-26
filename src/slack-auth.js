@@ -1,3 +1,4 @@
+import { readRequestJson } from "./request-security.js";
 import {
   slackWorkspaceStore,
   slackWorkspaces,
@@ -93,7 +94,7 @@ export async function slackConnect(
   const url = new URL(request.url),
     redirectUri = url.origin + "/auth/slack/callback";
   if (url.pathname === "/auth/slack/start") {
-    const input = await request.json().catch(() => null);
+    const input = await readRequestJson(request, 16 * 1024).catch(() => null);
     if (
       !input ||
       (input.teamId !== undefined &&
