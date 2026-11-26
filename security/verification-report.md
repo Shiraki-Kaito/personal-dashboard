@@ -26,3 +26,7 @@ ASVS：L1/L2全253行の正式IDと対象判定を収録、個別未検証を残
 https://github.com/Shiraki-Kaito/personal-dashboard/actions/runs/45775557264
 
 本番へのデプロイ・mainへのマージは実行していない。
+
+## 優先対策の追加（2026-11-26）
+
+監視・通知制御、端末内暗号化バックアップを追加。最終425件成功、build成功。詳細と未確認範囲は[monitoring-backup.md](monitoring-backup.md)。管理者認証は本人から設定完了申告あり。送信元ドメインがなく実通知は未送信。本番未反映を継続。

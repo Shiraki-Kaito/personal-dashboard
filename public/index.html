@@ -1110,9 +1110,11 @@
           <p>
             未同期操作・Drive一覧・未確認・取得済みメールの抜粋・確認記録・予定登録記録・重要メール設定を保存します。認証情報は含みません。私的なメール情報を含むため、手元で安全に保管してください。Googleの元メール・予定そのものを複製する機能ではありません。
           </p>
-          <a class="button button-small" href="/api/backup" download
-            >バックアップを保存</a
-          >
+          <p>暗号化用の長いパスフレーズを用意してください。忘れると復元できません。端末内で暗号化し、パスフレーズはサーバーへ送りません。</p>
+          <p><label for="backupPassphrase">保存・復元のパスフレーズ（16文字以上）</label><input id="backupPassphrase" type="password" autocomplete="off" minlength="16" maxlength="1024" /></p>
+          <p><label for="backupPassphraseConfirm">保存時の確認入力</label><input id="backupPassphraseConfirm" type="password" autocomplete="off" minlength="16" maxlength="1024" /></p>
+          <button id="saveEncryptedBackup" class="button button-small" type="button">暗号化して保存</button>
+          <details><summary>従来形式（暗号化なし）</summary><p>個人情報が読める形式です。共有先へ置かないでください。</p><a class="button button-small" href="/api/backup" download>JSONを保存（暗号化なし）</a></details>
           <p><label for="backupFile">復元ファイルを選択</label></p>
           <input id="backupFile" type="file" accept="application/json,.json" />
           <p id="backupStatus" role="status">

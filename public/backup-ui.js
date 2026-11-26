@@ -1,11 +1,32 @@
 import { sessionFetch as fetch } from "./session-connection.js";
 import { confirmAction } from "./confirm.js";
 import { assertBackupEnvelope } from "./backup-format.js?v=groups1";
+import {encryptBackup,decryptBackup,isEncryptedBackup,maximumEncryptedBytes,maximumPlaintextBytes} from './backup-crypto.js';
 const fileInput = document.getElementById("backupFile"),
   status = document.getElementById("backupStatus"),
   restore = document.getElementById("restoreBackup");
 let backup = null,
   checksum = null;
+const passphrase=document.getElementById('backupPassphrase');
+const confirmation=document.getElementById('backupPassphraseConfirm');
+const save=document.getElementById('saveEncryptedBackup');
+save.onclick=async()=>{
+  save.disabled=fileInput.disabled=true;
+  try {
+    if(passphrase.value!==confirmation.value)throw Error('確認用パスフレーズが一致しません');
+    if([...passphrase.value].length<16)throw Error('パスフレーズは16文字以上にしてください');
+    const response=await fetch('/api/backup');
+    if(!response.ok)throw Error('バックアップを取得できません');
+    const plaintext=await response.text();
+    assertBackupEnvelope(JSON.parse(plaintext));
+    const encrypted=await encryptBackup(plaintext,passphrase.value);
+    const url=URL.createObjectURL(new Blob([JSON.stringify(encrypted)],{type:'application/json'}));
+    const link=document.createElement('a');link.href=url;link.download='personal-dashboard-encrypted-'+new Date().toISOString().slice(0,10)+'.json';
+    link.click();setTimeout(()=>URL.revokeObjectURL(url),60_000);
+    status.textContent='暗号化ファイルのダウンロードを開始しました。保存先とファイルの存在を確認してください。パスフレーズは別の安全な場所で保管してください。';
+  } catch(error) {status.textContent=error.message;}
+  finally {passphrase.value=confirmation.value='';save.disabled=fileInput.disabled=false;}
+};
 async function call(body) {
   const response = await fetch("/api/backup", {
     method: "POST",
@@ -21,10 +42,12 @@ fileInput.onchange = async () => {
   backup = checksum = null;
   const file = fileInput.files[0];
   if (!file) return;
-  fileInput.disabled = true;
+  fileInput.disabled = save.disabled = true;
   try {
-    if (file.size > 8 * 1024 * 1024) throw Error("上限8MiBを超えています");
-    const candidate = JSON.parse(await file.text());
+    if (file.size > maximumEncryptedBytes) throw Error("暗号化ファイルの上限12MiBを超えています");
+    let candidate = JSON.parse(await file.text());
+    if(isEncryptedBackup(candidate)) candidate=JSON.parse(await decryptBackup(candidate,passphrase.value));
+    else if(file.size>maximumPlaintextBytes)throw Error('JSONの上限8MiBを超えています');
     assertBackupEnvelope(candidate);
     const plan = await call({ preview: true, backup: candidate });
     status.textContent =
@@ -52,7 +75,9 @@ fileInput.onchange = async () => {
   } catch (error) {
     status.textContent = error.message;
   } finally {
-    fileInput.disabled = false;
+    passphrase.value=confirmation.value='';
+    fileInput.value='';
+    fileInput.disabled = save.disabled = false;
   }
 };
 restore.onclick = async () => {
@@ -64,7 +89,7 @@ restore.onclick = async () => {
     ))
   )
     return;
-  restore.disabled = fileInput.disabled = true;
+  restore.disabled = fileInput.disabled = save.disabled = true;
   try {
     const result = await call({ restore: true, backup, checksum });
     status.textContent =
@@ -74,6 +99,6 @@ restore.onclick = async () => {
   } catch (error) {
     status.textContent = error.message;
   } finally {
-    fileInput.disabled = false;
+    fileInput.disabled = save.disabled = false;
   }
 };

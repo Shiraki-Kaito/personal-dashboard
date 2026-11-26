@@ -5,7 +5,7 @@
 | ID | 判定 / 優先度 | 状態・実装と証拠 | 残作業 |
 |---|---|---|---|
 | SEC-01 | 対象 P1 | .gitignore/Workers secrets、履歴と配布テキストの限定秘密検査0件。公開画像1件と初期値に実名を発見、現行を削除・架空名化 | Git履歴の実名・旧画像は残存。履歴修正には別承認。全形式の秘密を否定する検査ではない |
-| SEC-02 | 対象 P1 | auth.js：PKCE/state、サーバー有効期限・単回使用、本人ID照合。送信元/全体の1分試行上限。auth/request-security/workerテスト | GitHub/Cloudflareのフィッシング耐性MFA・予備回復は本人回答で未設定/不明。外部IdPの方式強制は現OAuthで証明不可 |
+| SEC-02 | 対象 P1 | auth.js：PKCE/state、サーバー有効期限・単回使用、本人ID照合。送信元/全体の1分試行上限。auth/request-security/workerテスト | GitHub/Cloudflareのフィッシング耐性MFA・予備回復は本人から設定完了申告あり、独立検証未実施。外部IdPの方式強制は現OAuthで証明不可 |
 | SEC-03 | 対象 P1 | 全API前段で本人認可、対象scope/id検証、Origin検証。worker/notes/backup/agenda等の既存異常系 | ASVS全経路の独立レビューは未完了。RLSはクライアントDB直結なしのため対象外 |
 | SEC-04 | 対象 P1 | Secure/HttpOnly/SameSite=Lax、12時間最大・30分API無通信、失効世代、外部IdPを5分ごとに再照合。外部障害は拒否。authテスト | 本番の実ログイン・再認証確認未実施。アイドルは人の操作ではなくAPI通信を活動と定義。JWTは対象外 |
 | SEC-05 | 対象 P1 | JSONをストリーム上限/10秒で制限、型・対象・文字数は各モジュールで検証、動的eval不使用。request-security/既存入力テスト | 限定SASTのみで全データフロー解析は未実施 |
@@ -19,6 +19,6 @@
 | SEC-13 | 対象 P1 | 必須認証設定なしは機能停止、認可障害は503、PUBLIC_ORIGIN検証、SECURITY_LOCKDOWNでHTTP/Cron/Alarm停止、SESSION_GENERATION更新で既存Cookie失効 | 本番停止は未実施。クラウド管理権限/管理者設定の確認が残る。コンテナ/root/RLSは不使用 |
 | SEC-14 | 対象 P1 | DO直列処理・revision・結果不明時の再照合・復元transactionを既存テストで確認。予定は本人確認した内容でのみ登録 | 外部GitHub同時更新との原子性保証なし。課金/残高/在庫は不使用 |
 | SEC-15 | 対象 P1 | 同一origin CSP・frame拒否・秘密JSも本人認可後。innerHTMLは固定テンプレート、実データはtextContent | nonce/hashの必要範囲と全HTML経路の確認が残る。公開GraphQLサーバー/WebSocketはなし |
-| SEC-16 | 対象 P1 | ローカル監査・停止/失効・更新/復元手順を作成 | 外部への警告通知と実到達、独立監査保管、RTO/RPO測定は未完了。通知先は未確定 |
+| SEC-16 | 対象 P1 | ローカル監査・停止/失効・更新/復元手順を作成 | 監視/通知キューと暗号化バックアップを追加（monitoring-backup.md）。送信元ドメインなしで実到達未確認。独立監査保管・実RTO/RPOは未完了 |
 
 暫定値はsecurity/operations.md参照。P1と要調査があるため、今回候補は本番リリース不可。既存本番の停止は実行していない。

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createBackup, backupPlan, restoreBackup } from "../src/backup.js";
+import {encryptBackup,decryptBackup} from '../public/backup-crypto.js';
 const env = {
   PROJECT_CONFIG: JSON.stringify({
     projects: [
@@ -72,6 +73,23 @@ test("資格情報を読まず、未同期と未確認を選んでバックア�
   assert.equal(backup.drive.unreadChanges[0].occurrences, 2);
   assert.equal(backup.drive.files[0].lastModifiedBy, "検証担当者");
   assert.equal(JSON.stringify(backup).includes("fixture-private-value"), false);
+});
+
+test('暗号化保存から復号・プレビュー・空保存先への復元まで元APIの保護を維持する',async(t)=>{
+  const start=performance.now();
+  const backup=await createBackup(env,await fixture());
+  const password='fixture-only-long-passphrase-2026';
+  const envelope=await encryptBackup(JSON.stringify(backup),password);
+  const reopened=JSON.parse(JSON.stringify(envelope));
+  const candidate=JSON.parse(await decryptBackup(reopened,password));
+  const target=memory();
+  const plan=await backupPlan(env,target,candidate);
+  assert.equal(plan.conflicts.length,0);
+  assert.equal((await restoreBackup(env,target,candidate,plan.checksum)).restored,2);
+  assert.equal((await target.get('drive:cache')).files[0].name,'File');
+  assert.match((await target.get('task:p:task')).phase,/再照合待ち/);
+  await assert.rejects(restoreBackup(env,target,candidate,plan.checksum));
+  t.diagnostic('架空データの暗号化→復元所要時間(ms): '+Math.round(performance.now()-start));
 });
 test("空の保存先だけに復元し、既存データ・競合・確認後の変更を上書きしない", async () => {
   const backup = await createBackup(env, await fixture()),

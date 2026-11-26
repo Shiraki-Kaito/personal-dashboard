@@ -83,6 +83,20 @@ async function refreshHealth() {
         "接続状況を取得できません。本人のログイン状態を確認してください",
       );
     const result = await response.json();
+    let monitor = el("securityMonitoring");
+    if (!monitor) {
+      monitor = document.createElement("details");
+      monitor.id = "securityMonitoring";
+      el("healthSummary").after(monitor);
+    }
+    const monitoring = result.monitoring;
+    const deliveryLabels = {pending:"通知待ち",unknown:"送信結果不明・自動再送停止",accepted:"送信サービス受付済み・到達未確認",failed:"再試行上限・要確認"};
+    monitor.replaceChildren(text("summary", "セキュリティ・障害通知"),text("p",monitoring?.configured ? "通知経路は設定済みです。受信箱への到達確認とは異なります。" : "外部通知は未設定です。画面内の検知記録だけを確認できます。"));
+    if (monitoring) {
+      monitor.append(text("p",monitoring.limits));
+      for (const item of monitoring.alerts) monitor.append(text("p",`${time(item.createdAt)} · ${item.label} · ${deliveryLabels[item.status] || "要確認"}`));
+      if (!monitoring.alerts.length) monitor.append(text("p","保存期間内の検知記録はありません。未監視の管理権限・費用・鍵の利用状況まで安全と確認した表示ではありません。"));
+    }
     el("healthSummary").textContent =
       "要確認 " +
       result.attentionCount +

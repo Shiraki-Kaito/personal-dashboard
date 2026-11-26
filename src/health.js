@@ -1,4 +1,5 @@
 import { projectsFrom } from "./catalog.js";
+import { monitoringView } from "./security-monitor.js";
 import { displayAccounts } from "./agenda-labels.js";
 import { upcomingCalendarView } from "./agenda-calendar.js";
 import { driveView } from "./drive.js";
@@ -275,6 +276,7 @@ export async function healthView(env, storage, now = Date.now()) {
   return {
     checkedAt: new Date(now).toISOString(),
     externalRequests: 0,
+    monitoring: await monitoringView(env,storage,now),
     sources,
     pending,
     jobs,

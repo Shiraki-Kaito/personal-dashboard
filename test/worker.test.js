@@ -78,7 +78,7 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       "notes-search",
       "note-task-links",
       "note-drafts",
-      "auth", "request-security",
+      "auth", "request-security", "security-monitor",
       "github",
       "sync",
       "catalog",
@@ -205,6 +205,8 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       assert.equal((await request(route)).status, 401);
     assert.equal((await request("/manifest.webmanifest", {})).status, 401);
     assert.equal((await request("/api/drive")).status, 401);
+    assert.equal((await request("/api/security")).status,401);
+    assert.equal((await request("/backup-crypto.js")).status,401);
     assert.equal((await request("/api/meetings")).status, 401);
     assert.equal((await request("/api/meetings",{action:"save"})).status, 401);
     assert.equal((await request("/drive-meetings-ui.js")).status, 401);
@@ -309,6 +311,10 @@ test("Worker経由で認可、並行編集、SQLite再起動後の復旧を確�
       );
     assert.equal((await request("/api/notes", {action:"configure"}, "https://other.test")).status, 403);
     assert.equal((await request("/api/health", {})).status, 405);
+    assert.equal((await request("/api/security",{})).status,405);
+    const monitor = (await (await request("/api/security")).json()).monitoring;
+    assert.equal(monitor.configured,false);
+    assert.equal(monitor.alerts.some(item=>item.kind==='denied'),true);
     assert.equal((await (await request("/api/health")).json()).externalRequests, 0);
     const emptyNotes = await (await request("/api/notes")).json();
     assert.equal(emptyNotes.configured, false);

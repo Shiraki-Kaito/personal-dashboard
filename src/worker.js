@@ -1,4 +1,5 @@
 import { readRequestJson, allowRequest, recordSecurityEvent, allowLoginRequest, pruneSecurityState } from "./request-security.js";
+import { observeResponse, recordMonitorSignal, deliverSecurityAlert, monitoringView } from "./security-monitor.js";
 import { searchNotes } from "./notes-search.js";
 import { noteDrafts } from "./note-drafts.js";
 import { noteTaskLinksView, changeNoteTaskLink } from "./note-task-links.js";
@@ -116,8 +117,12 @@ export class Dashboard extends DurableObject {
         await queueAllSlackSync(this.ctx.storage);
         await refreshScheduledNotes(this.ctx.storage);
         await runHourlyDrive(this.env, this.ctx.storage);
+      } catch (error) {
+        await recordMonitorSignal(this.ctx.storage, "scheduled");
+        throw error;
       } finally {
-        await scheduleAlarm(this.ctx.storage);
+        try { await deliverSecurityAlert(this.env, this.ctx.storage); }
+        finally { await scheduleAlarm(this.ctx.storage); }
       }
     });
   }
@@ -154,6 +159,9 @@ export class Dashboard extends DurableObject {
             else await runNextSlackBatch(this.env, this.ctx.storage);
           }
         }
+      } catch (error) {
+        await recordMonitorSignal(this.ctx.storage, "scheduled");
+        throw error;
       } finally {
         await scheduleAlarm(this.ctx.storage);
       }
@@ -164,11 +172,15 @@ export class Dashboard extends DurableObject {
       try {
         const response = await this.handle(request);
         const path = new URL(request.url).pathname;
+        await observeResponse(this.ctx.storage,path,response.status,request.method);
         if (path === "/auth/callback" || (path.startsWith("/api/") && (request.method === "POST" || response.status >= 400))) {
           const action = path.slice(5);
           await recordSecurityEvent(this.ctx.storage,{route:path === "/auth/callback" ? "login" : actions.has(action) ? action : "unknown",method:request.method === "POST" ? "POST" : "GET",status:response.status});
         }
         return response;
+      } catch (error) {
+        await recordMonitorSignal(this.ctx.storage,"server");
+        throw error;
       } finally {
         await scheduleAlarm(this.ctx.storage);
       }
@@ -263,6 +275,7 @@ export class Dashboard extends DurableObject {
         "/slack-app-manifest.json",
         "/backup-ui.js",
         "/backup-format.js",
+        "/backup-crypto.js",
         "/style.css",
         "/workspace-design.css",
         "/drive-ui.js",
@@ -321,7 +334,7 @@ export class Dashboard extends DurableObject {
         if(input.action==="weekly") return Response.json(await generateWeekly(this.env,storage,scope,input));
         throw new InputError("会議記録の操作が不正です");
       }
-      if (action === "security") return Response.json({events:((await storage.get("security:audit")) || []).filter(event=>event.at > Date.now()-7*24*60*60*1000)});
+      if (action === "security") return Response.json({events:((await storage.get("security:audit")) || []).filter(event=>event.at > Date.now()-7*24*60*60*1000),monitoring:await monitoringView(this.env,storage)});
       if (action === "session") return Response.json({expiresAt:session.expires});
       if (action === "health") return Response.json(await healthView(this.env, storage));
       if (action === "notes") {
