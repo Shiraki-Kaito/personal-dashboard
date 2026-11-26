@@ -19,3 +19,10 @@
 検証環境：Web416件・ビルド・限定静的/秘密検査成功。Windows失敗1件あり。
 本番反映・本番確認：今回候補は未実施。依頼書のリリース停止条件（管理者MFA等）に従う。
 ASVS：L1/L2全253行の正式IDと対象判定を収録、個別未検証を残す。L2準拠と表現しない。
+
+## GitHub CIの実測結果
+
+コードcommit 4e5849aを対象に、GitHub Actions run 45775557264は全段階success。npm ci、audit、416件テスト、build、限定静的検査、履歴秘密検査、Gitleaksが成功。
+https://github.com/Shiraki-Kaito/personal-dashboard/actions/runs/45775557264
+
+本番へのデプロイ・mainへのマージは実行していない。
